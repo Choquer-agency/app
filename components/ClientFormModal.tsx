@@ -113,6 +113,7 @@ export default function ClientFormModal({
       gscSiteUrl,
       calLink: finalCalLink,
       active,
+      clientStatus: "new",
     };
 
     try {

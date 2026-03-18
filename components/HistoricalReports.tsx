@@ -115,22 +115,11 @@ export default function HistoricalReports({
   const agencyMonths = months.slice().reverse();
   const allSessions = agencyMonths.map((m) => metricsByMonth[m]?.sessions || 0);
 
-  // Pre-agency months for 12-month chart
-  const firstAgencySession = allSessions[0] || 500;
-  const preLabels = ["Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov"];
-  const preAgencyMonths = preLabels.map((label, i) => ({
-    label,
-    sessions: Math.round(firstAgencySession * (0.5 + Math.sin(i * 0.8) * 0.08 + i * 0.01)),
+  const allBarData = agencyMonths.map((m) => ({
+    label: monthName(m).slice(0, 3),
+    sessions: metricsByMonth[m]?.sessions || 0,
+    isAgency: true,
   }));
-
-  const allBarData = [
-    ...preAgencyMonths.map((p) => ({ label: p.label, sessions: p.sessions, isAgency: false })),
-    ...agencyMonths.map((m) => ({
-      label: monthName(m).slice(0, 3),
-      sessions: metricsByMonth[m]?.sessions || 0,
-      isAgency: true,
-    })),
-  ];
   const maxBar = Math.max(...allBarData.map((d) => d.sessions), 1);
 
   // Group months by year
@@ -160,15 +149,9 @@ export default function HistoricalReports({
           <div className="mb-4 bg-white rounded-xl p-4 border border-[#EDE8FF]">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[10px] text-muted font-medium uppercase tracking-wide">Organic Sessions — Month Over Month</p>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1">
-                  <div className="w-2.5 h-2.5 rounded-sm bg-[#D5D5D5]" />
-                  <span className="text-[9px] text-muted">Before Choquer</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2.5 h-2.5 rounded-sm bg-[#A69FFF]" />
-                  <span className="text-[9px] text-muted">With Choquer Agency</span>
-                </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-sm bg-[#A69FFF]" />
+                <span className="text-[9px] text-muted">With Choquer Agency</span>
               </div>
             </div>
             <div className="flex items-end gap-1.5" style={{ height: 100 }}>
@@ -286,9 +269,6 @@ function MonthItem({
   const taskCount = workLog?.length || 0;
   const hasMetrics = metrics && (metrics.sessions || metrics.impressions || metrics.notableWins?.length);
 
-  const yoySessions = metrics?.sessions ? Math.round(metrics.sessions * 0.55) : undefined;
-  const yoyImpressions = metrics?.impressions ? Math.round(metrics.impressions * 0.5) : undefined;
-
   return (
     <div>
       <button
@@ -330,11 +310,6 @@ function MonthItem({
                           {pctChange(metrics.sessions, prevMetrics.sessions) >= 0 ? "+" : ""}{pctChange(metrics.sessions, prevMetrics.sessions).toFixed(1)}% MoM
                         </span>
                       )}
-                      {yoySessions !== undefined && (
-                        <span className={`text-[10px] font-medium ${pctChange(metrics.sessions, yoySessions) >= 0 ? "text-[#0d7a55]" : "text-[#b91c1c]"}`}>
-                          {pctChange(metrics.sessions, yoySessions) >= 0 ? "+" : ""}{pctChange(metrics.sessions, yoySessions).toFixed(1)}% YoY
-                        </span>
-                      )}
                     </div>
                   </div>
                 )}
@@ -346,11 +321,6 @@ function MonthItem({
                       {prevMetrics?.impressions !== undefined && (
                         <span className={`text-[10px] font-medium ${pctChange(metrics.impressions, prevMetrics.impressions) >= 0 ? "text-[#0d7a55]" : "text-[#b91c1c]"}`}>
                           {pctChange(metrics.impressions, prevMetrics.impressions) >= 0 ? "+" : ""}{pctChange(metrics.impressions, prevMetrics.impressions).toFixed(1)}% MoM
-                        </span>
-                      )}
-                      {yoyImpressions !== undefined && (
-                        <span className={`text-[10px] font-medium ${pctChange(metrics.impressions, yoyImpressions) >= 0 ? "text-[#0d7a55]" : "text-[#b91c1c]"}`}>
-                          {pctChange(metrics.impressions, yoyImpressions) >= 0 ? "+" : ""}{pctChange(metrics.impressions, yoyImpressions).toFixed(1)}% YoY
                         </span>
                       )}
                     </div>

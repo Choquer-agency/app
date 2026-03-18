@@ -1,25 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateClient, deleteClient } from "@/lib/clients";
+import { getClientById, updateClient, deleteClient } from "@/lib/clients";
+import { syncClientMrr } from "@/lib/client-packages";
+import { getSession } from "@/lib/admin-auth";
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
-const COOKIE_NAME = "insightpulse_admin";
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!getSession(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-function isAuthed(request: NextRequest): boolean {
-  return request.cookies.get(COOKIE_NAME)?.value === ADMIN_PASSWORD;
+  try {
+    const { id } = await params;
+    // Sync MRR from packages before returning
+    await syncClientMrr(Number(id)).catch(() => {});
+    const client = await getClientById(Number(id));
+
+    if (!client) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(client);
+  } catch (error) {
+    console.error("Failed to fetch client:", error);
+    return NextResponse.json({ error: "Failed to fetch client" }, { status: 500 });
+  }
 }
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!isAuthed(request)) {
+  if (!getSession(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const { id } = await params;
     const body = await request.json();
-    const client = await updateClient(Number(id), body);
+    let client;
+
+    try {
+      client = await updateClient(Number(id), body);
+    } catch (dbError) {
+      // If columns are missing, run migrations and retry
+      if (dbError instanceof Error && dbError.message.includes("column")) {
+        const { runCrmMigration } = await import("@/lib/migrate");
+        await runCrmMigration();
+        client = await updateClient(Number(id), body);
+      } else {
+        throw dbError;
+      }
+    }
 
     if (!client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
@@ -29,7 +62,7 @@ export async function PUT(
   } catch (error) {
     console.error("Failed to update client:", error);
     return NextResponse.json(
-      { error: "Failed to update client" },
+      { error: error instanceof Error ? error.message : "Failed to update client" },
       { status: 500 }
     );
   }
@@ -39,7 +72,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!isAuthed(request)) {
+  if (!getSession(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

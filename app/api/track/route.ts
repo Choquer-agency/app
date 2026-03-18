@@ -13,6 +13,7 @@ const VALID_EVENT_TYPES = new Set([
   "cta_click",
   "keyword_sort",
   "timerange_toggle",
+  "approval_action",
 ]);
 
 const MAX_EVENTS_PER_REQUEST = 100;

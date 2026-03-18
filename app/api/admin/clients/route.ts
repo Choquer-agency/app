@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllClients, createClient } from "@/lib/clients";
 import { CreateClientInput } from "@/types";
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
-const COOKIE_NAME = "insightpulse_admin";
-
-function isAuthed(request: NextRequest): boolean {
-  return request.cookies.get(COOKIE_NAME)?.value === ADMIN_PASSWORD;
-}
+import { getSession } from "@/lib/admin-auth";
 
 export async function GET(request: NextRequest) {
-  if (!isAuthed(request)) {
+  if (!getSession(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -27,7 +21,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isAuthed(request)) {
+  if (!getSession(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -49,6 +43,32 @@ export async function POST(request: NextRequest) {
       calLink:
         body.calLink || "https://cal.com/andres-agudelo-hqlknm/15min",
       active: body.active ?? true,
+      // CRM fields
+      websiteUrl: body.websiteUrl,
+      contactName: body.contactName,
+      contactEmail: body.contactEmail,
+      contactPhone: body.contactPhone,
+      contractStartDate: body.contractStartDate,
+      contractEndDate: body.contractEndDate,
+      mrr: body.mrr,
+      country: body.country,
+      accountSpecialist: body.accountSpecialist,
+      seoHoursAllocated: body.seoHoursAllocated,
+      addressLine1: body.addressLine1,
+      addressLine2: body.addressLine2,
+      city: body.city,
+      provinceState: body.provinceState,
+      postalCode: body.postalCode,
+      clientStatus: body.clientStatus,
+      offboardingDate: body.offboardingDate,
+      industry: body.industry,
+      tags: body.tags,
+      lastContactDate: body.lastContactDate,
+      nextReviewDate: body.nextReviewDate,
+      socialLinkedin: body.socialLinkedin,
+      socialFacebook: body.socialFacebook,
+      socialInstagram: body.socialInstagram,
+      socialX: body.socialX,
     });
 
     return NextResponse.json(client, { status: 201 });

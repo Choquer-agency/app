@@ -17,7 +17,8 @@ export default function GoalsSection({ goals, quarter }: GoalsSectionProps) {
         </h2>
         <div className="space-y-2">
           {goals.map((goal) => {
-            const isComplete = goal.progress >= 100;
+            const isComplete = goal.verified && goal.progress >= 100;
+            const hasLiveData = goal.verified === true;
             return (
               <div
                 key={goal.id}
@@ -44,12 +45,19 @@ export default function GoalsSection({ goals, quarter }: GoalsSectionProps) {
                 </div>
                 <div className="flex items-center gap-4 text-xs text-[#8B5E00] ml-6">
                   <span>Target: {goal.targetMetric}</span>
+                  {hasLiveData && goal.currentValue !== undefined && (
+                    <span className="font-medium text-[#1A1A1A]">Current: {goal.currentValue.toLocaleString()}</span>
+                  )}
                   <span>Deadline: End of {quarter}</span>
-                  <span className="font-medium text-[#1A1A1A]">
-                    {isComplete ? "100%" : `${goal.progress}%`}
-                  </span>
+                  {hasLiveData ? (
+                    <span className="font-medium text-[#1A1A1A]">
+                      {isComplete ? "100%" : `${goal.progress}%`}
+                    </span>
+                  ) : (
+                    <span className="text-[#B08A45] italic">Awaiting data</span>
+                  )}
                 </div>
-                {!isComplete && (
+                {hasLiveData && !isComplete && (
                   <div className="mt-2 ml-6">
                     <div className="h-1.5 bg-[#FFD69E] rounded-full overflow-hidden">
                       <div
@@ -60,6 +68,11 @@ export default function GoalsSection({ goals, quarter }: GoalsSectionProps) {
                         }}
                       />
                     </div>
+                  </div>
+                )}
+                {!hasLiveData && (
+                  <div className="mt-2 ml-6">
+                    <div className="h-1.5 bg-[#FFD69E]/50 rounded-full" />
                   </div>
                 )}
               </div>

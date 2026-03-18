@@ -201,5 +201,12 @@ export async function getGA4KPIs(propertyId: string) {
       changePercent: pctChange(current.organicSessions, previous.organicSessions),
       format: "number" as const,
     },
+    totalSessions: {
+      label: "Sessions",
+      value: current.totalSessions,
+      previousValue: previous.totalSessions,
+      changePercent: pctChange(current.totalSessions, previous.totalSessions),
+      format: "number" as const,
+    },
   };
 }

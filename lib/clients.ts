@@ -54,15 +54,54 @@ function rowToClient(row: Record<string, unknown>): ClientConfig {
     id: row.id as number,
     name: row.name as string,
     slug: row.slug as string,
-    ga4PropertyId: row.ga4_property_id as string,
-    gscSiteUrl: row.gsc_site_url as string,
-    seRankingsProjectId: row.se_rankings_project_id as string,
-    calLink: row.cal_link as string,
-    notionPageUrl: row.notion_page_url as string,
-    notionPageId: row.notion_page_id as string,
+    ga4PropertyId: (row.ga4_property_id as string) || "",
+    gscSiteUrl: (row.gsc_site_url as string) || "",
+    seRankingsProjectId: (row.se_rankings_project_id as string) || "",
+    calLink: (row.cal_link as string) || "",
+    notionPageUrl: (row.notion_page_url as string) || "",
+    notionPageId: (row.notion_page_id as string) || "",
     active: row.active as boolean,
     createdAt: (row.created_at as Date)?.toISOString(),
     updatedAt: (row.updated_at as Date)?.toISOString(),
+    // CRM fields
+    websiteUrl: (row.website_url as string) || "",
+    contactName: (row.contact_name as string) || "",
+    contactEmail: (row.contact_email as string) || "",
+    contactPhone: (row.contact_phone as string) || "",
+    contractStartDate: row.contract_start_date
+      ? (row.contract_start_date as Date).toISOString().split("T")[0]
+      : null,
+    contractEndDate: row.contract_end_date
+      ? (row.contract_end_date as Date).toISOString().split("T")[0]
+      : null,
+    mrr: parseFloat((row.mrr as string) || "0"),
+    country: ((row.country as string) || "CA") as "CA" | "US",
+    accountSpecialist: (row.account_specialist as string) || "",
+    seoHoursAllocated: parseFloat((row.seo_hours_allocated as string) || "0"),
+    addressLine1: (row.address_line1 as string) || "",
+    addressLine2: (row.address_line2 as string) || "",
+    city: (row.city as string) || "",
+    provinceState: (row.province_state as string) || "",
+    postalCode: (row.postal_code as string) || "",
+    clientStatus: ((row.client_status as string) || "active") as
+      | "new"
+      | "active"
+      | "offboarding",
+    offboardingDate: row.offboarding_date
+      ? (row.offboarding_date as Date).toISOString().split("T")[0]
+      : null,
+    industry: (row.industry as string) || "",
+    tags: (row.tags as string[]) || [],
+    lastContactDate: row.last_contact_date
+      ? (row.last_contact_date as Date).toISOString()
+      : null,
+    nextReviewDate: row.next_review_date
+      ? (row.next_review_date as Date).toISOString().split("T")[0]
+      : null,
+    socialLinkedin: (row.social_linkedin as string) || "",
+    socialFacebook: (row.social_facebook as string) || "",
+    socialInstagram: (row.social_instagram as string) || "",
+    socialX: (row.social_x as string) || "",
   };
 }
 
@@ -97,11 +136,52 @@ async function getClientsFromNotion(): Promise<ClientConfig[]> {
       notionPageUrl: pageUrl,
       notionPageId,
       active: true,
+      ...DEFAULT_CRM_FIELDS,
     };
   });
 }
 
+// Default CRM fields for Notion fallback clients
+const DEFAULT_CRM_FIELDS = {
+  websiteUrl: "",
+  contactName: "",
+  contactEmail: "",
+  contactPhone: "",
+  contractStartDate: null,
+  contractEndDate: null,
+  mrr: 0,
+  country: "CA" as const,
+  accountSpecialist: "",
+  seoHoursAllocated: 0,
+  addressLine1: "",
+  addressLine2: "",
+  city: "",
+  provinceState: "",
+  postalCode: "",
+  clientStatus: "active" as const,
+  offboardingDate: null,
+  industry: "",
+  tags: [] as string[],
+  lastContactDate: null,
+  nextReviewDate: null,
+  socialLinkedin: "",
+  socialFacebook: "",
+  socialInstagram: "",
+  socialX: "",
+};
+
 // ─── Read Operations ──────────────────────────────────────────────────────────
+
+export async function getClientById(
+  id: number
+): Promise<ClientConfig | null> {
+  if (!HAS_POSTGRES) return null;
+  const { rows } = await sql`
+    SELECT * FROM clients WHERE id = ${id} LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  return rowToClient(rows[0]);
+}
 
 export async function getActiveClients(): Promise<ClientConfig[]> {
   if (!HAS_POSTGRES) return getClientsFromNotion();
@@ -142,18 +222,28 @@ export async function createClient(
   const notionPageId = extractNotionPageId(data.notionPageUrl);
   const gscSiteUrl = normalizeGscUrl(data.gscSiteUrl);
   const ga4PropertyId = normalizeGa4Id(data.ga4PropertyId);
+  const tagsLiteral = `{${(data.tags || []).map((t) => `"${t.replace(/"/g, '\\"')}"`).join(",")}}`;
 
   const { rows } = await sql`
-    INSERT INTO clients (name, slug, ga4_property_id, gsc_site_url, cal_link, notion_page_url, notion_page_id, active)
+    INSERT INTO clients (
+      name, slug, ga4_property_id, gsc_site_url, cal_link, notion_page_url, notion_page_id, active,
+      website_url, contact_name, contact_email, contact_phone,
+      contract_start_date, contract_end_date, mrr, country, seo_hours_allocated,
+      account_specialist, address_line1, address_line2, city, province_state, postal_code,
+      client_status, offboarding_date, industry, tags, last_contact_date, next_review_date,
+      social_linkedin, social_facebook, social_instagram, social_x
+    )
     VALUES (
-      ${data.name},
-      ${slug},
-      ${ga4PropertyId},
-      ${gscSiteUrl},
-      ${data.calLink},
-      ${data.notionPageUrl},
-      ${notionPageId},
-      ${data.active}
+      ${data.name}, ${slug}, ${ga4PropertyId}, ${gscSiteUrl},
+      ${data.calLink}, ${data.notionPageUrl}, ${notionPageId}, ${data.active},
+      ${data.websiteUrl || ""}, ${data.contactName || ""}, ${data.contactEmail || ""}, ${data.contactPhone || ""},
+      ${data.contractStartDate || null}, ${data.contractEndDate || null},
+      ${data.mrr || 0}, ${data.country || "CA"}, ${data.seoHoursAllocated || 0},
+      ${data.accountSpecialist || ""}, ${data.addressLine1 || ""}, ${data.addressLine2 || ""},
+      ${data.city || ""}, ${data.provinceState || ""}, ${data.postalCode || ""},
+      ${data.clientStatus || "active"}, ${data.offboardingDate || null}, ${data.industry || ""}, ${tagsLiteral}::text[],
+      ${data.lastContactDate || null}, ${data.nextReviewDate || null},
+      ${data.socialLinkedin || ""}, ${data.socialFacebook || ""}, ${data.socialInstagram || ""}, ${data.socialX || ""}
     )
     RETURNING *
   `;
@@ -164,7 +254,6 @@ export async function updateClient(
   id: number,
   data: Partial<CreateClientInput>
 ): Promise<ClientConfig | null> {
-  // Build the update dynamically based on provided fields
   const existing = await sql`SELECT * FROM clients WHERE id = ${id}`;
   if (existing.rows.length === 0) return null;
 
@@ -186,6 +275,34 @@ export async function updateClient(
   const calLink = data.calLink ?? current.cal_link;
   const active = data.active ?? current.active;
 
+  // CRM fields
+  const websiteUrl = data.websiteUrl ?? current.website_url ?? "";
+  const contactName = data.contactName ?? current.contact_name ?? "";
+  const contactEmail = data.contactEmail ?? current.contact_email ?? "";
+  const contactPhone = data.contactPhone ?? current.contact_phone ?? "";
+  const contractStartDate = (data.contractStartDate || null) ?? current.contract_start_date ?? null;
+  const contractEndDate = (data.contractEndDate || null) ?? current.contract_end_date ?? null;
+  const mrr = data.mrr ?? parseFloat(current.mrr || "0");
+  const country = data.country ?? current.country ?? "CA";
+  const seoHoursAllocated = data.seoHoursAllocated ?? parseFloat(current.seo_hours_allocated || "0");
+  const accountSpecialist = data.accountSpecialist ?? current.account_specialist ?? "";
+  const addressLine1 = data.addressLine1 ?? current.address_line1 ?? "";
+  const addressLine2 = data.addressLine2 ?? current.address_line2 ?? "";
+  const city = data.city ?? current.city ?? "";
+  const provinceState = data.provinceState ?? current.province_state ?? "";
+  const postalCode = data.postalCode ?? current.postal_code ?? "";
+  const clientStatus = data.clientStatus ?? current.client_status ?? "active";
+  const offboardingDate = data.offboardingDate !== undefined ? (data.offboardingDate || null) : current.offboarding_date ?? null;
+  const industry = data.industry ?? current.industry ?? "";
+  const tagsArr = data.tags ?? current.tags ?? [];
+  const tagsLiteral = `{${(tagsArr as string[]).map((t: string) => `"${t.replace(/"/g, '\\"')}"`).join(",")}}`;
+  const lastContactDate = (data.lastContactDate || null) ?? current.last_contact_date ?? null;
+  const nextReviewDate = (data.nextReviewDate || null) ?? current.next_review_date ?? null;
+  const socialLinkedin = data.socialLinkedin ?? current.social_linkedin ?? "";
+  const socialFacebook = data.socialFacebook ?? current.social_facebook ?? "";
+  const socialInstagram = data.socialInstagram ?? current.social_instagram ?? "";
+  const socialX = data.socialX ?? current.social_x ?? "";
+
   const { rows } = await sql`
     UPDATE clients SET
       name = ${name},
@@ -196,6 +313,31 @@ export async function updateClient(
       notion_page_url = ${notionPageUrl},
       notion_page_id = ${notionPageId},
       active = ${active},
+      website_url = ${websiteUrl},
+      contact_name = ${contactName},
+      contact_email = ${contactEmail},
+      contact_phone = ${contactPhone},
+      contract_start_date = ${contractStartDate},
+      contract_end_date = ${contractEndDate},
+      mrr = ${mrr},
+      country = ${country},
+      seo_hours_allocated = ${seoHoursAllocated},
+      account_specialist = ${accountSpecialist},
+      address_line1 = ${addressLine1},
+      address_line2 = ${addressLine2},
+      city = ${city},
+      province_state = ${provinceState},
+      postal_code = ${postalCode},
+      client_status = ${clientStatus},
+      offboarding_date = ${offboardingDate},
+      industry = ${industry},
+      tags = ${tagsLiteral}::text[],
+      last_contact_date = ${lastContactDate},
+      next_review_date = ${nextReviewDate},
+      social_linkedin = ${socialLinkedin},
+      social_facebook = ${socialFacebook},
+      social_instagram = ${socialInstagram},
+      social_x = ${socialX},
       updated_at = NOW()
     WHERE id = ${id}
     RETURNING *

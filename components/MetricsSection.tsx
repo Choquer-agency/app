@@ -22,6 +22,7 @@ interface MetricsSectionProps {
   initialKeywords: KeywordRanking[];
   clientSlug: string;
   initialRange: DateRange;
+  cumulativeData?: { startMonth: string; sessionsChange: number } | null;
 }
 
 export default function MetricsSection({
@@ -32,6 +33,7 @@ export default function MetricsSection({
   initialKeywords,
   clientSlug,
   initialRange,
+  cumulativeData,
 }: MetricsSectionProps) {
   const [range, setRange] = useState<DateRange>(initialRange);
   const [kpis, setKpis] = useState(initialKpis);
@@ -60,13 +62,30 @@ export default function MetricsSection({
   return (
     <>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold">Performance Snapshot</h2>
+        <div>
+          <h2 className="text-base font-semibold">Performance Snapshot</h2>
+          <p className="text-[10px] text-muted mt-0.5">
+            Data as of {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+          </p>
+        </div>
         <DateRangeSelector value={range} onChange={handleRangeChange} />
       </div>
 
       {loading && <p className="text-xs text-muted mb-2">Updating metrics...</p>}
 
       <KPICards kpis={kpis} />
+
+      {cumulativeData && (
+        <div className="mb-4 bg-[#F6FFF9] border border-[#BDFFE8] rounded-xl px-4 py-3 flex items-center justify-between">
+          <p className="text-xs text-[#0d5a3f]">
+            <span className="font-medium">Since {cumulativeData.startMonth}</span>
+          </p>
+          <p className={`text-sm font-bold ${cumulativeData.sessionsChange >= 0 ? "text-[#0d7a55]" : "text-[#b91c1c]"}`}>
+            {cumulativeData.sessionsChange >= 0 ? "+" : ""}{cumulativeData.sessionsChange}% organic sessions
+          </p>
+        </div>
+      )}
+
       <TrafficCharts
         usersTimeSeries={usersTimeSeries}
         trafficChannels={trafficChannels}

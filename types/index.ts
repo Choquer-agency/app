@@ -12,6 +12,32 @@ export interface ClientConfig {
   active: boolean;
   createdAt?: string;
   updatedAt?: string;
+  // CRM fields
+  websiteUrl: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  contractStartDate: string | null;
+  contractEndDate: string | null;
+  mrr: number;
+  country: "CA" | "US";
+  accountSpecialist: string;
+  seoHoursAllocated: number;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  provinceState: string;
+  postalCode: string;
+  clientStatus: "new" | "active" | "offboarding";
+  offboardingDate: string | null;
+  industry: string;
+  tags: string[];
+  lastContactDate: string | null;
+  nextReviewDate: string | null;
+  socialLinkedin: string;
+  socialFacebook: string;
+  socialInstagram: string;
+  socialX: string;
 }
 
 // Input for creating/updating a client via admin UI
@@ -22,9 +48,117 @@ export interface CreateClientInput {
   gscSiteUrl: string;
   calLink: string;
   active: boolean;
+  // CRM fields (all optional for backward compat)
+  websiteUrl?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contractStartDate?: string;
+  contractEndDate?: string;
+  mrr?: number;
+  country?: "CA" | "US";
+  accountSpecialist?: string;
+  seoHoursAllocated?: number;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  provinceState?: string;
+  postalCode?: string;
+  clientStatus?: "new" | "active" | "offboarding";
+  offboardingDate?: string;
+  industry?: string;
+  tags?: string[];
+  lastContactDate?: string;
+  nextReviewDate?: string;
+  socialLinkedin?: string;
+  socialFacebook?: string;
+  socialInstagram?: string;
+  socialX?: string;
 }
 
-// Quarterly goals from Notion
+// Package categories
+export type PackageCategory = "seo" | "retainer" | "google_ads" | "blog" | "website" | "other";
+
+// Package (service offering)
+export interface Package {
+  id: number;
+  name: string;
+  description: string;
+  defaultPrice: number;
+  category: PackageCategory;
+  hoursIncluded: number | null;
+  includedServices: string[];
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreatePackageInput {
+  name: string;
+  description?: string;
+  defaultPrice: number;
+  category?: PackageCategory;
+  hoursIncluded?: number | null;
+  includedServices?: string[];
+  active?: boolean;
+}
+
+// Client-package assignment
+export interface ClientPackage {
+  id: number;
+  clientId: number;
+  packageId: number;
+  customPrice: number | null;
+  customHours: number | null;
+  signupDate: string;
+  contractEndDate: string | null;
+  active: boolean;
+  notes: string;
+  createdAt?: string;
+  updatedAt?: string;
+  // Joined fields for display
+  packageName?: string;
+  packageDefaultPrice?: number;
+  packageCategory?: PackageCategory;
+  packageHoursIncluded?: number | null;
+}
+
+// Client note / activity entry
+export interface ClientNote {
+  id: number;
+  clientId: number;
+  author: string;
+  noteType: "note" | "call" | "email" | "meeting" | "status_change" | "package_change" | "system";
+  content: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+// Team member
+export interface TeamMember {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  calLink: string;
+  profilePicUrl: string;
+  active: boolean;
+  createdAt?: string;
+}
+
+// Client approval requests
+export interface Approval {
+  id: number;
+  clientSlug: string;
+  title: string;
+  description: string | null;
+  status: "pending" | "approved" | "rejected";
+  feedback: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Quarterly goals (from enrichment pipeline)
 export interface QuarterlyGoal {
   id: string;
   goal: string;
@@ -32,9 +166,13 @@ export interface QuarterlyGoal {
   targetMetric: string;
   progress: number; // 0-100
   quarter: string;
+  targetMetricType?: string;
+  targetValue?: number;
+  currentValue?: number;
+  verified?: boolean; // true if progress is backed by live analytics data
 }
 
-// Work log entry from Notion
+// Work log entry (from enrichment pipeline)
 export interface WorkLogEntry {
   id: string;
   task: string;
@@ -44,6 +182,7 @@ export interface WorkLogEntry {
   monthlySummary: string;
   month: string; // ISO date string
   isPlan: boolean;
+  impact?: string;
 }
 
 // KPI card data
@@ -114,7 +253,8 @@ export interface TrackingEvent {
     | "time_on_page"
     | "cta_click"
     | "keyword_sort"
-    | "timerange_toggle";
+    | "timerange_toggle"
+    | "approval_action";
   eventDetail?: Record<string, unknown>;
   sessionId: string;
   deviceType: "mobile" | "desktop" | "tablet";

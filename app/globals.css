@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html {
+  zoom: 1.1875;
+}
+
 :root {
   /* Choquer Agency Brand */
   --background: #FFFFFF;
