@@ -3,19 +3,19 @@ import Header from "@/components/Header";
 import MetricsSection from "@/components/MetricsSection";
 import GoalsSection from "@/components/GoalsSection";
 import WorkLog from "@/components/WorkLog";
-import MonthlyPlan from "@/components/MonthlyPlan";
 import HistoricalReports from "@/components/HistoricalReports";
 import UpcomingMonths from "@/components/UpcomingMonths";
 import Footer from "@/components/Footer";
 import ClientDashboardTracker from "@/components/ClientDashboardTracker";
+import AnalyticsBlurOverlay from "@/components/AnalyticsBlurOverlay";
+import ApprovalSection from "@/components/ApprovalSection";
 
-import { getQuarterlyGoals, getWorkLog, getMonthlyPlan, getWorkLogHistory } from "@/lib/notion";
 import { getGSCKPIs, getGSCTopPages, getDateRange } from "@/lib/gsc";
 import { getGA4KPIs, getGA4UsersTimeSeries, getGA4TrafficAcquisition } from "@/lib/ga4";
 import type { TrafficChannel } from "@/lib/ga4";
+import { getKeywordRankings } from "@/lib/serankings";
 import { getClientBySlug } from "@/lib/clients";
-import fs from "fs";
-import path from "path";
+import { getEnrichedContent, getApprovals } from "@/lib/db";
 import {
   ClientConfig,
   KPIData,
@@ -29,125 +29,6 @@ import {
 export const dynamic = "force-dynamic";
 
 const USE_GOOGLE = !!process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-
-// ─── Placeholder data ───────────────────────────────────────────────────────
-
-function getPlaceholderClient(slug: string): ClientConfig | null {
-  // Fallback for demo only — real clients come from Postgres
-  const clients: Record<string, ClientConfig> = {
-    "century-plaza": {
-      id: 0,
-      name: "Century Plaza",
-      slug: "century-plaza",
-      ga4PropertyId: "properties/123456",
-      gscSiteUrl: "https://www.century-plaza.com",
-      seRankingsProjectId: "12345",
-      calLink: "https://cal.com/andres-agudelo-hqlknm/15min",
-      notionPageUrl: "",
-      notionPageId: "",
-      active: true,
-    },
-  };
-  return clients[slug] || null;
-}
-
-function getPlaceholderKPIs(): KPIData[] {
-  return [
-    { label: "Clicks", value: 2340, previousValue: 2100, changePercent: 11.4, format: "number" },
-    { label: "Impressions", value: 48200, previousValue: 44100, changePercent: 9.3, format: "number" },
-    { label: "CTR", value: 4.9, previousValue: 4.8, changePercent: 2.1, format: "percent" },
-    { label: "Organic Sessions", value: 3150, previousValue: 2890, changePercent: 9.0, format: "number" },
-    { label: "Keywords Tracked", value: 142, previousValue: 138, changePercent: 2.9, format: "number" },
-    { label: "Keywords Improved", value: 23, previousValue: 18, changePercent: 27.8, format: "number" },
-  ];
-}
-
-function getPlaceholderTimeSeries(): TimeSeriesPoint[] {
-  const data: TimeSeriesPoint[] = [];
-  for (let i = 180; i >= 0; i -= 7) {
-    const d = new Date(2026, 2, 17);
-    d.setDate(d.getDate() - i);
-    data.push({
-      date: d.toISOString().split("T")[0],
-      clicks: Math.floor(60 + Math.sin(i / 10) * 20 + (180 - i) * 0.3),
-      impressions: Math.floor(1200 + Math.sin(i / 8) * 200 + (180 - i) * 3),
-    });
-  }
-  return data;
-}
-
-function getPlaceholderSessions(): TimeSeriesPoint[] {
-  const data: TimeSeriesPoint[] = [];
-  for (let i = 180; i >= 0; i -= 7) {
-    const d = new Date(2026, 2, 17);
-    d.setDate(d.getDate() - i);
-    data.push({
-      date: d.toISOString().split("T")[0],
-      organicSessions: Math.floor(80 + Math.sin(i / 12) * 15 + (180 - i) * 0.2),
-    });
-  }
-  return data;
-}
-
-function getPlaceholderTopPages(): TopPage[] {
-  return [
-    { page: "https://www.century-plaza.com/", clicks: 450, impressions: 8200, ctr: 5.5, position: 12.3 },
-    { page: "https://www.century-plaza.com/extended-stay", clicks: 320, impressions: 5400, ctr: 5.9, position: 8.7 },
-    { page: "https://www.century-plaza.com/corporate-housing", clicks: 180, impressions: 3100, ctr: 5.8, position: 15.2 },
-    { page: "https://www.century-plaza.com/blog/extended-stay-tips", clicks: 150, impressions: 4200, ctr: 3.6, position: 18.4 },
-    { page: "https://www.century-plaza.com/contact", clicks: 120, impressions: 2000, ctr: 6.0, position: 10.1 },
-    { page: "https://www.century-plaza.com/medical-stays", clicks: 95, impressions: 1800, ctr: 5.3, position: 14.5 },
-    { page: "https://www.century-plaza.com/blog/local-seo", clicks: 88, impressions: 3500, ctr: 2.5, position: 22.1 },
-  ];
-}
-
-function getPlaceholderKeywords(): KeywordRanking[] {
-  const keywords = [
-    "extended stay apartments", "corporate housing los angeles", "furnished apartments LA",
-    "monthly rentals near me", "long term hotel stay", "executive suites los angeles",
-    "temporary housing", "short term lease apartments", "business travel housing",
-    "relocation apartments LA", "medical stay housing", "insurance housing los angeles",
-    "pet friendly furnished apartments", "studio apartments monthly rent",
-    "luxury corporate apartments", "all inclusive apartments LA",
-    "serviced apartments los angeles", "weekly hotel rates LA", "travel nurse housing",
-    "furnished rentals downtown LA",
-  ];
-  return keywords.map((kw, i) => {
-    const current = 5 + ((i * 7 + 3) % 40);
-    const change = ((i * 3 + 1) % 9) - 3;
-    return {
-      id: `kw-${i}`,
-      keyword: kw,
-      currentPosition: current,
-      previousPosition: current - change,
-      change,
-      searchVolume: 500 + ((i * 311) % 4500),
-    };
-  });
-}
-
-function getPlaceholderGoals(): QuarterlyGoal[] {
-  return [
-    { id: "g1", goal: "Increase organic traffic by 20%", icon: "\uD83D\uDCC8", targetMetric: "20% traffic increase (2,500 \u2192 3,000 sessions/mo)", progress: 65, quarter: "Q1 2026" },
-    { id: "g2", goal: "Rank for 'corporate housing los angeles'", icon: "\uD83C\uDFAF", targetMetric: "Page 1 ranking (currently #14)", progress: 40, quarter: "Q1 2026" },
-  ];
-}
-
-function getPlaceholderWorkLog(): WorkLogEntry[] {
-  return [
-    { id: "w1", task: "Published blog: 'Top 10 Extended Stay Tips for Business Travelers'", category: ["Content"], subtasks: "Keyword research, drafting, meta tags, internal links, featured image", deliverableLinks: ["https://century-plaza.com/blog/extended-stay-tips"], monthlySummary: "", month: "2026-03-01", isPlan: false },
-    { id: "w2", task: "Optimized Extended Stay landing page for target keywords", category: ["On-Page SEO"], subtasks: "Rewrote H1, updated title tag & meta description, added FAQ schema, improved internal linking structure", deliverableLinks: [], monthlySummary: "", month: "2026-03-01", isPlan: false },
-    { id: "w3", task: "Resolved Core Web Vitals issues flagged in PageSpeed", category: ["Technical"], subtasks: "Compressed 23 images, implemented lazy loading, fixed CLS on mobile hero section", deliverableLinks: [], monthlySummary: "This month we focused on content creation and technical health. The new blog post is already ranking for 3 target keywords within the first week. Extended Stay page saw a 15% click increase after on-page optimizations.", month: "2026-03-01", isPlan: false },
-  ];
-}
-
-function getPlaceholderPlan(): WorkLogEntry[] {
-  return [
-    { id: "p1", task: "Publish blog targeting 'medical stay apartments in LA'", category: ["Content"], subtasks: "Keyword research, content brief, draft, on-page optimization, publish", deliverableLinks: [], monthlySummary: "", month: "2026-04-01", isPlan: true },
-    { id: "p2", task: "Optimize Medical Stays page for conversion", category: ["On-Page SEO"], subtasks: "Add FAQ schema, improve CTAs, update meta tags, internal linking from blog", deliverableLinks: [], monthlySummary: "", month: "2026-04-01", isPlan: true },
-    { id: "p3", task: "Reddit & community outreach for backlinks", category: ["Link Building"], subtasks: "Identify 5 relevant threads, create helpful responses linking to resources", deliverableLinks: [], monthlySummary: "", month: "2026-04-01", isPlan: true },
-  ];
-}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -169,11 +50,14 @@ function getFutureMonth(offset: number): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function loadEnrichedContent(slug: string): any | null {
+async function loadEnrichedContent(slug: string): Promise<any | null> {
   try {
-    const filePath = path.join(process.cwd(), "data", `enriched-${slug}.json`);
-    if (fs.existsSync(filePath)) {
-      return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    const dbResult = await getEnrichedContent(slug);
+    if (dbResult?.enrichedData) {
+      return {
+        ...dbResult.enrichedData,
+        processedAt: dbResult.processedAt?.toISOString?.() || dbResult.processedAt,
+      };
     }
   } catch {}
   return null;
@@ -182,6 +66,33 @@ function loadEnrichedContent(slug: string): any | null {
 function getCurrentQuarter(): string {
   const now = new Date();
   return `Q${Math.ceil((now.getMonth() + 1) / 3)} ${now.getFullYear()}`;
+}
+
+// Parse deadline strings like "End of Q1 2026", "Q2 2026", "August 2025" into a comparable date
+function isGoalExpired(deadline: string): boolean {
+  const now = new Date();
+  // Match "Q1 2026" pattern
+  const quarterMatch = deadline.match(/Q(\d)\s+(\d{4})/);
+  if (quarterMatch) {
+    const q = parseInt(quarterMatch[1]);
+    const year = parseInt(quarterMatch[2]);
+    // End of quarter: Q1=Mar31, Q2=Jun30, Q3=Sep30, Q4=Dec31
+    const endMonth = q * 3;
+    const endOfQuarter = new Date(year, endMonth, 0); // last day of the quarter's final month
+    return now > endOfQuarter;
+  }
+  // Match month+year like "August 2025"
+  const monthMatch = deadline.match(/(\w+)\s+(\d{4})/);
+  if (monthMatch) {
+    const monthStr = monthMatch[1];
+    const year = parseInt(monthMatch[2]);
+    const monthIndex = new Date(`${monthStr} 1, ${year}`).getMonth();
+    if (!isNaN(monthIndex)) {
+      const endOfMonth = new Date(year, monthIndex + 1, 0);
+      return now > endOfMonth;
+    }
+  }
+  return false;
 }
 
 function formatMonthLabel(iso: string): string {
@@ -198,37 +109,41 @@ interface PageProps {
 export default async function ClientDashboard({ params }: PageProps) {
   const { slug } = await params;
 
-  let client: ClientConfig | null;
-  let goals: QuarterlyGoal[];
-  let workLog: WorkLogEntry[];
-  let plan: WorkLogEntry[];
+  // Get client from database — if not found, 404
+  const client = await getClientBySlug(slug);
+  if (!client) notFound();
+
+  // Try enriched content (from AI pipeline — file first, then DB)
+  const [enriched, approvals] = await Promise.all([
+    loadEnrichedContent(slug),
+    getApprovals(slug).catch(() => []),
+  ]);
+  const pendingApprovals = approvals.filter((a) => a.status === "pending").length;
+
+  let goals: QuarterlyGoal[] = [];
+  let workLog: WorkLogEntry[] = [];
+  let plan: WorkLogEntry[] = [];
   let historicalMonths: string[] = [];
   let workLogsByMonth: Record<string, WorkLogEntry[]> = {};
   let summariesByMonth: Record<string, string> = {};
   let metricsByMonth: Record<string, { sessions?: number; impressions?: number; notableWins?: string[] }> = {};
 
-  // Try to get client from Notion database first, then fallback to placeholder
-  client = await getClientBySlug(slug);
-  if (!client) {
-    client = getPlaceholderClient(slug);
-  }
-  if (!client) notFound();
-
-  // Try enriched content (from AI pipeline)
-  const enriched = loadEnrichedContent(slug);
-
   if (enriched) {
-
-    goals = (enriched.goals || []).map((g: { goal: string; icon: string; targetMetric: string; progress: number; deadline: string }, i: number) => ({
+    goals = (enriched.goals || [])
+      .filter((g: { deadline?: string }) => !g.deadline || !isGoalExpired(g.deadline))
+      .map((g: { goal: string; icon: string; targetMetric: string; progress: number; deadline: string; targetMetricType?: string; targetValue?: number }, i: number) => ({
       id: `eg-${i}`,
       goal: g.goal,
       icon: g.icon || "\uD83C\uDFAF",
       targetMetric: g.targetMetric,
-      progress: g.progress || 0,
+      progress: (g.targetMetricType && g.targetValue) ? 0 : g.progress || 0, // default 0 for live-data goals until KPI map overrides
       quarter: g.deadline || getCurrentQuarter(),
+      targetMetricType: g.targetMetricType,
+      targetValue: g.targetValue,
+      verified: false, // will be set to true if live data backs it
     }));
 
-    workLog = (enriched.currentMonth?.tasks || []).map((t: { task: string; category: string[]; subtasks: string; deliverableLinks: string[] }, i: number) => ({
+    workLog = (enriched.currentMonth?.tasks || []).map((t: { task: string; category: string[]; subtasks: string; deliverableLinks: string[]; impact?: string }, i: number) => ({
       id: `et-${i}`,
       task: t.task,
       category: t.category || [],
@@ -237,16 +152,15 @@ export default async function ClientDashboard({ params }: PageProps) {
       monthlySummary: i === 0 ? (enriched.currentMonth?.summary || "") : "",
       month: getCurrentMonth(),
       isPlan: false,
+      impact: t.impact || "",
     }));
 
     plan = [];
 
-    // Build historical months from enriched pastMonths
     if (enriched.pastMonths?.length) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       enriched.pastMonths.forEach((pm: any, mi: number) => {
-        // Use the label as a pseudo-date key
-        const monthKey = pm.label || `past-${mi}`;
+        const monthKey = pm.label || pm.monthLabel || `past-${mi}`;
         historicalMonths.push(monthKey);
         workLogsByMonth[monthKey] = (pm.tasks || []).map(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -261,49 +175,41 @@ export default async function ClientDashboard({ params }: PageProps) {
             isPlan: false,
           })
         );
-        if (pm.summary) {
-          summariesByMonth[monthKey] = pm.summary;
-        }
-        if (pm.metrics) {
-          metricsByMonth[monthKey] = pm.metrics;
-        }
+        if (pm.summary) summariesByMonth[monthKey] = pm.summary;
+        if (pm.metrics) metricsByMonth[monthKey] = pm.metrics;
       });
-    } else {
-      historicalMonths = [];
-      workLogsByMonth = {};
-      summariesByMonth = {};
     }
-  } else {
-    // No enriched content — use placeholder data
-    goals = getPlaceholderGoals();
-    workLog = getPlaceholderWorkLog();
-    plan = getPlaceholderPlan();
-    historicalMonths = ["2026-02-01", "2026-01-01", "2025-12-01"];
   }
 
-  let kpis: KPIData[] = [];
+  // ── Fetch live analytics (GSC and GA4 independently) ────────────────────
   let usersTimeSeries: TimeSeriesPoint[] = [];
   let trafficChannels: TrafficChannel[] = [];
   let topPages: TopPage[] = [];
   let keywords: KeywordRanking[] = [];
-  let analyticsConnected = false;
+  let gscConnected = false;
+  let ga4Connected = false;
 
-  if (USE_GOOGLE && client.gscSiteUrl && client.ga4PropertyId) {
-    try {
-      const { startDate, endDate } = getDateRange("28d");
+  // Always initialize all base KPI slots so the layout stays consistent
+  const UNAVAILABLE = -1;
+  let clicksKpi: KPIData = { label: "Clicks", value: UNAVAILABLE, previousValue: 0, changePercent: 0, format: "number" };
+  let impressionsKpi: KPIData = { label: "Impressions", value: UNAVAILABLE, previousValue: 0, changePercent: 0, format: "number" };
+  let ctrKpi: KPIData = { label: "CTR", value: UNAVAILABLE, previousValue: 0, changePercent: 0, format: "percent" };
+  let sessionsKpi: KPIData = { label: "Organic Sessions", value: UNAVAILABLE, previousValue: 0, changePercent: 0, format: "number" };
+  let totalSessionsKpi: KPIData = { label: "Sessions", value: UNAVAILABLE, previousValue: 0, changePercent: 0, format: "number" };
 
-      const [gscKpis, ga4Kpis, usersTs, channels, gscTopPages] = await Promise.all([
-        getGSCKPIs(client.gscSiteUrl, "28d"),
-        getGA4KPIs(client.ga4PropertyId),
-        getGA4UsersTimeSeries(client.ga4PropertyId, startDate, endDate),
-        getGA4TrafficAcquisition(client.ga4PropertyId, startDate, endDate),
-        getGSCTopPages(client.gscSiteUrl, startDate, endDate, 10),
-      ]);
+  if (USE_GOOGLE) {
+    const { startDate, endDate } = getDateRange("28d");
 
-      kpis = [
-        gscKpis.clicks,
-        gscKpis.impressions,
-        {
+    // Fetch GSC data independently
+    if (client.gscSiteUrl) {
+      try {
+        const [gscKpis, gscTopPages] = await Promise.all([
+          getGSCKPIs(client.gscSiteUrl, "28d"),
+          getGSCTopPages(client.gscSiteUrl, startDate, endDate, 10),
+        ]);
+        clicksKpi = gscKpis.clicks;
+        impressionsKpi = gscKpis.impressions;
+        ctrKpi = {
           label: "CTR",
           value: gscKpis.clicks.value && gscKpis.impressions.value
             ? (gscKpis.clicks.value / gscKpis.impressions.value) * 100
@@ -311,36 +217,112 @@ export default async function ClientDashboard({ params }: PageProps) {
           previousValue: 0,
           changePercent: 0,
           format: "percent",
-        },
-        ga4Kpis.organicSessions,
-      ];
+        };
+        topPages = gscTopPages;
+        gscConnected = true;
+      } catch (error) {
+        console.error(`GSC failed for ${slug}:`, error);
+      }
+    }
 
-      usersTimeSeries = usersTs;
-      trafficChannels = channels;
-      topPages = gscTopPages;
-      keywords = getPlaceholderKeywords(); // SE Rankings not connected yet
-      analyticsConnected = true;
-    } catch (error) {
-      console.error("Failed to fetch live analytics:", error);
+    // Fetch GA4 data independently
+    if (client.ga4PropertyId) {
+      try {
+        const [ga4Kpis, usersTs, channels] = await Promise.all([
+          getGA4KPIs(client.ga4PropertyId),
+          getGA4UsersTimeSeries(client.ga4PropertyId, startDate, endDate),
+          getGA4TrafficAcquisition(client.ga4PropertyId, startDate, endDate),
+        ]);
+        sessionsKpi = ga4Kpis.organicSessions;
+        totalSessionsKpi = ga4Kpis.totalSessions;
+        usersTimeSeries = usersTs;
+        trafficChannels = channels;
+        ga4Connected = true;
+      } catch (error) {
+        console.error(`GA4 failed for ${slug}:`, error);
+      }
     }
   }
 
-  // When not connected, use placeholder data as blurred visual backdrop only
-  if (!analyticsConnected) {
-    kpis = getPlaceholderKPIs();
-    topPages = getPlaceholderTopPages();
-    keywords = getPlaceholderKeywords();
+  let kpis: KPIData[] = [clicksKpi, impressionsKpi, ctrKpi, sessionsKpi];
+
+  // Fetch SE Rankings keyword data independently
+  if (client.seRankingsProjectId) {
+    try {
+      keywords = await getKeywordRankings(client.seRankingsProjectId);
+    } catch (error) {
+      console.error(`SE Rankings failed for ${slug}:`, error);
+    }
   }
+
+  // Add leads KPI from enriched data (manually updated in Notion)
+  const currentLeads = enriched?.currentMonth?.leads;
+  if (currentLeads !== undefined && currentLeads !== null) {
+    // Find previous month leads for MoM comparison
+    let prevLeads: number | undefined;
+    if (enriched?.pastMonths?.length) {
+      const lastPastMonth = enriched.pastMonths[0]; // most recent past month
+      prevLeads = lastPastMonth?.leads;
+    }
+    const changePercent = prevLeads && prevLeads > 0
+      ? Math.round(((currentLeads - prevLeads) / prevLeads) * 100)
+      : 0;
+    kpis.push({
+      label: "Leads",
+      value: currentLeads,
+      previousValue: prevLeads || 0,
+      changePercent,
+      format: "number" as const,
+    });
+  }
+
+  const analyticsConnected = gscConnected || ga4Connected;
 
   const summary = workLog.find((e) => e.monthlySummary)?.monthlySummary || "";
   const quarter = getCurrentQuarter();
   const currentMonthLabel = formatMonthLabel(getCurrentMonth());
+  const lastUpdated = enriched?.processedAt || null;
   const nextMonthLabel = formatMonthLabel(getNextMonth());
 
-  // Determine if current month work is complete (all tasks done)
   const allComplete = workLog.length > 0 && workLog.every((e) => !e.isPlan);
 
-  // Upcoming months — from enriched data or placeholder
+  // Compute cumulative impact since first agency month
+  let cumulativeData: { startMonth: string; sessionsChange: number } | null = null;
+  if (enriched?.pastMonths?.length) {
+    const allMonthKeys = [...historicalMonths].reverse(); // chronological
+    const firstMonth = allMonthKeys[0];
+    const firstSessions = metricsByMonth[firstMonth]?.sessions;
+    const latestMonth = allMonthKeys[allMonthKeys.length - 1];
+    const latestSessions = metricsByMonth[latestMonth]?.sessions;
+    if (firstSessions && latestSessions && firstSessions > 0) {
+      cumulativeData = {
+        startMonth: formatMonthLabel(firstMonth),
+        sessionsChange: Math.round(((latestSessions - firstSessions) / firstSessions) * 100),
+      };
+    }
+  }
+
+  // Compute live goal progress from KPI data
+  if (kpis.length > 0) {
+    const kpiMap: Record<string, number> = {};
+    for (const kpi of kpis) {
+      if (kpi.value === -1) continue; // skip unavailable metrics
+      if (kpi.label === "Organic Sessions") kpiMap["organic_sessions"] = kpi.value;
+      if (kpi.label === "Clicks") kpiMap["clicks"] = kpi.value;
+      if (kpi.label === "Impressions") kpiMap["impressions"] = kpi.value;
+    }
+    if (totalSessionsKpi.value !== UNAVAILABLE) {
+      kpiMap["sessions"] = totalSessionsKpi.value;
+    }
+    goals = goals.map((g) => {
+      if (g.targetMetricType && g.targetValue && kpiMap[g.targetMetricType] !== undefined) {
+        return { ...g, progress: Math.min(100, Math.round((kpiMap[g.targetMetricType] / g.targetValue) * 100)), currentValue: kpiMap[g.targetMetricType], verified: true };
+      }
+      return g;
+    });
+  }
+
+  // Upcoming months — from enriched data only
   let upcomingMonths: { monthLabel: string; entries: WorkLogEntry[]; summary?: string }[];
 
   if (enriched?.upcomingMonths?.length) {
@@ -348,7 +330,6 @@ export default async function ClientDashboard({ params }: PageProps) {
     upcomingMonths = enriched.upcomingMonths.map((m: any, mi: number) => ({
       monthLabel: m.monthLabel,
       summary: m.summary,
-      // Handle tasks being strings or objects
       entries: (m.tasks || []).map((t: string | { task: string; category?: string[]; subtasks?: string; deliverableLinks?: string[] }, ti: number) => {
         const task = typeof t === "string" ? t : t.task;
         const category = typeof t === "string" ? [] : (t.category || []);
@@ -365,86 +346,84 @@ export default async function ClientDashboard({ params }: PageProps) {
       }),
     }));
   } else {
-    upcomingMonths = [
-      {
-        monthLabel: nextMonthLabel,
-        entries: plan,
-        summary: "Content + on-page optimization targeting medical stays",
-      },
-      {
-        monthLabel: formatMonthLabel(getFutureMonth(2)),
-        entries: [
-          { id: "u1", task: "Publish blog targeting 'relocation apartments LA'", category: ["Content"], subtasks: "", deliverableLinks: [] as string[], monthlySummary: "", month: getFutureMonth(2), isPlan: true },
-          { id: "u2", task: "Site speed audit & optimization pass", category: ["Technical"], subtasks: "", deliverableLinks: [] as string[], monthlySummary: "", month: getFutureMonth(2), isPlan: true },
-        ],
-        summary: "Relocation content push + technical performance audit",
-      },
-      {
-        monthLabel: formatMonthLabel(getFutureMonth(3)),
-        entries: [
-          { id: "u3", task: "Publish blog targeting 'corporate housing benefits'", category: ["Content"], subtasks: "", deliverableLinks: [] as string[], monthlySummary: "", month: getFutureMonth(3), isPlan: true },
-          { id: "u4", task: "Internal linking restructure", category: ["On-Page SEO"], subtasks: "", deliverableLinks: [] as string[], monthlySummary: "", month: getFutureMonth(3), isPlan: true },
-          { id: "u5", task: "Quarterly keyword research refresh", category: ["Strategy"], subtasks: "", deliverableLinks: [] as string[], monthlySummary: "", month: getFutureMonth(3), isPlan: true },
-        ],
-        summary: "Corporate housing content + Q2 keyword strategy refresh",
-      },
-    ];
+    upcomingMonths = [];
   }
 
   return (
     <div className="min-h-screen bg-white">
-      <Header client={client} />
+      <Header client={client} pendingApprovals={pendingApprovals} />
 
-      {/* ── 1. Goals: orange container ── */}
-      <div className="max-w-3xl mx-auto px-6 pt-4">
-        <GoalsSection goals={goals} quarter={quarter} />
-      </div>
+      {/* ── 1. Goals ── */}
+      {goals.length > 0 && (
+        <div className="max-w-3xl mx-auto px-6 pt-4">
+          <GoalsSection goals={goals} quarter={quarter} />
+        </div>
+      )}
+
+      {/* ── 1.5. Approvals ── */}
+      {approvals.length > 0 && (
+        <div className="max-w-3xl mx-auto px-6 pt-2">
+          <ApprovalSection approvals={approvals} clientSlug={slug} />
+        </div>
+      )}
 
       {/* ── 2. This Month ── */}
-      <div className="max-w-3xl mx-auto px-6 py-6">
-        <WorkLog
-          entries={workLog}
-          summary={summary}
-          monthLabel={currentMonthLabel}
-          isComplete={allComplete && !!summary}
-          goalSummary={
-            !summary
-              ? (enriched?.currentMonth?.strategy || `This month we're focused on driving organic growth through content creation, on-page optimization, and technical improvements aligned with our Q1 goals.`)
-              : undefined
-          }
-        />
-      </div>
-
-      {/* ── 3. Metrics: light blue container ── */}
-      <div className="max-w-3xl mx-auto px-6 pb-4">
-        <div className="bg-[#FAFCFF] rounded-2xl px-8 py-6">
-          <MetricsSection
-            initialKpis={kpis}
-            initialUsersTimeSeries={usersTimeSeries}
-            initialTrafficChannels={trafficChannels}
-            initialTopPages={topPages}
-            initialKeywords={keywords}
-            clientSlug={slug}
-            initialRange="28d"
+      {workLog.length > 0 && (
+        <div className="max-w-3xl mx-auto px-6 py-6">
+          <WorkLog
+            entries={workLog}
+            summary={summary}
+            monthLabel={currentMonthLabel}
+            isComplete={allComplete && !!summary}
+            goalSummary={
+              !summary
+                ? (enriched?.currentMonth?.strategy || undefined)
+                : undefined
+            }
+            lastUpdated={lastUpdated}
+            analyticsEnrichments={enriched?.analyticsEnrichments || []}
+            taskCompletion={enriched?.currentMonth?.taskCompletion}
           />
         </div>
-      </div>
+      )}
 
-      {/* ── 4. Upcoming Months: green container ── */}
-      <div className="max-w-3xl mx-auto px-6 pt-2 pb-4">
-        <UpcomingMonths monthPlans={upcomingMonths} />
-      </div>
-
-      {/* ── 5. Past Months: purple container ── */}
+      {/* ── 3. Metrics — blurred if not connected ── */}
       <div className="max-w-3xl mx-auto px-6 pb-4">
-        <HistoricalReports
-          months={historicalMonths}
-          workLogsByMonth={workLogsByMonth}
-          summariesByMonth={summariesByMonth}
-          metricsByMonth={metricsByMonth}
-          clientSlug={slug}
-        />
+        <AnalyticsBlurOverlay connected={analyticsConnected}>
+          <div className="bg-[#FAFCFF] rounded-2xl px-8 py-6">
+            <MetricsSection
+              initialKpis={kpis}
+              initialUsersTimeSeries={usersTimeSeries}
+              initialTrafficChannels={trafficChannels}
+              initialTopPages={topPages}
+              initialKeywords={keywords}
+              clientSlug={slug}
+              initialRange="28d"
+              cumulativeData={cumulativeData}
+            />
+          </div>
+        </AnalyticsBlurOverlay>
       </div>
+
+      {/* ── 4. Upcoming Months ── */}
+      {upcomingMonths.length > 0 && (
+        <div className="max-w-3xl mx-auto px-6 pt-2 pb-4">
+          <UpcomingMonths monthPlans={upcomingMonths} />
+        </div>
+      )}
+
+      {/* ── 5. Past Months ── */}
+      {historicalMonths.length > 0 && (
+        <div className="max-w-3xl mx-auto px-6 pb-4">
+          <HistoricalReports
+            months={historicalMonths}
+            workLogsByMonth={workLogsByMonth}
+            summariesByMonth={summariesByMonth}
+            metricsByMonth={metricsByMonth}
+            clientSlug={slug}
+          />
+        </div>
+      )}
 
       <Footer />
       <ClientDashboardTracker slug={slug} />

@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# client data (stored in database, not in repo)
+/data/
+
 # vercel
 .vercel
 

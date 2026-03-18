@@ -5,6 +5,7 @@ export interface EnrichedTask {
   category: string[];
   subtasks: string;
   deliverableLinks: string[];
+  impact?: string;
 }
 
 export interface EnrichedGoal {
@@ -13,12 +14,20 @@ export interface EnrichedGoal {
   targetMetric: string;
   progress: number;
   deadline: string;
+  targetMetricType?: string;
+  targetValue?: number;
 }
 
 export interface EnrichedMonth {
   monthLabel: string;
   summary: string;
   tasks: EnrichedTask[];
+  leads?: number;
+  metrics?: {
+    sessions?: number;
+    impressions?: number;
+    notableWins?: string[];
+  };
 }
 
 export interface DetectedMetric {
@@ -51,14 +60,18 @@ export interface EnrichedContent {
     strategy: string;
     tasks: EnrichedTask[];
     isComplete: boolean;
+    leads?: number;
+    taskCompletion?: { completed: number; total: number };
   };
   goals: EnrichedGoal[];
+  pastMonths: EnrichedMonth[];
   upcomingMonths: EnrichedMonth[];
   detectedEntities: {
     pages: string[];
     keywords: string[];
     metrics: DetectedMetric[];
   };
+  approvals: Array<{ title: string; description: string }>;
   analyticsEnrichments: AnalyticsEnrichment[];
   processedAt: string;
   rawContentHash: string;
@@ -72,12 +85,15 @@ export interface ClaudeStructuredOutput {
     strategy: string;
     tasks: EnrichedTask[];
     isComplete: boolean;
+    leads?: number;
   };
   goals: EnrichedGoal[];
+  pastMonths: EnrichedMonth[];
   upcomingMonths: EnrichedMonth[];
   detectedEntities: {
     pages: string[];
     keywords: string[];
     metrics: DetectedMetric[];
   };
+  approvals: Array<{ title: string; description: string }>;
 }

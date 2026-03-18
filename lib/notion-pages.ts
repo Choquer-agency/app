@@ -36,14 +36,31 @@ export async function getPageBlocks(pageId: string): Promise<Block[]> {
   return blocks;
 }
 
+interface NotionRichText {
+  plain_text: string;
+  href?: string | null;
+  annotations?: {
+    bold?: boolean;
+    italic?: boolean;
+    strikethrough?: boolean;
+    underline?: boolean;
+    code?: boolean;
+  };
+}
+
 /**
- * Extract plain text from Notion rich text array
+ * Extract text from Notion rich text array, preserving formatting as markdown
  */
-function richTextToPlain(richText: Array<{ plain_text: string; href?: string | null }>): string {
+function richTextToMarkdown(richText: NotionRichText[]): string {
   return richText
     .map((t) => {
-      if (t.href) return `[${t.plain_text}](${t.href})`;
-      return t.plain_text;
+      let text = t.plain_text;
+      if (t.annotations?.code) text = `\`${text}\``;
+      if (t.annotations?.strikethrough) text = `~~${text}~~`;
+      if (t.annotations?.italic) text = `*${text}*`;
+      if (t.annotations?.bold) text = `**${text}**`;
+      if (t.href) return `[${text}](${t.href})`;
+      return text;
     })
     .join("");
 }
@@ -60,37 +77,37 @@ export function blocksToMarkdown(blocks: Block[], depth = 0): string {
 
     switch (type) {
       case "heading_1":
-        lines.push(`\n# ${richTextToPlain(block.heading_1.rich_text)}`);
+        lines.push(`\n# ${richTextToMarkdown(block.heading_1.rich_text)}`);
         break;
       case "heading_2":
-        lines.push(`\n## ${richTextToPlain(block.heading_2.rich_text)}`);
+        lines.push(`\n## ${richTextToMarkdown(block.heading_2.rich_text)}`);
         break;
       case "heading_3":
-        lines.push(`\n### ${richTextToPlain(block.heading_3.rich_text)}`);
+        lines.push(`\n### ${richTextToMarkdown(block.heading_3.rich_text)}`);
         break;
       case "paragraph":
-        const text = richTextToPlain(block.paragraph.rich_text);
+        const text = richTextToMarkdown(block.paragraph.rich_text);
         if (text) lines.push(`${indent}${text}`);
         break;
       case "bulleted_list_item":
-        lines.push(`${indent}- ${richTextToPlain(block.bulleted_list_item.rich_text)}`);
+        lines.push(`${indent}- ${richTextToMarkdown(block.bulleted_list_item.rich_text)}`);
         break;
       case "numbered_list_item":
-        lines.push(`${indent}1. ${richTextToPlain(block.numbered_list_item.rich_text)}`);
+        lines.push(`${indent}1. ${richTextToMarkdown(block.numbered_list_item.rich_text)}`);
         break;
       case "to_do":
         const checked = block.to_do.checked ? "[x]" : "[ ]";
-        lines.push(`${indent}- ${checked} ${richTextToPlain(block.to_do.rich_text)}`);
+        lines.push(`${indent}- ${checked} ${richTextToMarkdown(block.to_do.rich_text)}`);
         break;
       case "toggle":
-        lines.push(`${indent}> ${richTextToPlain(block.toggle.rich_text)}`);
+        lines.push(`${indent}> ${richTextToMarkdown(block.toggle.rich_text)}`);
         break;
       case "quote":
-        lines.push(`${indent}> ${richTextToPlain(block.quote.rich_text)}`);
+        lines.push(`${indent}> ${richTextToMarkdown(block.quote.rich_text)}`);
         break;
       case "callout":
         const icon = block.callout.icon?.emoji || "";
-        lines.push(`${indent}${icon} ${richTextToPlain(block.callout.rich_text)}`);
+        lines.push(`${indent}${icon} ${richTextToMarkdown(block.callout.rich_text)}`);
         break;
       case "divider":
         lines.push("---");
@@ -102,7 +119,7 @@ export function blocksToMarkdown(blocks: Block[], depth = 0): string {
         if (block.link_preview.url) lines.push(`${indent}[Link](${block.link_preview.url})`);
         break;
       case "code":
-        lines.push(`\`\`\`\n${richTextToPlain(block.code.rich_text)}\n\`\`\``);
+        lines.push(`\`\`\`\n${richTextToMarkdown(block.code.rich_text)}\n\`\`\``);
         break;
       // Skip unsupported block types silently
     }
@@ -122,6 +139,125 @@ export function blocksToMarkdown(blocks: Block[], depth = 0): string {
 export async function getClientPageContent(pageId: string): Promise<string> {
   const blocks = await getPageBlocks(pageId);
   return blocksToMarkdown(blocks);
+}
+
+export interface TaskCompletion {
+  completed: number;
+  total: number;
+}
+
+/**
+ * Count checked vs unchecked to_do blocks recursively
+ */
+export function countTaskCompletion(blocks: Block[]): TaskCompletion {
+  let completed = 0;
+  let total = 0;
+
+  for (const block of blocks) {
+    if (block.type === "to_do") {
+      total++;
+      if (block.to_do.checked) completed++;
+    }
+    if (block._children?.length) {
+      const child = countTaskCompletion(block._children);
+      completed += child.completed;
+      total += child.total;
+    }
+  }
+
+  return { completed, total };
+}
+
+/**
+ * Get page content as both markdown and raw blocks
+ */
+export async function getClientPageData(pageId: string): Promise<{
+  markdown: string;
+  blocks: Block[];
+}> {
+  const blocks = await getPageBlocks(pageId);
+  const markdown = blocksToMarkdown(blocks);
+  return { markdown, blocks };
+}
+
+/**
+ * All month names for matching
+ */
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * Split markdown into current month section and the rest.
+ * Handles multiple formats:
+ *   - Headings: "# March 2026", "## March: Technical SEO"
+ *   - Toggles/blockquotes: "> March: Technical SEO & On-Page"
+ *   - With or without year
+ */
+export function splitByMonthSections(markdown: string): {
+  currentMonthSection: string;
+  rest: string;
+} {
+  const now = new Date();
+  const currentMonthName = MONTH_NAMES[now.getMonth()];
+
+  // Build patterns to find any month marker (heading, toggle/blockquote, or bold line)
+  // Match lines like: "# March 2026", "## March: Technical SEO", "> March: On-Page", "**March**"
+  const monthPattern = new RegExp(
+    `^(?:#{1,3}\\s+|>\\s+|\\*\\*)(${MONTH_NAMES.join("|")})\\b[^\\n]*`,
+    "gim"
+  );
+
+  // Find all month markers in the document
+  const markers: Array<{ month: string; index: number; length: number }> = [];
+  let m;
+  while ((m = monthPattern.exec(markdown)) !== null) {
+    markers.push({
+      month: m[1],
+      index: m.index,
+      length: m[0].length,
+    });
+  }
+
+  if (markers.length === 0) {
+    // No month markers found — return everything
+    return { currentMonthSection: markdown, rest: "" };
+  }
+
+  // Find the current month's marker
+  const currentIdx = markers.findIndex(
+    (mk) => mk.month.toLowerCase() === currentMonthName.toLowerCase()
+  );
+
+  if (currentIdx === -1) {
+    // Current month not found — return everything
+    return { currentMonthSection: markdown, rest: "" };
+  }
+
+  const startIdx = markers[currentIdx].index;
+
+  // End at the next month marker, or end of document
+  const endIdx = currentIdx + 1 < markers.length
+    ? markers[currentIdx + 1].index
+    : markdown.length;
+
+  const currentMonthSection = markdown.slice(startIdx, endIdx).trim();
+  const before = markdown.slice(0, startIdx).trim();
+  const after = markdown.slice(endIdx).trim();
+  const rest = [before, after].filter(Boolean).join("\n\n");
+
+  return { currentMonthSection, rest };
+}
+
+/**
+ * Count checked vs unchecked checkboxes in a markdown string.
+ * Use this on a scoped section (e.g., current month only) for accurate counts.
+ */
+export function countCheckboxesInMarkdown(markdown: string): TaskCompletion {
+  const checked = (markdown.match(/- \[x\]/g) || []).length;
+  const unchecked = (markdown.match(/- \[ \]/g) || []).length;
+  return { completed: checked, total: checked + unchecked };
 }
 
 /**

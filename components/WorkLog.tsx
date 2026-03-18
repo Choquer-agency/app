@@ -1,4 +1,5 @@
 import { WorkLogEntry } from "@/types";
+import { AnalyticsEnrichment } from "@/types/enrichment";
 
 interface WorkLogProps {
   entries: WorkLogEntry[];
@@ -6,6 +7,9 @@ interface WorkLogProps {
   monthLabel: string;
   isComplete: boolean;
   goalSummary?: string;
+  lastUpdated?: string;
+  analyticsEnrichments?: AnalyticsEnrichment[];
+  taskCompletion?: { completed: number; total: number };
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -21,7 +25,39 @@ function getCat(cat: string) {
   return CATEGORY_COLORS[cat] || "bg-[#F0F0F0] text-[#6b7280]";
 }
 
-export default function WorkLog({ entries, summary, monthLabel, isComplete, goalSummary }: WorkLogProps) {
+function formatLastUpdated(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return "Updated today";
+  if (diffDays === 1) return "Updated yesterday";
+  if (diffDays < 7) return `Updated ${diffDays} days ago`;
+  return `Updated ${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+}
+
+function fmtNumber(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return n.toLocaleString();
+}
+
+function findEnrichment(entry: WorkLogEntry, enrichments: AnalyticsEnrichment[]): AnalyticsEnrichment | undefined {
+  // Match by checking if any deliverable link or task text references a tracked page
+  for (const e of enrichments) {
+    if (e.entityType !== "page") continue;
+    const entity = e.entity.toLowerCase();
+    // Check deliverable links
+    for (const link of entry.deliverableLinks) {
+      if (link.toLowerCase().includes(entity)) return e;
+    }
+    // Check task text for page path mention
+    if (entry.task.toLowerCase().includes(entity)) return e;
+  }
+  return undefined;
+}
+
+export default function WorkLog({ entries, summary, monthLabel, isComplete, goalSummary, lastUpdated, analyticsEnrichments = [], taskCompletion }: WorkLogProps) {
   if (entries.length === 0 && !summary && !goalSummary) return null;
 
   return (
@@ -29,7 +65,25 @@ export default function WorkLog({ entries, summary, monthLabel, isComplete, goal
       {/* Section header — always visible, not toggleable */}
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-base font-semibold">{monthLabel}</h2>
-        {isComplete ? (
+        {taskCompletion && taskCompletion.total > 0 ? (
+          taskCompletion.completed === taskCompletion.total ? (
+            <span className="text-[10px] bg-[#BDFFE8] text-[#0d5a3f] px-2 py-0.5 rounded-full font-medium">
+              Complete
+            </span>
+          ) : (
+            <>
+              <span className="text-[10px] bg-[#FFF09E] text-[#6b5f00] px-2 py-0.5 rounded-full font-medium">
+                {taskCompletion.completed}/{taskCompletion.total} completed
+              </span>
+              <div className="w-16 h-1.5 bg-[#E5E5E5] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#0d7a55] rounded-full transition-all"
+                  style={{ width: `${Math.round((taskCompletion.completed / taskCompletion.total) * 100)}%` }}
+                />
+              </div>
+            </>
+          )
+        ) : isComplete ? (
           <span className="text-[10px] bg-[#BDFFE8] text-[#0d5a3f] px-2 py-0.5 rounded-full font-medium">
             Complete
           </span>
@@ -37,6 +91,9 @@ export default function WorkLog({ entries, summary, monthLabel, isComplete, goal
           <span className="text-[10px] bg-[#FFF09E] text-[#6b5f00] px-2 py-0.5 rounded-full font-medium">
             In Progress
           </span>
+        )}
+        {lastUpdated && (
+          <span className="text-[10px] text-muted ml-auto">{formatLastUpdated(lastUpdated)}</span>
         )}
       </div>
 
@@ -81,6 +138,9 @@ export default function WorkLog({ entries, summary, monthLabel, isComplete, goal
                   </span>
                 ))}
               </div>
+              {entry.impact && (
+                <p className="text-xs text-[#5B52B6] mt-0.5 italic">{entry.impact}</p>
+              )}
               {entry.subtasks && (
                 <p className="text-xs text-muted mt-0.5">{entry.subtasks}</p>
               )}
@@ -100,6 +160,30 @@ export default function WorkLog({ entries, summary, monthLabel, isComplete, goal
                   ))}
                 </div>
               )}
+              {(() => {
+                const enrichment = analyticsEnrichments.length > 0 ? findEnrichment(entry, analyticsEnrichments) : undefined;
+                if (!enrichment || (!enrichment.data.clicks && !enrichment.data.impressions)) return null;
+                return (
+                  <div className="mt-1.5 flex items-center gap-3 text-[10px] bg-[#FAFCFF] border border-[#E5E5E5] rounded-lg px-2.5 py-1.5">
+                    <span className="text-muted font-medium uppercase tracking-wide">Performance</span>
+                    {enrichment.data.clicks !== undefined && (
+                      <span className="text-[#1A1A1A]">
+                        <span className="font-semibold">{fmtNumber(enrichment.data.clicks)}</span> clicks
+                      </span>
+                    )}
+                    {enrichment.data.impressions !== undefined && (
+                      <span className="text-[#1A1A1A]">
+                        <span className="font-semibold">{fmtNumber(enrichment.data.impressions)}</span> impressions
+                      </span>
+                    )}
+                    {enrichment.data.changePercent !== undefined && enrichment.data.changePercent !== 0 && (
+                      <span className={`font-medium ${enrichment.data.changePercent >= 0 ? "text-[#0d7a55]" : "text-[#b91c1c]"}`}>
+                        {enrichment.data.changePercent >= 0 ? "+" : ""}{enrichment.data.changePercent.toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         ))}

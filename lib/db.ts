@@ -126,6 +126,99 @@ export async function getEnrichedContentForMonth(clientSlug: string, month: stri
   return result.rows[0].enriched_data;
 }
 
+/**
+ * Get the stored content hash for a client+month (for differential sync)
+ */
+export async function getExistingContentHash(
+  clientSlug: string,
+  month: string
+): Promise<string | null> {
+  const result = await sql`
+    SELECT enriched_data->>'rawContentHash' as hash
+    FROM enriched_content
+    WHERE client_slug = ${clientSlug} AND month = ${month}
+  `;
+  if (result.rows.length === 0) return null;
+  return result.rows[0].hash;
+}
+
+/**
+ * Get existing enriched data for merging (current-month-only mode)
+ */
+export async function getExistingEnrichedData(
+  clientSlug: string,
+  month: string
+) {
+  const result = await sql`
+    SELECT enriched_data, raw_content
+    FROM enriched_content
+    WHERE client_slug = ${clientSlug} AND month = ${month}
+  `;
+  if (result.rows.length === 0) return null;
+  return {
+    enrichedData: result.rows[0].enriched_data,
+    rawContent: result.rows[0].raw_content,
+  };
+}
+
+// ─── Approvals ──────────────────────────────────────────────────────────────
+
+import { Approval } from "@/types";
+
+/**
+ * Get all approvals for a client (pending first)
+ */
+export async function getApprovals(clientSlug: string): Promise<Approval[]> {
+  const result = await sql`
+    SELECT id, client_slug, title, description, status, feedback, created_at, updated_at
+    FROM approvals
+    WHERE client_slug = ${clientSlug}
+    ORDER BY
+      CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
+      created_at DESC
+  `;
+  return result.rows.map((r) => ({
+    id: r.id as number,
+    clientSlug: r.client_slug as string,
+    title: r.title as string,
+    description: r.description as string | null,
+    status: r.status as Approval["status"],
+    feedback: r.feedback as string | null,
+    createdAt: (r.created_at as Date).toISOString(),
+    updatedAt: (r.updated_at as Date).toISOString(),
+  }));
+}
+
+/**
+ * Update approval status
+ */
+export async function updateApprovalStatus(
+  id: number,
+  status: "approved" | "rejected",
+  feedback?: string
+): Promise<void> {
+  await sql`
+    UPDATE approvals
+    SET status = ${status}, feedback = ${feedback || null}, updated_at = NOW()
+    WHERE id = ${id}
+  `;
+}
+
+/**
+ * Upsert an approval (skip if already exists to preserve status)
+ */
+export async function upsertApproval(
+  clientSlug: string,
+  title: string,
+  description: string
+): Promise<void> {
+  await sql`
+    INSERT INTO approvals (client_slug, title, description)
+    VALUES (${clientSlug}, ${title}, ${description})
+    ON CONFLICT (client_slug, title) DO NOTHING
+  `;
+}
+
 // ─── Visitor Identification ──────────────────────────────────────────────────
 
 /**
