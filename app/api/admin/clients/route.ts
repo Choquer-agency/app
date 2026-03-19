@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       notionPageUrl: body.notionPageUrl || "",
       ga4PropertyId: body.ga4PropertyId || "",
       gscSiteUrl: body.gscSiteUrl || "",
+      seRankingsProjectId: body.seRankingsProjectId || "",
       calLink:
         body.calLink || "https://cal.com/andres-agudelo-hqlknm/15min",
       active: body.active ?? true,
