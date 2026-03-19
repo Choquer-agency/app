@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { encodeCookie, COOKIE_NAME } from "@/lib/admin-auth";
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
@@ -25,11 +24,12 @@ export async function POST(request: NextRequest) {
         memberName = member.name;
       }
     } catch {
-      // team_members table may not exist yet — proceed with email-based name
+      // team_members table may not exist yet
     }
 
-    const cookieStore = await cookies();
-    cookieStore.set(COOKIE_NAME, encodeCookie({ name: memberName, email }), {
+    const cookieValue = encodeCookie({ name: memberName, email });
+    const response = NextResponse.json({ ok: true });
+    response.cookies.set(COOKIE_NAME, cookieValue, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       path: "/",
     });
 
-    return NextResponse.json({ ok: true });
+    return response;
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json(
