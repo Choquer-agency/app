@@ -11,9 +11,10 @@ import AnalyticsBlurOverlay from "@/components/AnalyticsBlurOverlay";
 import ApprovalSection from "@/components/ApprovalSection";
 
 import { getGSCKPIs, getGSCTopPages, getDateRange } from "@/lib/gsc";
-import { getGA4KPIs, getGA4UsersTimeSeries, getGA4TrafficAcquisition } from "@/lib/ga4";
+import { getGA4KPIs, getGA4UsersTimeSeries, getGA4TrafficAcquisition, getGA4OrganicSessionsForRange } from "@/lib/ga4";
 import type { TrafficChannel } from "@/lib/ga4";
-import { getKeywordRankings } from "@/lib/serankings";
+import { getKeywordRankings, getProjectStats } from "@/lib/serankings";
+import type { SERankingStats } from "@/lib/serankings";
 import { getClientBySlug } from "@/lib/clients";
 import { getEnrichedContent, getApprovals } from "@/lib/db";
 import {
@@ -27,6 +28,13 @@ import {
 } from "@/types";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: PageProps) {
+  const { slug } = await params;
+  const client = await getClientBySlug(slug);
+  if (!client) return { title: "SEO Dashboard" };
+  return { title: `${client.name} — SEO Dashboard` };
+}
 
 const USE_GOOGLE = !!process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
 
@@ -143,16 +151,18 @@ export default async function ClientDashboard({ params }: PageProps) {
       verified: false, // will be set to true if live data backs it
     }));
 
-    workLog = (enriched.currentMonth?.tasks || []).map((t: { task: string; category: string[]; subtasks: string; deliverableLinks: string[]; impact?: string }, i: number) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    workLog = (enriched.currentMonth?.tasks || []).map((t: any, i: number) => ({
       id: `et-${i}`,
       task: t.task,
       category: t.category || [],
-      subtasks: t.subtasks || "",
+      subtasks: t.subtasks || [],
       deliverableLinks: t.deliverableLinks || [],
       monthlySummary: i === 0 ? (enriched.currentMonth?.summary || "") : "",
       month: getCurrentMonth(),
       isPlan: false,
       impact: t.impact || "",
+      completed: t.completed,
     }));
 
     plan = [];
@@ -168,11 +178,12 @@ export default async function ClientDashboard({ params }: PageProps) {
             id: `ep-${mi}-${ti}`,
             task: typeof t === "string" ? t : t.task,
             category: typeof t === "string" ? [] : (t.category || []),
-            subtasks: typeof t === "string" ? "" : (t.subtasks || ""),
+            subtasks: typeof t === "string" ? "" : (t.subtasks || []),
             deliverableLinks: typeof t === "string" ? [] : (t.deliverableLinks || []),
             monthlySummary: "",
             month: monthKey,
             isPlan: false,
+            completed: typeof t === "string" ? true : (t.completed ?? true),
           })
         );
         if (pm.summary) summariesByMonth[monthKey] = pm.summary;
@@ -247,9 +258,13 @@ export default async function ClientDashboard({ params }: PageProps) {
   let kpis: KPIData[] = [clicksKpi, impressionsKpi, ctrKpi, sessionsKpi];
 
   // Fetch SE Rankings keyword data independently
+  let seRankingStats: SERankingStats | null = null;
   if (client.seRankingsProjectId) {
     try {
-      keywords = await getKeywordRankings(client.seRankingsProjectId);
+      [keywords, seRankingStats] = await Promise.all([
+        getKeywordRankings(client.seRankingsProjectId),
+        getProjectStats(client.seRankingsProjectId),
+      ]);
     } catch (error) {
       console.error(`SE Rankings failed for ${slug}:`, error);
     }
@@ -278,6 +293,8 @@ export default async function ClientDashboard({ params }: PageProps) {
 
   const analyticsConnected = gscConnected || ga4Connected;
 
+  const isOnboarding = enriched?._onboarding === true;
+
   const summary = workLog.find((e) => e.monthlySummary)?.monthlySummary || "";
   const quarter = getCurrentQuarter();
   const currentMonthLabel = formatMonthLabel(getCurrentMonth());
@@ -286,19 +303,42 @@ export default async function ClientDashboard({ params }: PageProps) {
 
   const allComplete = workLog.length > 0 && workLog.every((e) => !e.isPlan);
 
-  // Compute cumulative impact since first agency month
+  // Compute cumulative impact: compare pre-agency baseline (3 months before start) to recent 3 months
   let cumulativeData: { startMonth: string; sessionsChange: number } | null = null;
-  if (enriched?.pastMonths?.length) {
+  if (enriched?.pastMonths?.length && ga4Connected && client.ga4PropertyId) {
+    // Find the earliest month from pastMonths (they're ordered most-recent-first)
     const allMonthKeys = [...historicalMonths].reverse(); // chronological
-    const firstMonth = allMonthKeys[0];
-    const firstSessions = metricsByMonth[firstMonth]?.sessions;
-    const latestMonth = allMonthKeys[allMonthKeys.length - 1];
-    const latestSessions = metricsByMonth[latestMonth]?.sessions;
-    if (firstSessions && latestSessions && firstSessions > 0) {
-      cumulativeData = {
-        startMonth: formatMonthLabel(firstMonth),
-        sessionsChange: Math.round(((latestSessions - firstSessions) / firstSessions) * 100),
-      };
+    const earliestMonthLabel = allMonthKeys[0]; // e.g. "December 2023"
+
+    // Parse the month label into a date
+    const parsedStart = new Date(earliestMonthLabel + " 1");
+    if (!isNaN(parsedStart.getTime())) {
+      // Pre-agency baseline: 3 months before the agency started
+      const baselineEnd = new Date(parsedStart.getFullYear(), parsedStart.getMonth(), 0); // last day of month before start
+      const baselineStart = new Date(parsedStart.getFullYear(), parsedStart.getMonth() - 3, 1); // 3 months before
+
+      // Recent period: last 3 full months
+      const now = new Date();
+      const recentEnd = new Date(now.getFullYear(), now.getMonth(), 0); // end of last full month
+      const recentStart = new Date(now.getFullYear(), now.getMonth() - 3, 1); // 3 months back
+
+      const fmt = (d: Date) => d.toISOString().split("T")[0];
+
+      try {
+        const [baselineSessions, recentSessions] = await Promise.all([
+          getGA4OrganicSessionsForRange(client.ga4PropertyId, fmt(baselineStart), fmt(baselineEnd)),
+          getGA4OrganicSessionsForRange(client.ga4PropertyId, fmt(recentStart), fmt(recentEnd)),
+        ]);
+
+        if (baselineSessions > 0) {
+          cumulativeData = {
+            startMonth: earliestMonthLabel,
+            sessionsChange: Math.round(((recentSessions - baselineSessions) / baselineSessions) * 100),
+          };
+        }
+      } catch (error) {
+        console.error(`Cumulative impact fetch failed for ${slug}:`, error);
+      }
     }
   }
 
@@ -353,22 +393,51 @@ export default async function ClientDashboard({ params }: PageProps) {
     <div className="min-h-screen bg-white">
       <Header client={client} pendingApprovals={pendingApprovals} />
 
+      {/* ── Onboarding / Coming Soon ── */}
+      {isOnboarding && (
+        <div className="max-w-3xl mx-auto px-6 py-8">
+          <div className="bg-[#FAFCFF] rounded-2xl px-8 py-10 text-center border border-[#E8F0FE]">
+            <h2 className="text-xl font-bold text-[#1A1A1A] mb-2">
+              Your Strategy Dashboard is Coming Soon
+            </h2>
+            <p className="text-sm text-[#6b7280] max-w-md mx-auto mb-6">
+              Our team is building your custom SEO strategy. Once your plan is finalized,
+              this dashboard will show your goals, monthly work progress, and performance history.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto">
+              <div className="bg-white rounded-xl px-4 py-3 border border-[#F0F0F0]">
+                <div className="text-xs font-medium text-[#6b7280] uppercase tracking-wide mb-1">Goals</div>
+                <div className="text-sm text-[#9ca3af]">Coming soon</div>
+              </div>
+              <div className="bg-white rounded-xl px-4 py-3 border border-[#F0F0F0]">
+                <div className="text-xs font-medium text-[#6b7280] uppercase tracking-wide mb-1">Work Log</div>
+                <div className="text-sm text-[#9ca3af]">Coming soon</div>
+              </div>
+              <div className="bg-white rounded-xl px-4 py-3 border border-[#F0F0F0]">
+                <div className="text-xs font-medium text-[#6b7280] uppercase tracking-wide mb-1">History</div>
+                <div className="text-sm text-[#9ca3af]">Coming soon</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 1. Goals ── */}
-      {goals.length > 0 && (
+      {!isOnboarding && goals.length > 0 && (
         <div className="max-w-3xl mx-auto px-6 pt-4">
           <GoalsSection goals={goals} quarter={quarter} />
         </div>
       )}
 
       {/* ── 1.5. Approvals ── */}
-      {approvals.length > 0 && (
+      {!isOnboarding && approvals.length > 0 && (
         <div className="max-w-3xl mx-auto px-6 pt-2">
           <ApprovalSection approvals={approvals} clientSlug={slug} />
         </div>
       )}
 
       {/* ── 2. This Month ── */}
-      {workLog.length > 0 && (
+      {!isOnboarding && workLog.length > 0 && (
         <div className="max-w-3xl mx-auto px-6 py-6">
           <WorkLog
             entries={workLog}
@@ -397,6 +466,7 @@ export default async function ClientDashboard({ params }: PageProps) {
               initialTrafficChannels={trafficChannels}
               initialTopPages={topPages}
               initialKeywords={keywords}
+              seRankingStats={seRankingStats}
               clientSlug={slug}
               initialRange="28d"
               cumulativeData={cumulativeData}
@@ -406,14 +476,14 @@ export default async function ClientDashboard({ params }: PageProps) {
       </div>
 
       {/* ── 4. Upcoming Months ── */}
-      {upcomingMonths.length > 0 && (
+      {!isOnboarding && upcomingMonths.length > 0 && (
         <div className="max-w-3xl mx-auto px-6 pt-2 pb-4">
           <UpcomingMonths monthPlans={upcomingMonths} />
         </div>
       )}
 
       {/* ── 5. Past Months ── */}
-      {historicalMonths.length > 0 && (
+      {!isOnboarding && historicalMonths.length > 0 && (
         <div className="max-w-3xl mx-auto px-6 pb-4">
           <HistoricalReports
             months={historicalMonths}

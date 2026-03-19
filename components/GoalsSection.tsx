@@ -12,8 +12,7 @@ export default function GoalsSection({ goals, quarter }: GoalsSectionProps) {
     <section id="goals-section" className="pt-6 mb-8" data-track="goals">
       <div className="bg-[#FFF8EE] rounded-2xl px-8 py-6">
         <h2 className="text-base font-semibold mb-3 text-[#1A1A1A]">
-          Quarterly Goals
-          <span className="text-[#8B5E00] font-normal text-xs ml-2">{quarter}</span>
+          Goals
         </h2>
         <div className="space-y-2">
           {goals.map((goal) => {
@@ -48,7 +47,7 @@ export default function GoalsSection({ goals, quarter }: GoalsSectionProps) {
                   {hasLiveData && goal.currentValue !== undefined && (
                     <span className="font-medium text-[#1A1A1A]">Current: {goal.currentValue.toLocaleString()}</span>
                   )}
-                  <span>Deadline: End of {quarter}</span>
+                  <span>Deadline: {goal.quarter}</span>
                   {hasLiveData ? (
                     <span className="font-medium text-[#1A1A1A]">
                       {isComplete ? "100%" : `${goal.progress}%`}

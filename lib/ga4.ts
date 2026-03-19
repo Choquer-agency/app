@@ -180,6 +180,34 @@ export async function getGA4TrafficAcquisition(
 }
 
 /**
+ * Get organic sessions total for a specific date range (for baseline comparisons)
+ */
+export async function getGA4OrganicSessionsForRange(
+  propertyId: string,
+  startDate: string,
+  endDate: string
+): Promise<number> {
+  return cachedFetch(`ga4:organic-range:${propertyId}:${startDate}:${endDate}`, CACHE_TTL, async () => {
+    const client = getAnalyticsDataClient();
+    const res = await client.properties.runReport({
+      property: propertyId,
+      requestBody: {
+        dateRanges: [{ startDate, endDate }],
+        metrics: [{ name: "sessions" }],
+        dimensionFilter: {
+          filter: {
+            fieldName: "sessionDefaultChannelGroup",
+            stringFilter: { value: "Organic Search" },
+          },
+        },
+      },
+    });
+    const row = res.data.rows?.[0];
+    return parseInt(row?.metricValues?.[0]?.value || "0", 10);
+  });
+}
+
+/**
  * Get GA4 KPI: organic sessions current 30d vs prior 30d
  */
 export async function getGA4KPIs(propertyId: string) {

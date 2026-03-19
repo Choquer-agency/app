@@ -226,7 +226,7 @@ export async function createClient(
 
   const { rows } = await sql`
     INSERT INTO clients (
-      name, slug, ga4_property_id, gsc_site_url, cal_link, notion_page_url, notion_page_id, active,
+      name, slug, ga4_property_id, gsc_site_url, se_rankings_project_id, cal_link, notion_page_url, notion_page_id, active,
       website_url, contact_name, contact_email, contact_phone,
       contract_start_date, contract_end_date, mrr, country, seo_hours_allocated,
       account_specialist, address_line1, address_line2, city, province_state, postal_code,
@@ -234,7 +234,7 @@ export async function createClient(
       social_linkedin, social_facebook, social_instagram, social_x
     )
     VALUES (
-      ${data.name}, ${slug}, ${ga4PropertyId}, ${gscSiteUrl},
+      ${data.name}, ${slug}, ${ga4PropertyId}, ${gscSiteUrl}, ${data.seRankingsProjectId || ""},
       ${data.calLink}, ${data.notionPageUrl}, ${notionPageId}, ${data.active},
       ${data.websiteUrl || ""}, ${data.contactName || ""}, ${data.contactEmail || ""}, ${data.contactPhone || ""},
       ${data.contractStartDate || null}, ${data.contractEndDate || null},
@@ -272,6 +272,7 @@ export async function updateClient(
     data.ga4PropertyId !== undefined
       ? normalizeGa4Id(data.ga4PropertyId)
       : current.ga4_property_id;
+  const seRankingsProjectId = data.seRankingsProjectId ?? current.se_rankings_project_id ?? "";
   const calLink = data.calLink ?? current.cal_link;
   const active = data.active ?? current.active;
 
@@ -309,6 +310,7 @@ export async function updateClient(
       slug = ${slug},
       ga4_property_id = ${ga4PropertyId},
       gsc_site_url = ${gscSiteUrl},
+      se_rankings_project_id = ${seRankingsProjectId},
       cal_link = ${calLink},
       notion_page_url = ${notionPageUrl},
       notion_page_id = ${notionPageId},

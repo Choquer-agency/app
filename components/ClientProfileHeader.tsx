@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ClientConfig, TeamMember } from "@/types";
 import ClientStatusBadge from "./ClientStatusBadge";
 import CopyField from "./CopyField";
@@ -9,7 +10,12 @@ interface ClientProfileHeaderProps {
   teamMembers?: TeamMember[];
 }
 
+function hasAllConnections(client: ClientConfig): boolean {
+  return !!(client.ga4PropertyId && client.gscSiteUrl && client.notionPageUrl && client.calLink);
+}
+
 export default function ClientProfileHeader({ client, teamMembers = [] }: ClientProfileHeaderProps) {
+  const [enriching, setEnriching] = useState(false);
   const specialist = teamMembers.find((m) => m.name === client.accountSpecialist);
   const addressParts = [
     client.addressLine1,
@@ -23,13 +29,17 @@ export default function ClientProfileHeader({ client, teamMembers = [] }: Client
     : "";
 
   return (
-    <div className="bg-[#FFFAF3] rounded-t-xl p-6">
+    <div className="bg-[var(--accent-light)] rounded-t-xl p-6">
       {/* Top row */}
       <div className="flex items-start justify-between mb-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-[var(--foreground)]">{client.name}</h1>
             <ClientStatusBadge status={client.clientStatus} />
+            <div
+              className={`w-2 h-2 rounded-full ${hasAllConnections(client) ? 'bg-emerald-500' : 'bg-red-500'}`}
+              title={hasAllConnections(client) ? 'All integrations connected' : 'Missing integrations'}
+            />
           </div>
           <div className="flex items-center gap-3">
             {client.websiteUrl && (
@@ -52,14 +62,57 @@ export default function ClientProfileHeader({ client, teamMembers = [] }: Client
             </p>
           )}
         </div>
-        <a
-          href={`/${client.slug}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-3 py-1.5 text-xs font-medium text-[var(--accent)] border border-[var(--accent)] rounded-lg hover:bg-[var(--accent-light)] transition"
-        >
-          View Dashboard
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              if (enriching) return;
+              setEnriching(true);
+              try {
+                const res = await fetch(`/api/admin/enrich/${client.slug}`, { method: "POST" });
+                if (res.ok) {
+                  const data = await res.json();
+                  alert(`Dashboard updated! ${data.tasks} tasks, ${data.goals} goals synced.`);
+                } else {
+                  const data = await res.json();
+                  alert(`Sync failed: ${data.error}`);
+                }
+              } catch {
+                alert("Sync failed — check your connection.");
+              } finally {
+                setEnriching(false);
+              }
+            }}
+            disabled={enriching}
+            title="Sync Notion to dashboard"
+            className={`p-1.5 rounded-lg border border-[var(--accent)] transition ${
+              enriching
+                ? "opacity-50 cursor-wait"
+                : "text-[var(--accent)] hover:bg-[var(--accent-light)]"
+            }`}
+          >
+            <svg
+              className={`w-4 h-4 ${enriching ? "animate-spin-reverse" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
+          <a
+            href={`/${client.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 text-xs font-medium text-[var(--accent)] border border-[var(--accent)] rounded-lg hover:bg-[var(--accent-light)] transition"
+          >
+            View Dashboard
+          </a>
+        </div>
       </div>
 
       {/* Info grid */}

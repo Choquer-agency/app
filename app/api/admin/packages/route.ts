@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
       name: body.name.trim(),
       description: body.description || "",
       defaultPrice: body.defaultPrice || 0,
+      category: body.category || "other",
+      billingFrequency: body.billingFrequency || "monthly",
+      hoursIncluded: body.hoursIncluded ?? null,
       includedServices: body.includedServices || [],
       active: body.active ?? true,
     });

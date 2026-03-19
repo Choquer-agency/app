@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Package } from "@/types";
+import { useState, useEffect } from "react";
+import { Package, BillingFrequency } from "@/types";
 
 interface PackageFormModalProps {
   pkg?: Package | null;
@@ -12,10 +12,18 @@ interface PackageFormModalProps {
 export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormModalProps) {
   const isEditing = !!pkg;
 
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   const [name, setName] = useState(pkg?.name || "");
   const [description, setDescription] = useState(pkg?.description || "");
   const [defaultPrice, setDefaultPrice] = useState(pkg?.defaultPrice?.toString() || "");
   const [category, setCategory] = useState<string>(pkg?.category || "other");
+  const [billingFrequency, setBillingFrequency] = useState<BillingFrequency>(
+    pkg?.billingFrequency || "monthly"
+  );
   const [hoursIncluded, setHoursIncluded] = useState(pkg?.hoursIncluded?.toString() || "");
   const [servicesText, setServicesText] = useState(
     (pkg?.includedServices || []).join("\n")
@@ -43,6 +51,7 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
       description,
       defaultPrice: parseFloat(defaultPrice) || 0,
       category,
+      billingFrequency,
       hoursIncluded: hoursIncluded ? parseFloat(hoursIncluded) : null,
       includedServices,
       active,
@@ -74,7 +83,7 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
   }
 
   const inputClass =
-    "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9500] focus:border-transparent";
+    "w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
@@ -85,7 +94,7 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
 
         <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto px-8 pb-8">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
               Package Name
             </label>
             <input
@@ -100,7 +109,7 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
               Description
             </label>
             <textarea
@@ -113,21 +122,26 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Default Price ($/mo)
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+              Default Price
             </label>
-            <input
-              type="number"
-              step="0.01"
-              value={defaultPrice}
-              onChange={(e) => setDefaultPrice(e.target.value)}
-              placeholder="e.g. 2000"
-              className={inputClass}
-            />
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] text-sm pointer-events-none select-none">
+                $
+              </div>
+              <input
+                type="number"
+                step="0.01"
+                value={defaultPrice}
+                onChange={(e) => setDefaultPrice(e.target.value)}
+                placeholder="2000"
+                className="w-full pl-7 pr-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
+              />
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
               Category
             </label>
             <select
@@ -144,9 +158,27 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+              Billing Frequency
+            </label>
+            <select
+              value={billingFrequency}
+              onChange={(e) => setBillingFrequency(e.target.value as BillingFrequency)}
+              className={`${inputClass} bg-white`}
+            >
+              <option value="one_time">One-Time</option>
+              <option value="weekly">Weekly</option>
+              <option value="bi_weekly">Bi-Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="annually">Annually</option>
+            </select>
+          </div>
+
           {showHours && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
                 Hours Included
               </label>
               <input
@@ -161,7 +193,7 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
               Included Services (one per line)
             </label>
             <textarea
@@ -173,18 +205,20 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="pkgActive"
-              checked={active}
-              onChange={(e) => setActive(e.target.checked)}
-              className="rounded border-gray-300 text-[#FF9500] focus:ring-[#FF9500]"
-            />
-            <label htmlFor="pkgActive" className="text-sm text-gray-700">
-              Active
-            </label>
-          </div>
+          {isEditing && (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="pkgActive"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
+                className="rounded border-gray-300 text-[var(--accent)] focus:ring-[var(--accent)]"
+              />
+              <label htmlFor="pkgActive" className="text-sm text-[var(--foreground)]">
+                Active
+              </label>
+            </div>
+          )}
 
           {error && (
             <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
@@ -194,14 +228,14 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-[var(--foreground)] bg-gray-100 rounded-lg hover:bg-gray-200 transition"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!name.trim() || submitting}
-              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-[#FF9500] rounded-lg hover:opacity-90 transition disabled:opacity-50"
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-[var(--accent)] rounded-lg hover:opacity-90 transition disabled:opacity-50"
             >
               {submitting ? "..." : isEditing ? "Save Changes" : "Add Package"}
             </button>

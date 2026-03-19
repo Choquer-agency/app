@@ -42,6 +42,31 @@ function fmtNumber(n: number): string {
   return n.toLocaleString();
 }
 
+function cleanLinkLabel(url: string): string {
+  try {
+    const u = new URL(url);
+    // Google Sheets
+    if (u.hostname.includes("docs.google.com") && u.pathname.includes("/spreadsheets/")) return "View Spreadsheet";
+    // Google Docs
+    if (u.hostname.includes("docs.google.com") && u.pathname.includes("/document/")) return "View Document";
+    // Google Drive
+    if (u.hostname.includes("drive.google.com")) return "View File";
+    // Google Slides
+    if (u.hostname.includes("docs.google.com") && u.pathname.includes("/presentation/")) return "View Slides";
+    // Generic — use last meaningful path segment
+    const segments = u.pathname.split("/").filter(Boolean);
+    if (segments.length > 0) {
+      const last = segments[segments.length - 1]
+        .replace(/[-_]/g, " ")
+        .replace(/\.\w+$/, "");
+      if (last && last.length > 2 && last.length < 60) return last;
+    }
+    return "View Link";
+  } catch {
+    return "View Link";
+  }
+}
+
 function findEnrichment(entry: WorkLogEntry, enrichments: AnalyticsEnrichment[]): AnalyticsEnrichment | undefined {
   // Match by checking if any deliverable link or task text references a tracked page
   for (const e of enrichments) {
@@ -119,7 +144,7 @@ export default function WorkLog({ entries, summary, monthLabel, isComplete, goal
               i < entries.length - 1 ? "border-b border-[#F0F0F0]" : ""
             }`}
           >
-            {isComplete ? (
+            {entry.completed ?? isComplete ? (
               <svg className="w-4 h-4 mt-0.5 text-[#0d7a55] flex-shrink-0" viewBox="0 0 16 16" fill="none">
                 <path d="M13.5 4.5L6.5 11.5L2.5 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -141,11 +166,35 @@ export default function WorkLog({ entries, summary, monthLabel, isComplete, goal
               {entry.impact && (
                 <p className="text-xs text-[#5B52B6] mt-0.5 italic">{entry.impact}</p>
               )}
+              {/* Subtasks: structured array or legacy string */}
               {entry.subtasks && (
-                <p className="text-xs text-muted mt-0.5">{entry.subtasks}</p>
+                Array.isArray(entry.subtasks) && entry.subtasks.length > 0 ? (
+                  <div className="mt-1.5 ml-1 space-y-1">
+                    {entry.subtasks.map((st, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        {st.completed ? (
+                          <svg className="w-3 h-3 text-[#0d7a55] flex-shrink-0" viewBox="0 0 16 16" fill="none">
+                            <path d="M13.5 4.5L6.5 11.5L2.5 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        ) : (
+                          <div className="w-3 h-3 rounded-full border-[1.5px] border-[#D1D5DB] flex-shrink-0" />
+                        )}
+                        <span className={`text-xs ${st.completed ? "text-[#888]" : "text-[#1A1A1A]"}`}>{st.text}</span>
+                        {st.link && (
+                          <a href={st.link} target="_blank" rel="noopener noreferrer" className="text-xs text-[#FF9500] hover:underline" data-track="link">
+                            {st.linkLabel && !st.linkLabel.startsWith("http") ? st.linkLabel : cleanLinkLabel(st.link)}
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : typeof entry.subtasks === "string" && entry.subtasks ? (
+                  <p className="text-xs text-muted mt-0.5">{entry.subtasks}</p>
+                ) : null
               )}
-              {entry.deliverableLinks.length > 0 && (
-                <div className="flex gap-2 mt-1">
+              {/* Only show top-level deliverableLinks if subtasks don't already have links */}
+              {entry.deliverableLinks.length > 0 && !(Array.isArray(entry.subtasks) && entry.subtasks.some(s => s.link)) && (
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
                   {entry.deliverableLinks.map((link, idx) => (
                     <a
                       key={idx}
@@ -155,7 +204,7 @@ export default function WorkLog({ entries, summary, monthLabel, isComplete, goal
                       className="text-xs text-[#FF9500] hover:underline"
                       data-track="link"
                     >
-                      View deliverable
+                      {cleanLinkLabel(link)}
                     </a>
                   ))}
                 </div>

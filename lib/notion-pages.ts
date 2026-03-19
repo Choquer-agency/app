@@ -203,9 +203,10 @@ export function splitByMonthSections(markdown: string): {
   const currentMonthName = MONTH_NAMES[now.getMonth()];
 
   // Build patterns to find any month marker (heading, toggle/blockquote, or bold line)
-  // Match lines like: "# March 2026", "## March: Technical SEO", "> March: On-Page", "**March**"
+  // Match lines like: "# March 2026", "### **March: Technical SEO**", "> March: On-Page",
+  // "## SEO Updates March 2025" (month name can appear after prefix words)
   const monthPattern = new RegExp(
-    `^(?:#{1,3}\\s+|>\\s+|\\*\\*)(${MONTH_NAMES.join("|")})\\b[^\\n]*`,
+    `^(?:#{1,3}\\s+|>\\s+)(?:\\*\\*)?[^\\n]*?\\b(${MONTH_NAMES.join("|")})\\b[^\\n]*`,
     "gim"
   );
 
@@ -248,6 +249,51 @@ export function splitByMonthSections(markdown: string): {
   const rest = [before, after].filter(Boolean).join("\n\n");
 
   return { currentMonthSection, rest };
+}
+
+/**
+ * Split markdown into all individual month sections.
+ * Returns preamble (content before first month heading) + each month as a labeled section.
+ * Used by multi-pass enrichment to batch historical months.
+ */
+export function splitAllMonthSections(markdown: string): {
+  preamble: string;
+  months: Array<{ monthLabel: string; content: string }>;
+} {
+  // Match headings containing month names anywhere in the line
+  // Handles: "### March 2026:", "## SEO Updates March 2025", "> March: On-Page"
+  const monthPattern = new RegExp(
+    `^(?:#{1,3}\\s+|>\\s+)(?:\\*\\*)?[^\\n]*?\\b(${MONTH_NAMES.join("|")})\\b([^\\n]*)`,
+    "gim"
+  );
+
+  const markers: Array<{ month: string; line: string; index: number }> = [];
+  let m;
+  while ((m = monthPattern.exec(markdown)) !== null) {
+    // Extract year if present on the same line (e.g., "March 2026:" or "January 2024")
+    const yearMatch = m[0].match(/(\d{4})/);
+    const year = yearMatch ? yearMatch[1] : "";
+    const label = year ? `${m[1]} ${year}` : m[1];
+    markers.push({ month: label, line: m[0], index: m.index });
+  }
+
+  if (markers.length === 0) {
+    return { preamble: markdown, months: [] };
+  }
+
+  const preamble = markdown.slice(0, markers[0].index).trim();
+  const months: Array<{ monthLabel: string; content: string }> = [];
+
+  for (let i = 0; i < markers.length; i++) {
+    const start = markers[i].index;
+    const end = i + 1 < markers.length ? markers[i + 1].index : markdown.length;
+    months.push({
+      monthLabel: markers[i].month,
+      content: markdown.slice(start, end).trim(),
+    });
+  }
+
+  return { preamble, months };
 }
 
 /**

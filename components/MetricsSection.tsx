@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { DateRange, KPIData, TimeSeriesPoint, TopPage, KeywordRanking } from "@/types";
+import type { SERankingStats } from "@/lib/serankings";
 import DateRangeSelector from "./DateRangeSelector";
 import KPICards from "./KPICards";
 import TrafficCharts from "./TrafficCharts";
@@ -20,6 +21,7 @@ interface MetricsSectionProps {
   initialTrafficChannels: TrafficChannel[];
   initialTopPages: TopPage[];
   initialKeywords: KeywordRanking[];
+  seRankingStats: SERankingStats | null;
   clientSlug: string;
   initialRange: DateRange;
   cumulativeData?: { startMonth: string; sessionsChange: number } | null;
@@ -31,6 +33,7 @@ export default function MetricsSection({
   initialTrafficChannels,
   initialTopPages,
   initialKeywords,
+  seRankingStats,
   clientSlug,
   initialRange,
   cumulativeData,
@@ -76,8 +79,8 @@ export default function MetricsSection({
       <KPICards kpis={kpis} />
 
       {cumulativeData && (
-        <div className="mb-4 bg-[#F6FFF9] border border-[#BDFFE8] rounded-xl px-4 py-3 flex items-center justify-between">
-          <p className="text-xs text-[#0d5a3f]">
+        <div className={`mb-4 ${cumulativeData.sessionsChange >= 0 ? "bg-[#F6FFF9] border-[#BDFFE8]" : "bg-red-50 border-red-200"} border rounded-xl px-4 py-3 flex items-center justify-between`}>
+          <p className={`text-xs ${cumulativeData.sessionsChange >= 0 ? "text-[#0d5a3f]" : "text-red-700"}`}>
             <span className="font-medium">Since {cumulativeData.startMonth}</span>
           </p>
           <p className={`text-sm font-bold ${cumulativeData.sessionsChange >= 0 ? "text-[#0d7a55]" : "text-[#b91c1c]"}`}>
@@ -91,7 +94,7 @@ export default function MetricsSection({
         trafficChannels={trafficChannels}
         topPages={topPages}
       />
-      <KeywordTable keywords={initialKeywords} />
+      <KeywordTable keywords={initialKeywords} stats={seRankingStats} />
     </>
   );
 }

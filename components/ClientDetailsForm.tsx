@@ -78,6 +78,7 @@ export default function ClientDetailsForm({
     notionPageUrl: client.notionPageUrl,
     ga4PropertyId: client.ga4PropertyId?.replace("properties/", "") || "",
     gscSiteUrl: client.gscSiteUrl?.replace("sc-domain:", "") || "",
+    seRankingsProjectId: client.seRankingsProjectId || "",
     calLink: client.calLink,
   });
   const [submitting, setSubmitting] = useState(false);
@@ -319,6 +320,10 @@ export default function ClientDetailsForm({
         <div>
           <label className={labelClass}>Search Console URL</label>
           <input type="text" value={form.gscSiteUrl} onChange={(e) => update("gscSiteUrl", e.target.value)} placeholder="example.com" className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>SE Ranking ID</label>
+          <input type="text" value={form.seRankingsProjectId} onChange={(e) => update("seRankingsProjectId", e.target.value)} placeholder="1234567890" className={inputClass} />
         </div>
         <div>
           <label className={labelClass}>Booking Link</label>

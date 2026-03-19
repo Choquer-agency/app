@@ -62,7 +62,9 @@ export default function MonthlyPlan({ entries, monthLabel }: MonthlyPlanProps) {
                   ))}
                 </div>
                 {entry.subtasks && (
-                  <p className="text-xs text-muted mt-0.5">{entry.subtasks}</p>
+                  <p className="text-xs text-muted mt-0.5">
+                    {typeof entry.subtasks === "string" ? entry.subtasks : entry.subtasks.map(s => s.text).join(", ")}
+                  </p>
                 )}
               </div>
             </div>

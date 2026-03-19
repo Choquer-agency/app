@@ -7,8 +7,8 @@ import ClientNotesTimeline from "./ClientNotesTimeline";
 import ClientDetailsForm from "./ClientDetailsForm";
 
 const TABS = [
-  { id: "overview", label: "Overview" },
   { id: "packages", label: "Packages & Billing" },
+  { id: "overview", label: "Overview" },
   { id: "notes", label: "Activity Log" },
   { id: "edit", label: "Edit" },
 ];
@@ -22,7 +22,7 @@ interface ClientProfileTabsProps {
 
 export default function ClientProfileTabs({ client, teamMembers = [], onClientUpdated, onPackagesChanged }: ClientProfileTabsProps) {
   const specialist = teamMembers.find((m) => m.name === client.accountSpecialist);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("packages");
   const [clientPackages, setClientPackages] = useState<ClientPackage[]>([]);
 
   const fetchClientPackages = useCallback(async () => {
@@ -38,7 +38,7 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
 
   function handleSaved(updated: ClientConfig) {
     onClientUpdated?.(updated);
-    setActiveTab("overview");
+    setActiveTab("packages");
   }
 
   function handlePackagesChanged() {
@@ -86,7 +86,7 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
   return (
     <div>
       {/* KPI Cards — connects to header above, no gap */}
-      <div className="bg-[#FFFAF3] rounded-b-xl p-5 border-t border-[#F5E6D0]">
+      <div className="bg-[var(--accent-light)] rounded-b-xl p-5 border-t border-[var(--border)]">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <p className="text-xs text-[var(--muted)] mb-1">MRR</p>

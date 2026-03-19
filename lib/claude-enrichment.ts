@@ -3,12 +3,18 @@ import { ClientConfig } from "@/types";
 import {
   ClaudeStructuredOutput,
   EnrichedContent,
+  EnrichedMonth,
   AnalyticsEnrichment,
 } from "@/types/enrichment";
 import { getGSCPerformance, getGSCTimeSeries, getDateRange } from "./gsc";
 import { getGA4Sessions } from "./ga4";
 import { upsertApproval } from "./db";
+import { splitAllMonthSections } from "./notion-pages";
+import { getLangfuse, flushLangfuse } from "./langfuse";
 import crypto from "crypto";
+
+const MULTIPASS_MONTH_THRESHOLD = 10;
+const HISTORY_BATCH_SIZE = 8;
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -19,8 +25,9 @@ const SYSTEM_PROMPT = `You are a content processor for an SEO agency's client da
 CRITICAL RULES — READ FIRST:
 - NEVER invent, fabricate, or add content that is not in the source notes. Every task, detail, and link in your output MUST come directly from the notes. If something is not mentioned, do not include it.
 - PRESERVE EVERY CHECKBOX — each checkbox (- [x] or - [ ]) in the notes MUST become its own separate task in the tasks array. Do NOT merge, combine, or summarize multiple checkboxes into one task. If the notes have 25 checkboxes, the output MUST have 25 tasks.
-- Nested bullets under a checkbox are that task's subtasks/details — include them in the "subtasks" field, not as separate tasks.
+- Nested bullets under a checkbox are that task's subtasks — include them in the "subtasks" array, NOT as separate tasks. Each subtask is an object with "text" (the subtask description), "completed" (true if the nested item has [x], false if [ ] or no checkbox), "link" (URL if the subtask has one, otherwise null), and "linkLabel" (the display text for the link, e.g. if the note says "[Click Here For Meta Descriptions](https://...)", linkLabel is "Click Here For Meta Descriptions"). If a checkbox has no nested bullets, set subtasks to an empty array [].
 - Use the EXACT task text from the notes. You may clean up grammar slightly but do NOT rewrite, rename, or paraphrase tasks. "Optimize meta titles and descriptions for better CTR" stays as "Optimize meta titles and descriptions for better CTR" — not "Optimize Blog".
+- SET "completed" per task — if the checkbox is [x] (checked), set completed: true. If [ ] (unchecked), set completed: false. This determines whether a checkmark or empty circle shows on the dashboard.
 - LINKS ARE CRITICAL — any URL found in nested bullets under a checkbox (like Google Sheets links, Google Docs links, or any https:// URL) MUST go in that task's "deliverableLinks" array. Scan every nested bullet for [text](url) markdown links and bare https:// URLs. Never drop a link. If a checkbox like "SEO Fixes" has a sub-item "[Click Here For Meta Descriptions](https://docs.google.com/...)", that URL goes in deliverableLinks for that task.
 
 Your job:
@@ -31,7 +38,7 @@ Your job:
 5. For each task, add an "impact" field — one brief sentence explaining WHY this task matters for the business
 6. For goals, add "targetMetricType" (one of: "sessions", "organic_sessions", "clicks", "impressions", "keywords_page1", "leads") and "targetValue" (the numeric target). Use "sessions" for total traffic goals, "organic_sessions" for organic-only.
 7. Extract lead counts — if the notes mention leads (e.g. "Leads: 12"), include a "leads" field in currentMonth with the numeric count.
-8. Detect APPROVAL REQUESTS — items needing client approval (e.g. "Client Approval:", "Needs Approval:", "Pending client review").
+8. Detect APPROVAL REQUESTS — items needing client approval (e.g. "Client Approval:", "Needs Approval:", "Pending client review"). IMPORTANT: Extract ALL links/URLs associated with each approval — these are resources the client needs to review before approving (e.g. design mockups, keyword lists, documents). Include them in the "links" array with the URL and a descriptive label.
 
 Return ONLY valid JSON matching this structure:
 {
@@ -42,8 +49,12 @@ Return ONLY valid JSON matching this structure:
     "tasks": [
       {
         "task": "exact task text from checkbox",
+        "completed": true,
         "category": ["On-Page SEO"],
-        "subtasks": "nested bullet details under this checkbox, if any",
+        "subtasks": [
+          { "text": "subtask text from nested bullet", "completed": true, "link": "https://url-if-present.com", "linkLabel": "Click Here For Report" },
+          { "text": "another subtask", "completed": false, "link": null, "linkLabel": null }
+        ],
         "deliverableLinks": ["https://exact-url-from-notes.com"],
         "impact": "one sentence on why this task matters"
       }
@@ -66,7 +77,7 @@ Return ONLY valid JSON matching this structure:
     {
       "monthLabel": "February 2026",
       "summary": "2-3 sentence summary from notes",
-      "tasks": [{ "task": "...", "category": ["..."], "subtasks": "", "deliverableLinks": [], "impact": "..." }],
+      "tasks": [{ "task": "...", "category": ["..."], "subtasks": [], "deliverableLinks": [], "impact": "..." }],
       "leads": null,
       "metrics": {
         "sessions": null,
@@ -79,7 +90,7 @@ Return ONLY valid JSON matching this structure:
     {
       "monthLabel": "April 2026",
       "summary": "strategy mentioned in notes",
-      "tasks": [{ "task": "...", "category": ["..."], "subtasks": "", "deliverableLinks": [], "impact": "..." }]
+      "tasks": [{ "task": "...", "category": ["..."], "subtasks": [], "deliverableLinks": [], "impact": "..." }]
     }
   ],
   "detectedEntities": {
@@ -98,7 +109,8 @@ Return ONLY valid JSON matching this structure:
   "approvals": [
     {
       "title": "approval title from notes",
-      "description": "approval details from notes"
+      "description": "approval details from notes",
+      "links": [{ "url": "https://...", "label": "Review Document" }]
     }
   ]
 }
@@ -106,7 +118,7 @@ Return ONLY valid JSON matching this structure:
 Rules:
 - NEVER add tasks, goals, metrics, or content that is not in the source notes
 - If no goals are mentioned, return an empty goals array
-- Extract ALL past/previous months mentioned in the notes into the pastMonths array. Order most recent first.
+- Extract ALL past/previous months mentioned in the notes into the pastMonths array. Order most recent first. Past month tasks follow the SAME rules as current month tasks: preserve every checkbox, use structured subtasks arrays with completed/link/linkLabel, include ALL URLs and deliverable links. Do NOT drop links from past months.
 - If no past months are mentioned, return an empty pastMonths array
 - If no upcoming months are mentioned, return an empty upcomingMonths array
 - Set isComplete to true only if the notes clearly indicate all work is done for the month
@@ -117,17 +129,34 @@ Rules:
 - Estimate progress percentage for goals based on context clues (default to 0 if unclear)
 - For goals, parse targetMetricType and targetValue from the target text
 - For leads, set to null if not mentioned
-- For approvals, extract only explicit approval requests. If none found, return empty array
+- For approvals, extract only explicit approval requests. If none found, return empty array. Always include any links/URLs found near the approval request in the "links" array — these are what the client needs to review before they can approve
 - Return ONLY the JSON, no markdown wrapping, no explanation`;
 
 /**
- * Process raw Notion markdown through Claude to get structured output
+ * Process raw Notion markdown through Claude to get structured output.
+ * Options:
+ * - maxTokens: override default 16384 output token limit
+ * - skipPastMonths: when true, instructs Claude to return empty pastMonths (for multi-pass)
  */
 async function callClaude(
   rawMarkdown: string,
-  client: ClientConfig
+  client: ClientConfig,
+  options?: { maxTokens?: number; skipPastMonths?: boolean },
+  parentTraceId?: string
 ): Promise<ClaudeStructuredOutput> {
+  const { maxTokens = 16384, skipPastMonths = false } = options || {};
+  const now = new Date();
+  const currentMonthLabel = now.toLocaleString("en-US", { month: "long", year: "numeric" });
+
+  const skipInstruction = skipPastMonths
+    ? `\n\nIMPORTANT: Return an EMPTY pastMonths array []. Past months will be processed separately. Focus your output on currentMonth, goals, upcomingMonths, detectedEntities, and approvals only.`
+    : "";
+
   const userPrompt = `Here are the raw team notes for client "${client.name}" (website: ${client.gscSiteUrl}).
+
+IMPORTANT: The current month is ${currentMonthLabel}. Any work under a "${now.toLocaleString("en-US", { month: "long" })}" heading is currentMonth.
+
+For other months: if the work is marked as completed (all checkboxes checked) and the month name comes before ${now.toLocaleString("en-US", { month: "long" })} chronologically (or any month from a previous year), it is a pastMonth. If work is planned or incomplete and the month comes after ${now.toLocaleString("en-US", { month: "long" })}, it is an upcomingMonth. When month headings lack a year, infer the year: completed months before the current month are from the previous year if needed (e.g., if current month is March 2026, a completed "April" section is April 2025, not April 2026).${skipInstruction}
 
 Process these notes and return structured JSON:
 
@@ -135,14 +164,43 @@ Process these notes and return structured JSON:
 ${rawMarkdown}
 ---`;
 
+  const langfuse = getLangfuse();
+  const generation = langfuse.generation({
+    traceId: parentTraceId,
+    name: skipPastMonths ? "claude-enrichment-current" : "claude-enrichment-full",
+    model: "claude-sonnet-4-20250514",
+    modelParameters: { max_tokens: maxTokens },
+    input: { system: SYSTEM_PROMPT, user: userPrompt },
+    metadata: {
+      client: client.slug,
+      skipPastMonths,
+      inputChars: rawMarkdown.length,
+    },
+  });
+
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 8192,
+    max_tokens: maxTokens,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
   });
 
   const text = response.content[0].type === "text" ? response.content[0].text : "";
+
+  generation.end({
+    output: text,
+    usage: {
+      input: response.usage.input_tokens,
+      output: response.usage.output_tokens,
+      total: response.usage.input_tokens + response.usage.output_tokens,
+      unit: "TOKENS" as const,
+    },
+    metadata: {
+      stopReason: response.stop_reason,
+      cacheCreationInputTokens: (response.usage as unknown as Record<string, number>).cache_creation_input_tokens ?? 0,
+      cacheReadInputTokens: (response.usage as unknown as Record<string, number>).cache_read_input_tokens ?? 0,
+    },
+  });
 
   // Parse JSON — handle potential markdown wrapping
   let jsonStr = text.trim();
@@ -151,6 +209,122 @@ ${rawMarkdown}
   }
 
   return JSON.parse(jsonStr) as ClaudeStructuredOutput;
+}
+
+/**
+ * Simplified system prompt for extracting only historical month data
+ */
+const HISTORY_SYSTEM_PROMPT = `You extract structured month data from SEO agency client notes. For each month section provided, extract tasks, subtasks, links, categories, and a summary.
+
+CRITICAL RULES:
+- PRESERVE EVERY CHECKBOX as its own task. Do NOT merge checkboxes.
+- Subtasks are nested bullets under a checkbox — include as objects with "text", "completed", "link", "linkLabel".
+- Include ALL URLs/links found in subtasks in "deliverableLinks".
+- Use EXACT task text from notes (light grammar cleanup only).
+- Set "completed" based on checkbox state: [x] = true, [ ] = false.
+- Categorize tasks: Content, On-Page SEO, Technical, Link Building, Analytics, or Strategy.
+- Add "impact" — one sentence on why the task matters.
+- Extract "notableWins" from any "Account Wins", "Account Review", or metric claims in the month section.
+- Extract metric claims (e.g. "Clicks increased by 42%") into notableWins.
+
+Return ONLY a JSON array of month objects:
+[
+  {
+    "monthLabel": "February 2026",
+    "summary": "2-3 sentence summary",
+    "tasks": [{ "task": "...", "completed": true, "category": ["..."], "subtasks": [], "deliverableLinks": [], "impact": "..." }],
+    "leads": null,
+    "metrics": { "sessions": null, "impressions": null, "notableWins": ["achievement from notes"] }
+  }
+]
+
+Rules:
+- NEVER fabricate content. Only extract what is in the notes.
+- Return ONLY the JSON array, no markdown wrapping, no explanation.`;
+
+/**
+ * Process historical month sections in batches through Claude.
+ * Returns all EnrichedMonth objects concatenated from all batches.
+ */
+async function callClaudeForHistory(
+  monthSections: Array<{ monthLabel: string; content: string }>,
+  client: ClientConfig,
+  parentTraceId?: string
+): Promise<EnrichedMonth[]> {
+  const allMonths: EnrichedMonth[] = [];
+  const langfuse = getLangfuse();
+
+  // Process in batches
+  for (let i = 0; i < monthSections.length; i += HISTORY_BATCH_SIZE) {
+    const batch = monthSections.slice(i, i + HISTORY_BATCH_SIZE);
+    const batchContent = batch
+      .map((s) => `--- ${s.monthLabel} ---\n${s.content}`)
+      .join("\n\n");
+    const batchIndex = i / HISTORY_BATCH_SIZE + 1;
+
+    const userContent = `Extract structured data for these ${batch.length} months of client "${client.name}" work notes:\n\n${batchContent}`;
+
+    const generation = langfuse.generation({
+      traceId: parentTraceId,
+      name: `claude-history-batch-${batchIndex}`,
+      model: "claude-sonnet-4-20250514",
+      modelParameters: { max_tokens: 8192 },
+      input: { system: HISTORY_SYSTEM_PROMPT, user: userContent },
+      metadata: {
+        client: client.slug,
+        batchIndex,
+        monthsInBatch: batch.map((s) => s.monthLabel),
+        inputChars: batchContent.length,
+      },
+    });
+
+    try {
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 8192,
+        system: HISTORY_SYSTEM_PROMPT,
+        messages: [{
+          role: "user",
+          content: userContent,
+        }],
+      });
+
+      const text = response.content[0].type === "text" ? response.content[0].text : "";
+
+      generation.end({
+        output: text,
+        usage: {
+          input: response.usage.input_tokens,
+          output: response.usage.output_tokens,
+          total: response.usage.input_tokens + response.usage.output_tokens,
+          unit: "TOKENS" as const,
+        },
+        metadata: {
+          stopReason: response.stop_reason,
+          cacheCreationInputTokens: (response.usage as unknown as Record<string, number>).cache_creation_input_tokens ?? 0,
+          cacheReadInputTokens: (response.usage as unknown as Record<string, number>).cache_read_input_tokens ?? 0,
+        },
+      });
+
+      let jsonStr = text.trim();
+      if (jsonStr.startsWith("```")) {
+        jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+      }
+
+      const parsed = JSON.parse(jsonStr) as EnrichedMonth[];
+      allMonths.push(...parsed);
+    } catch (error) {
+      generation.end({
+        output: String(error),
+        level: "ERROR",
+        statusMessage: `History batch ${batchIndex} failed`,
+      });
+      console.error(`History batch ${batchIndex} failed for ${client.slug}:`, error);
+      // Continue with remaining batches — partial history is better than none
+    }
+  }
+
+  return allMonths;
 }
 
 /**
@@ -248,8 +422,75 @@ export async function enrichClientContent(
 ): Promise<EnrichedContent> {
   const { taskCompletion, mode = "full", existingData } = options || {};
 
-  // Step 1: Get structured output from Claude
-  const structured = await callClaude(rawMarkdown, client);
+  // Create Langfuse trace for the entire enrichment pipeline
+  const langfuse = getLangfuse();
+  const trace = langfuse.trace({
+    name: "client-enrichment",
+    metadata: {
+      client: client.slug,
+      clientName: client.name,
+      mode,
+      inputChars: rawMarkdown.length,
+    },
+    tags: [mode, client.slug],
+  });
+
+  // Step 1: Detect page size and determine enrichment strategy
+  const { months: allMonthSections } = splitAllMonthSections(rawMarkdown);
+  const now = new Date();
+  const currentMonthName = now.toLocaleString("en-US", { month: "long" });
+
+  // Separate current/upcoming months from historical months
+  const historicalSections = allMonthSections.filter((s) => {
+    const label = s.monthLabel.toLowerCase();
+    // Keep sections that are NOT the current month (historical or upcoming handled by pass 1)
+    return !label.startsWith(currentMonthName.toLowerCase());
+  });
+
+  const useMultiPass = mode === "full" && historicalSections.length > MULTIPASS_MONTH_THRESHOLD;
+
+  trace.update({
+    metadata: {
+      client: client.slug,
+      clientName: client.name,
+      mode,
+      inputChars: rawMarkdown.length,
+      strategy: useMultiPass ? "multi-pass" : "single-pass",
+      totalMonths: allMonthSections.length,
+      historicalMonths: historicalSections.length,
+    },
+  });
+
+  let structured: ClaudeStructuredOutput;
+
+  if (useMultiPass) {
+    // Multi-pass: large page with many historical months
+    console.log(`[enrichment] Multi-pass mode for ${client.slug}: ${historicalSections.length} historical months`);
+
+    // Pass 1: Current month, goals, upcoming, entities, approvals (skip pastMonths to save output tokens)
+    structured = await callClaude(rawMarkdown, client, { maxTokens: 8192, skipPastMonths: true }, trace.id);
+
+    // Pass 2+: Historical months in batches
+    const historyMonths = await callClaudeForHistory(historicalSections, client, trace.id);
+
+    // Sort most recent first (parse year and month from label)
+    const MONTH_ORDER = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+    historyMonths.sort((a, b) => {
+      const parseLabel = (label: string) => {
+        const parts = label.toLowerCase().match(/(\w+)\s*(\d{4})?/);
+        if (!parts) return 0;
+        const mi = MONTH_ORDER.indexOf(parts[1]);
+        const yr = parts[2] ? parseInt(parts[2]) : now.getFullYear();
+        return yr * 12 + mi;
+      };
+      return parseLabel(b.monthLabel) - parseLabel(a.monthLabel);
+    });
+
+    structured.pastMonths = historyMonths;
+  } else {
+    // Single pass: small/medium page — 16384 tokens handles up to ~10 months comfortably
+    structured = await callClaude(rawMarkdown, client, undefined, trace.id);
+  }
 
   // Step 2: Fetch analytics for detected entities
   const analyticsEnrichments = await fetchAnalyticsForEntities(structured, client);
@@ -257,7 +498,7 @@ export async function enrichClientContent(
   // Step 3: Upsert any approval requests to DB
   if (structured.approvals?.length) {
     for (const approval of structured.approvals) {
-      await upsertApproval(client.slug, approval.title, approval.description);
+      await upsertApproval(client.slug, approval.title, approval.description, approval.links);
     }
   }
 
@@ -277,7 +518,7 @@ export async function enrichClientContent(
       }
     : { ...structured };
 
-  return {
+  const result = {
     ...baseData,
     currentMonth: {
       ...baseData.currentMonth,
@@ -289,4 +530,19 @@ export async function enrichClientContent(
     processedAt: new Date().toISOString(),
     rawContentHash: contentHash,
   };
+
+  // Finalize trace
+  trace.update({
+    output: {
+      tasksExtracted: result.currentMonth?.tasks?.length ?? 0,
+      pastMonths: result.pastMonths?.length ?? 0,
+      goalsExtracted: result.goals?.length ?? 0,
+      approvalsExtracted: result.approvals?.length ?? 0,
+    },
+  });
+
+  // Flush to ensure all events are sent to Langfuse
+  await flushLangfuse();
+
+  return result;
 }

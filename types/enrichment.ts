@@ -1,11 +1,19 @@
 // Types for the AI enrichment pipeline
 
+export interface SubtaskItem {
+  text: string;
+  completed: boolean;
+  link?: string;
+  linkLabel?: string;
+}
+
 export interface EnrichedTask {
   task: string;
   category: string[];
-  subtasks: string;
+  subtasks: string | SubtaskItem[];
   deliverableLinks: string[];
   impact?: string;
+  completed?: boolean;
 }
 
 export interface EnrichedGoal {
@@ -71,7 +79,7 @@ export interface EnrichedContent {
     keywords: string[];
     metrics: DetectedMetric[];
   };
-  approvals: Array<{ title: string; description: string }>;
+  approvals: Array<{ title: string; description: string; links: Array<{ url: string; label: string }> }>;
   analyticsEnrichments: AnalyticsEnrichment[];
   processedAt: string;
   rawContentHash: string;
@@ -95,5 +103,5 @@ export interface ClaudeStructuredOutput {
     keywords: string[];
     metrics: DetectedMetric[];
   };
-  approvals: Array<{ title: string; description: string }>;
+  approvals: Array<{ title: string; description: string; links: Array<{ url: string; label: string }> }>;
 }

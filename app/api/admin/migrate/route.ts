@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
+import { backfillApprovalHashes } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   if (!getSession(request)) {
@@ -114,6 +115,12 @@ export async function POST(request: NextRequest) {
     await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS cal_link VARCHAR(500) DEFAULT ''`;
     await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS profile_pic_url VARCHAR(500) DEFAULT ''`;
     results.push("005: team_members table — OK");
+
+    // Migration 006: Approval content_hash for deduplication
+    await sql`ALTER TABLE approvals ADD COLUMN IF NOT EXISTS content_hash VARCHAR(32)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_approvals_content_hash ON approvals(client_slug, content_hash)`;
+    const backfilled = await backfillApprovalHashes();
+    results.push(`006: approvals content_hash — OK (${backfilled} rows backfilled)`);
 
     return NextResponse.json({ success: true, results });
   } catch (error) {

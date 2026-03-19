@@ -1,5 +1,5 @@
 import { sql } from "@vercel/postgres";
-import { Package, CreatePackageInput, PackageCategory } from "@/types";
+import { Package, CreatePackageInput, PackageCategory, BillingFrequency } from "@/types";
 
 function rowToPackage(row: Record<string, unknown>): Package {
   return {
@@ -8,6 +8,7 @@ function rowToPackage(row: Record<string, unknown>): Package {
     description: (row.description as string) || "",
     defaultPrice: parseFloat((row.default_price as string) || "0"),
     category: ((row.category as string) || "other") as PackageCategory,
+    billingFrequency: ((row.billing_frequency as string) || "monthly") as BillingFrequency,
     hoursIncluded: row.hours_included ? parseFloat(row.hours_included as string) : null,
     includedServices: (row.included_services as string[]) || [],
     active: row.active as boolean,
@@ -45,12 +46,13 @@ function toArrayLiteral(arr: string[]): string {
 export async function createPackage(data: CreatePackageInput): Promise<Package> {
   const servicesLiteral = toArrayLiteral(data.includedServices || []);
   const { rows } = await sql`
-    INSERT INTO packages (name, description, default_price, category, hours_included, included_services, active)
+    INSERT INTO packages (name, description, default_price, category, billing_frequency, hours_included, included_services, active)
     VALUES (
       ${data.name},
       ${data.description || ""},
       ${data.defaultPrice},
       ${data.category || "other"},
+      ${data.billingFrequency || "monthly"},
       ${data.hoursIncluded ?? null},
       ${servicesLiteral}::text[],
       ${data.active ?? true}
@@ -72,6 +74,7 @@ export async function updatePackage(
   const description = data.description ?? current.description;
   const defaultPrice = data.defaultPrice ?? current.default_price;
   const category = data.category ?? current.category ?? "other";
+  const billingFrequency = data.billingFrequency ?? current.billing_frequency ?? "monthly";
   const hoursIncluded = data.hoursIncluded !== undefined ? data.hoursIncluded : current.hours_included;
   const includedServices = data.includedServices ?? current.included_services ?? [];
   const servicesLiteral = toArrayLiteral(includedServices as string[]);
@@ -83,6 +86,7 @@ export async function updatePackage(
       description = ${description},
       default_price = ${defaultPrice},
       category = ${category},
+      billing_frequency = ${billingFrequency},
       hours_included = ${hoursIncluded ?? null},
       included_services = ${servicesLiteral}::text[],
       active = ${active},

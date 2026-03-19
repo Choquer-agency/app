@@ -45,11 +45,13 @@ export default async function AdminActivityPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold">Client Engagement</h2>
-        <p className="text-sm text-muted mt-1">
-          Activity tracking across all client dashboards
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-[var(--foreground)]">Client Engagement</h2>
+          <p className="text-sm text-[var(--muted)] mt-1">
+            Activity tracking across all client dashboards
+          </p>
+        </div>
       </div>
 
       {!hasData && (
@@ -63,20 +65,20 @@ export default async function AdminActivityPage() {
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
             <h3 className="font-semibold">Visitors</h3>
-            <p className="text-xs text-muted mt-0.5">Identified people visiting client dashboards</p>
+            <p className="text-xs text-[var(--muted)] mt-0.5">Identified people visiting client dashboards</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-3 text-left font-medium text-muted">Name</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted">Client</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted">Last Visit</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted">Visits (7d)</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted">Visits (30d)</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted">Time (30d)</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted">CTA Clicks</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted">Status</th>
+                <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
+                  <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Name</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Client</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Last Visit</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Visits (7d)</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Visits (30d)</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Time (30d)</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">CTA Clicks</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -88,13 +90,13 @@ export default async function AdminActivityPage() {
                     <td className="px-4 py-3">
                       <a
                         href={`/admin/activity/${row.visitor_id}`}
-                        className="font-medium text-accent hover:underline"
+                        className="font-medium text-[var(--accent)] hover:underline"
                       >
                         {row.visitor_name}
                       </a>
                     </td>
-                    <td className="px-4 py-3 text-muted">{row.client_slug}</td>
-                    <td className="px-4 py-3 text-muted">
+                    <td className="px-4 py-3 text-[var(--muted)]">{row.client_slug}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">
                       {row.last_visit
                         ? new Date(row.last_visit).toLocaleDateString("en-US", {
                             month: "short",
@@ -135,26 +137,26 @@ export default async function AdminActivityPage() {
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h3 className="font-semibold">Client Overview</h3>
-          <p className="text-xs text-muted mt-0.5">All activity by client slug (includes anonymous sessions)</p>
+          <p className="text-xs text-[var(--muted)] mt-0.5">All activity by client slug (includes anonymous sessions)</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-4 py-3 text-left font-medium text-muted">Client</th>
-                <th className="px-4 py-3 text-left font-medium text-muted">Notion</th>
-                <th className="px-4 py-3 text-left font-medium text-muted">Last Visit</th>
-                <th className="px-4 py-3 text-left font-medium text-muted">Visits (7d)</th>
-                <th className="px-4 py-3 text-left font-medium text-muted">Visits (30d)</th>
-                <th className="px-4 py-3 text-left font-medium text-muted">Sessions (30d)</th>
-                <th className="px-4 py-3 text-left font-medium text-muted">CTA Clicks</th>
-                <th className="px-4 py-3 text-left font-medium text-muted">Status</th>
+              <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Client</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Notion</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Last Visit</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Visits (7d)</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Visits (30d)</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Sessions (30d)</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">CTA Clicks</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Status</th>
               </tr>
             </thead>
             <tbody>
               {engagement.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted">
+                  <td colSpan={8} className="px-4 py-8 text-center text-[var(--muted)]">
                     No activity data yet. Data will appear once clients visit their dashboards.
                   </td>
                 </tr>
@@ -171,16 +173,16 @@ export default async function AdminActivityPage() {
                           href={notionUrlMap.get(row.client_slug)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-accent hover:underline text-xs"
+                          className="text-[var(--accent)] hover:underline text-xs"
                           title="Open in Notion"
                         >
                           Open
                         </a>
                       ) : (
-                        <span className="text-muted text-xs">—</span>
+                        <span className="text-[var(--muted)] text-xs">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-muted">
+                    <td className="px-4 py-3 text-[var(--muted)]">
                       {row.last_visit
                         ? new Date(row.last_visit).toLocaleDateString("en-US", {
                             month: "short",
@@ -217,7 +219,7 @@ export default async function AdminActivityPage() {
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-semibold mb-4">Section Engagement (Last 30 Days)</h3>
         {heatmap.length === 0 ? (
-          <p className="text-sm text-muted">No section view data yet.</p>
+          <p className="text-sm text-[var(--muted)]">No section view data yet.</p>
         ) : (
           <div className="space-y-2">
             {heatmap.map((row) => {
@@ -225,7 +227,7 @@ export default async function AdminActivityPage() {
               const pct = maxViews > 0 ? (Number(row.view_count) / maxViews) * 100 : 0;
               return (
                 <div key={row.section} className="flex items-center gap-3">
-                  <span className="text-sm w-32 text-muted">{row.section}</span>
+                  <span className="text-sm w-32 text-[var(--muted)]">{row.section}</span>
                   <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-accent rounded-full transition-all"

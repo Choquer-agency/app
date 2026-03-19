@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Approval } from "@/types";
 
 interface ApprovalSectionProps {
@@ -9,6 +10,7 @@ interface ApprovalSectionProps {
 }
 
 export default function ApprovalSection({ approvals: initialApprovals, clientSlug }: ApprovalSectionProps) {
+  const router = useRouter();
   const [approvals, setApprovals] = useState(initialApprovals);
   const [feedbackFor, setFeedbackFor] = useState<number | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
@@ -16,6 +18,23 @@ export default function ApprovalSection({ approvals: initialApprovals, clientSlu
 
   const pending = approvals.filter((a) => a.status === "pending");
   const resolved = approvals.filter((a) => a.status !== "pending");
+  const [showResolved, setShowResolved] = useState(false);
+
+  function daysRemaining(createdAt: string): number {
+    const created = new Date(createdAt);
+    const deadline = new Date(created.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const diff = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, diff);
+  }
+
+  useEffect(() => {
+    if (resolved.length > 0 && pending.length === 0) {
+      setShowResolved(true);
+      const timer = setTimeout(() => setShowResolved(false), 30000);
+      return () => clearTimeout(timer);
+    }
+  }, [resolved.length, pending.length]);
 
   async function handleAction(id: number, status: "approved" | "rejected", feedback?: string) {
     setLoading(id);
@@ -33,6 +52,7 @@ export default function ApprovalSection({ approvals: initialApprovals, clientSlu
         );
         setFeedbackFor(null);
         setFeedbackText("");
+        router.refresh();
       }
     } catch {
       // silently fail
@@ -58,6 +78,9 @@ export default function ApprovalSection({ approvals: initialApprovals, clientSlu
               {pending.length}
             </span>
           </div>
+          <p className="text-[11px] text-[#D94040]/70 mb-3">
+            If not approved within 7 days, we will publish these changes.
+          </p>
 
           <div className="space-y-3">
             {pending.map((approval) => (
@@ -65,9 +88,35 @@ export default function ApprovalSection({ approvals: initialApprovals, clientSlu
                 key={approval.id}
                 className="bg-white rounded-xl p-4 border border-[#FFD4D4]"
               >
-                <p className="text-sm font-medium text-[#1A1A1A] mb-1">{approval.title}</p>
+                <p className="text-sm font-medium text-[#1A1A1A] mb-1">
+                  {approval.title}
+                  <span className="text-[10px] text-[#D94040]/60 font-normal ml-2">
+                    {daysRemaining(approval.createdAt) === 0
+                      ? "Auto-approving today"
+                      : `${daysRemaining(approval.createdAt)} day${daysRemaining(approval.createdAt) !== 1 ? "s" : ""} remaining`}
+                  </span>
+                </p>
                 {approval.description && (
-                  <p className="text-xs text-muted mb-3">{approval.description}</p>
+                  <p className="text-xs text-muted mb-2">{approval.description}</p>
+                )}
+                {approval.links && approval.links.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {approval.links.map((link, i) => (
+                      <a
+                        key={i}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-[#F0F4FF] text-[#2563eb] border border-[#BFDBFE] hover:bg-[#DBEAFE] transition"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                        </svg>
+                        {link.label || "Review"}
+                      </a>
+                    ))}
+                  </div>
                 )}
 
                 {feedbackFor === approval.id ? (
@@ -118,7 +167,7 @@ export default function ApprovalSection({ approvals: initialApprovals, clientSlu
         </div>
       )}
 
-      {resolved.length > 0 && pending.length === 0 && (
+      {showResolved && (
         <div className="bg-[#F6FFF9] border border-[#BDFFE8] rounded-2xl px-6 py-4">
           <div className="flex items-center gap-2">
             <svg className="w-4 h-4 text-[#0d7a55]" viewBox="0 0 16 16" fill="none">

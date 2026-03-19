@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
 import { COOKIE_NAME } from "@/lib/admin-auth";
 
-export async function POST() {
-  const cookieStore = await cookies();
-  cookieStore.delete(COOKIE_NAME);
-  return NextResponse.redirect(new URL("/admin/activity", process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"));
+export async function POST(request: NextRequest) {
+  const host = request.headers.get("host") || "choquer.app";
+  const protocol = host.includes("localhost") ? "http" : "https";
+  const response = NextResponse.redirect(new URL("/admin/activity", `${protocol}://${host}`));
+  response.cookies.delete(COOKIE_NAME);
+  return response;
 }

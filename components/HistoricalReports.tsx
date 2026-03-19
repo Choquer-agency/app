@@ -33,6 +33,27 @@ function getCat(cat: string) {
   return CATEGORY_COLORS[cat] || "bg-[#F0F0F0] text-[#6b7280]";
 }
 
+function cleanLinkLabel(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("docs.google.com") && u.pathname.includes("/spreadsheets/")) return "View Spreadsheet";
+    if (u.hostname.includes("docs.google.com") && u.pathname.includes("/document/")) return "View Document";
+    if (u.hostname.includes("drive.google.com")) return "View File";
+    if (u.hostname.includes("docs.google.com") && u.pathname.includes("/presentation/")) return "View Slides";
+    // For blog/resource URLs, use the last path segment as a readable name
+    const segments = u.pathname.split("/").filter(Boolean);
+    if (segments.length > 0) {
+      const last = segments[segments.length - 1].replace(/[-_]/g, " ").replace(/\.\w+$/, "");
+      if (last && last.length > 2 && last.length < 60) {
+        return last.charAt(0).toUpperCase() + last.slice(1);
+      }
+    }
+    return "View Link";
+  } catch {
+    return "View Link";
+  }
+}
+
 function fmtMonth(iso: string): string {
   if (iso.match(/^\d{4}-\d{2}/)) {
     const d = new Date(iso);
@@ -371,20 +392,38 @@ function MonthItem({
                   <div className="flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[#1A1A1A]">{entry.task}</span>
-                      {entry.category.map((cat) => (
+                      {(entry.category || []).map((cat) => (
                         <span key={cat} className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${getCat(cat)}`}>
                           {cat}
                         </span>
                       ))}
                     </div>
                     {entry.subtasks && (
-                      <p className="text-xs text-muted mt-0.5">{entry.subtasks}</p>
+                      Array.isArray(entry.subtasks) && entry.subtasks.length > 0 ? (
+                        <div className="mt-1.5 ml-1 space-y-1">
+                          {entry.subtasks.map((st, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <svg className="w-3 h-3 text-[#0d7a55] flex-shrink-0" viewBox="0 0 16 16" fill="none">
+                                <path d="M13.5 4.5L6.5 11.5L2.5 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              <span className="text-xs text-[#888]">{st.text}</span>
+                              {st.link && typeof st.link === "string" && (
+                                <a href={st.link} target="_blank" rel="noopener noreferrer" className="text-xs text-[#FF9500] hover:underline">
+                                  {st.linkLabel && typeof st.linkLabel === "string" && !st.linkLabel.startsWith("http") ? st.linkLabel : cleanLinkLabel(st.link)}
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : typeof entry.subtasks === "string" && entry.subtasks ? (
+                        <p className="text-xs text-muted mt-0.5">{entry.subtasks}</p>
+                      ) : null
                     )}
-                    {entry.deliverableLinks && entry.deliverableLinks.length > 0 && (
-                      <div className="flex gap-2 mt-1">
+                    {entry.deliverableLinks && entry.deliverableLinks.length > 0 && !(Array.isArray(entry.subtasks) && entry.subtasks.some(s => s.link)) && (
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
                         {entry.deliverableLinks.map((link, idx) => (
                           <a key={idx} href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-[#FF9500] hover:underline">
-                            View deliverable
+                            {cleanLinkLabel(link)}
                           </a>
                         ))}
                       </div>

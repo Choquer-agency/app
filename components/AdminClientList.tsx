@@ -2,14 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { ClientConfig, TeamMember } from "@/types";
-import ClientFormModal from "./ClientFormModal";
 import ClientStatusBadge from "./ClientStatusBadge";
+
+function hasMissingConnections(client: ClientConfig): boolean {
+  return !(client.ga4PropertyId && client.gscSiteUrl && client.notionPageUrl && client.calLink);
+}
 
 export default function AdminClientList() {
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
   const [enrichingSlug, setEnrichingSlug] = useState<string | null>(null);
+  const [enrichResult, setEnrichResult] = useState<{ slug: string; message: string; success: boolean } | null>(null);
+  const [copiedClientId, setCopiedClientId] = useState<number | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   const fetchClients = useCallback(async () => {
@@ -25,6 +29,29 @@ export default function AdminClientList() {
     }
   }, []);
 
+  // Run enrichment for a given slug (used by both manual click and auto-trigger)
+  const runEnrichment = useCallback(async (slug: string) => {
+    if (enrichingSlug) return;
+    setEnrichingSlug(slug);
+    setEnrichResult(null);
+    try {
+      const res = await fetch(`/api/admin/enrich/${slug}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        const msg = data.onboarding
+          ? "Dashboard ready — strategy pending"
+          : `${data.tasks} tasks, ${data.goals} goals synced`;
+        setEnrichResult({ slug, message: msg, success: true });
+      } else {
+        setEnrichResult({ slug, message: data.error || "Sync failed", success: false });
+      }
+    } catch {
+      setEnrichResult({ slug, message: "Sync failed — check your connection", success: false });
+    } finally {
+      setEnrichingSlug(null);
+    }
+  }, [enrichingSlug]);
+
   useEffect(() => {
     fetchClients();
     fetch("/api/admin/team")
@@ -33,32 +60,20 @@ export default function AdminClientList() {
       .catch(() => {});
   }, [fetchClients]);
 
-  function handleSaved() {
-    setShowModal(false);
-    fetchClients();
-  }
+  // Auto-trigger enrichment when redirected from client creation with ?enrich=slug
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const enrichSlug = params.get("enrich");
+    if (enrichSlug) {
+      // Clean up the URL so refresh doesn't re-trigger
+      window.history.replaceState({}, "", window.location.pathname);
+      runEnrichment(enrichSlug);
+    }
+  }, [runEnrichment]);
 
   async function handleEnrich(e: React.MouseEvent, client: ClientConfig) {
     e.stopPropagation();
-    if (enrichingSlug) return;
-
-    setEnrichingSlug(client.slug);
-    try {
-      const res = await fetch(`/api/admin/enrich/${client.slug}`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        alert(`Dashboard updated! ${data.tasks} tasks, ${data.goals} goals synced.`);
-      } else {
-        const data = await res.json();
-        alert(`Sync failed: ${data.error}`);
-      }
-    } catch {
-      alert("Sync failed — check your connection.");
-    } finally {
-      setEnrichingSlug(null);
-    }
+    runEnrichment(client.slug);
   }
 
   if (loading) {
@@ -78,7 +93,7 @@ export default function AdminClientList() {
           </p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => { window.location.href = '/admin/clients/new'; }}
           className="px-4 py-2 text-sm font-medium text-white bg-[var(--accent)] rounded-lg hover:opacity-90 transition"
         >
           + Add Client
@@ -136,7 +151,15 @@ export default function AdminClientList() {
                       <p className="text-xs text-[var(--muted)]">{client.slug}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <ClientStatusBadge status={client.clientStatus} />
+                      <div className="flex items-center gap-2">
+                        <ClientStatusBadge status={client.clientStatus} />
+                        {hasMissingConnections(client) && (
+                          <div
+                            className="w-1.5 h-1.5 rounded-full bg-red-500"
+                            title="Missing integrations"
+                          />
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 font-medium">
                       {client.mrr > 0
@@ -160,11 +183,51 @@ export default function AdminClientList() {
                         );
                       })() : <span className="text-[var(--muted)]">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted)] text-xs">
-                      {client.contactName || "—"}
+                    <td className="px-4 py-3 text-[var(--muted)] text-xs group/contact">
+                      <div className="flex items-center gap-1">
+                        <span>{client.contactName || "—"}</span>
+                        {client.contactEmail && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(client.contactEmail);
+                              setCopiedClientId(client.id);
+                              setTimeout(() => setCopiedClientId(null), 1500);
+                            }}
+                            className={`shrink-0 p-0.5 rounded transition ${
+                              copiedClientId === client.id
+                                ? "text-[var(--success-text)] opacity-100"
+                                : "text-[var(--muted)] opacity-0 group-hover/contact:opacity-100 hover:text-[var(--foreground)]"
+                            }`}
+                            title={client.contactEmail}
+                          >
+                            {copiedClientId === client.id ? (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-3">
+                        {/* Enrichment status */}
+                        {enrichingSlug === client.slug && (
+                          <span className="text-xs text-[var(--accent)] font-medium animate-pulse">
+                            Enriching data...
+                          </span>
+                        )}
+                        {enrichResult?.slug === client.slug && !enrichingSlug && (
+                          <span className={`text-xs font-medium ${enrichResult.success ? "text-[var(--success-text)]" : "text-red-500"}`}>
+                            {enrichResult.message}
+                          </span>
+                        )}
                         {/* Refresh / sync enrichment */}
                         <button
                           onClick={(e) => handleEnrich(e, client)}
@@ -177,7 +240,7 @@ export default function AdminClientList() {
                           }`}
                         >
                           <svg
-                            className={`w-4 h-4 ${enrichingSlug === client.slug ? "animate-spin" : ""}`}
+                            className={`w-4 h-4 ${enrichingSlug === client.slug ? "animate-spin-reverse" : ""}`}
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -210,13 +273,6 @@ export default function AdminClientList() {
         </div>
       </div>
 
-      {showModal && (
-        <ClientFormModal
-          client={null}
-          onClose={() => setShowModal(false)}
-          onSaved={handleSaved}
-        />
-      )}
     </>
   );
 }

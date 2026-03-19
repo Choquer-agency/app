@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "InsightPulse — SEO Performance Dashboard",
+  title: "SEO Dashboard",
   description: "Live SEO performance dashboard powered by Choquer Agency",
 };
 

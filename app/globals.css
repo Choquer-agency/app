@@ -10,7 +10,7 @@ html {
   --surface: #FFFFFF;
   --foreground: #1A1A1A;
   --accent: #FF9500;
-  --accent-light: #FFF3E0;
+  --accent-light: #FFF8F0;
   --success-text: #0d7a55;
   --danger-text: #b91c1c;
   --muted: #9CA3AF;
@@ -51,7 +51,17 @@ body {
   color: var(--foreground);
 }
 
+/* Reverse spin for refresh icons */
+@keyframes spin-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+.animate-spin-reverse {
+  animation: spin-reverse 1s linear infinite;
+}
+
 /* Notion-style clean aesthetic */
 ::selection {
   background: var(--accent-light);
+  mix-blend-mode: darken;
 }

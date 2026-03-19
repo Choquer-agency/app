@@ -3,7 +3,7 @@ import { sql } from "@vercel/postgres";
 import { getClientPageData, countCheckboxesInMarkdown, splitByMonthSections } from "@/lib/notion-pages";
 import { enrichClientContent } from "@/lib/claude-enrichment";
 import { getActiveClients } from "@/lib/clients";
-import { getExistingContentHash, getExistingEnrichedData } from "@/lib/db";
+import { getExistingContentHash, getExistingEnrichedData, autoApproveStalePending } from "@/lib/db";
 import crypto from "crypto";
 
 function stripCheckboxes(md: string): string {
@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Auto-approve any pending approvals older than 7 days
+    const autoApproved = await autoApproveStalePending();
+
     const clients = await getActiveClients();
 
     if (clients.length === 0) {
@@ -39,8 +42,39 @@ export async function GET(request: NextRequest) {
         // Step 1: Fetch Notion page content
         const { markdown: rawMarkdown } = await getClientPageData(client.notionPageId);
 
-        if (!rawMarkdown.trim()) {
-          results.push(`${client.slug}: EMPTY PAGE`);
+        if (!rawMarkdown.trim() || rawMarkdown.trim().length < 50) {
+          // Create/update onboarding placeholder so dashboard shows "coming soon"
+          const currentMonthLabel = now.toLocaleString("en-US", { month: "long", year: "numeric" });
+          const onboardingData = {
+            _onboarding: true,
+            currentMonth: {
+              label: currentMonthLabel,
+              summary: "",
+              strategy: "",
+              tasks: [],
+              isComplete: false,
+            },
+            goals: [],
+            pastMonths: [],
+            upcomingMonths: [],
+            detectedEntities: { pages: [], keywords: [], metrics: [] },
+            approvals: [],
+            analyticsEnrichments: [],
+            processedAt: new Date().toISOString(),
+            rawContentHash: "",
+          };
+
+          await sql`
+            INSERT INTO enriched_content (client_slug, month, raw_content, enriched_data)
+            VALUES (${client.slug}, ${monthKey}, ${rawMarkdown || ""}, ${JSON.stringify(onboardingData)})
+            ON CONFLICT (client_slug, month)
+            DO UPDATE SET
+              raw_content = EXCLUDED.raw_content,
+              enriched_data = EXCLUDED.enriched_data,
+              processed_at = NOW()
+          `;
+
+          results.push(`${client.slug}: ONBOARDING (empty page)`);
           continue;
         }
 
@@ -148,7 +182,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       results,
       month: monthKey,
-      summary: { total: clients.length, skipped, checkboxOnly, partialEnrich, fullEnrich },
+      summary: { total: clients.length, skipped, checkboxOnly, partialEnrich, fullEnrich, autoApproved },
     });
   } catch (error) {
     console.error("Cron enrich error:", error);

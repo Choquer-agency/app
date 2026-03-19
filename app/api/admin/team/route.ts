@@ -34,6 +34,9 @@ export async function POST(request: NextRequest) {
       role: body.role || "",
       calLink: body.calLink || "",
       profilePicUrl: body.profilePicUrl || "",
+      color: body.color || "",
+      startDate: body.startDate || "",
+      birthday: body.birthday || "",
     });
 
     return NextResponse.json(member, { status: 201 });

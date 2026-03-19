@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllClients } from "@/lib/clients";
-import { getEnrichedContent } from "@/lib/db";
+import { getEnrichedContent, getActedApprovals } from "@/lib/db";
 import { getSession } from "@/lib/admin-auth";
+import { getTeamMembers } from "@/lib/team-members";
 
 interface GoalIssue {
   clientName: string;
@@ -58,6 +59,10 @@ export async function GET(request: NextRequest) {
       }
 
       const enriched = dbResult.enrichedData;
+
+      // Skip goal checks for onboarding clients (strategy not built yet)
+      if (enriched._onboarding) continue;
+
       const goals = enriched.goals || [];
 
       if (goals.length === 0) {
@@ -126,19 +131,130 @@ export async function GET(request: NextRequest) {
             issue: `Needs Search Console connected to track "${metricType}"`,
             severity: "error",
           });
-        } else if (metricType === "leads") {
-          issues.push({
-            clientName: client.name,
-            clientSlug: client.slug,
-            goal: goal.goal,
-            issue: "Leads are manually tracked — progress won't auto-update",
-            severity: "warning",
-          });
         }
       }
     }
 
-    return NextResponse.json({ issues, scannedAt: new Date().toISOString() });
+    // Fetch acted-on approvals as notifications (approved + rejected with feedback)
+    let approvalNotifications: Array<{
+      id: number; clientName: string; clientSlug: string;
+      title: string; status: string; feedback: string | null; actedAt: string;
+    }> = [];
+    try {
+      const acted = await getActedApprovals();
+      approvalNotifications = acted.map((a) => ({
+        id: a.id as number,
+        clientName: (a.client_name as string) || (a.client_slug as string),
+        clientSlug: a.client_slug as string,
+        title: a.title as string,
+        status: a.status as string,
+        feedback: (a.feedback as string) || null,
+        actedAt: (a.updated_at as Date)?.toISOString?.() || String(a.updated_at),
+      }));
+    } catch {
+      // approvals table may not exist yet
+    }
+
+    // Birthday notifications
+    let birthdayNotifications: Array<{
+      name: string;
+      daysUntil: number;
+      isToday: boolean;
+      birthdayDisplay: string;
+    }> = [];
+    try {
+      const teamMembers = await getTeamMembers();
+      const today = new Date();
+      const todayMonth = today.getMonth();
+      const todayDate = today.getDate();
+
+      for (const member of teamMembers) {
+        if (!member.birthday) continue;
+        const bday = new Date(member.birthday + "T00:00:00");
+        const bdayMonth = bday.getMonth();
+        const bdayDate = bday.getDate();
+
+        // Calculate days until birthday this year
+        const thisYearBday = new Date(today.getFullYear(), bdayMonth, bdayDate);
+        let diff = Math.ceil((thisYearBday.getTime() - new Date(today.getFullYear(), todayMonth, todayDate).getTime()) / (1000 * 60 * 60 * 24));
+        if (diff < 0) diff += 365; // already passed this year
+
+        const isToday = diff === 0;
+        if (diff <= 7) {
+          const dayName = thisYearBday.toLocaleDateString("en-US", { weekday: "long" });
+          birthdayNotifications.push({
+            name: member.name,
+            daysUntil: diff,
+            isToday,
+            birthdayDisplay: isToday
+              ? "today"
+              : diff === 1
+              ? "tomorrow"
+              : `on ${dayName}`,
+          });
+        }
+      }
+      // Sort: today first, then closest upcoming
+      birthdayNotifications.sort((a, b) => a.daysUntil - b.daysUntil);
+    } catch {
+      // team_members table may not exist yet
+    }
+
+    // Work anniversary notifications
+    let anniversaryNotifications: Array<{
+      name: string;
+      daysUntil: number;
+      isToday: boolean;
+      years: number;
+      anniversaryDisplay: string;
+    }> = [];
+    try {
+      const teamMembers = await getTeamMembers();
+      const today = new Date();
+      const todayMonth = today.getMonth();
+      const todayDate = today.getDate();
+
+      for (const member of teamMembers) {
+        if (!member.startDate) continue;
+        const start = new Date(member.startDate + "T00:00:00");
+        const startMonth = start.getMonth();
+        const startDate = start.getDate();
+
+        // Calculate years at next anniversary
+        let nextAnniversaryYear = today.getFullYear();
+        const thisYearAnniv = new Date(nextAnniversaryYear, startMonth, startDate);
+        const todayFlat = new Date(nextAnniversaryYear, todayMonth, todayDate);
+        let diff = Math.ceil((thisYearAnniv.getTime() - todayFlat.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff < 0) {
+          diff += 365;
+          nextAnniversaryYear++;
+        }
+
+        const years = nextAnniversaryYear - start.getFullYear();
+        if (years < 1) continue; // hasn't been a year yet
+
+        const isToday = diff === 0;
+        if (diff <= 7) {
+          const dayName = new Date(nextAnniversaryYear, startMonth, startDate).toLocaleDateString("en-US", { weekday: "long" });
+          anniversaryNotifications.push({
+            name: member.name,
+            daysUntil: diff,
+            isToday,
+            years,
+            anniversaryDisplay: isToday
+              ? "today"
+              : diff === 1
+              ? "tomorrow"
+              : `on ${dayName}`,
+          });
+        }
+      }
+      anniversaryNotifications.sort((a, b) => a.daysUntil - b.daysUntil);
+    } catch {
+      // team_members table may not exist yet
+    }
+
+    return NextResponse.json({ issues, approvalNotifications, birthdayNotifications, anniversaryNotifications, scannedAt: new Date().toISOString() });
   } catch (error) {
     console.error("Issues scan error:", error);
     return NextResponse.json(

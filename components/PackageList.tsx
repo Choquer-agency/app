@@ -60,33 +60,22 @@ export default function PackageList() {
     setShowModal(true);
   }
 
-  async function handleDeactivate(pkg: Package) {
-    if (!confirm(`Deactivate "${pkg.name}"?`)) return;
-    try {
-      await fetch(`/api/admin/packages/${pkg.id}`, { method: "DELETE" });
-      fetchPackages();
-    } catch {
-      // Failed
-    }
-  }
-
-  async function handleReactivate(pkg: Package) {
-    try {
-      await fetch(`/api/admin/packages/${pkg.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: true }),
-      });
-      fetchPackages();
-    } catch {
-      // Failed
-    }
-  }
-
   function handleSaved() {
     setShowModal(false);
     setEditingPkg(null);
     fetchPackages();
+  }
+
+  function formatBillingFrequency(freq: string): string {
+    const map: Record<string, string> = {
+      one_time: "",
+      weekly: "/wk",
+      bi_weekly: "/2wks",
+      monthly: "/mo",
+      quarterly: "/qtr",
+      annually: "/yr",
+    };
+    return map[freq] || "/mo";
   }
 
   function formatCurrency(val: number) {
@@ -124,31 +113,32 @@ export default function PackageList() {
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-[var(--foreground)]">Packages</h3>
-            <p className="text-xs text-[var(--muted)] mt-0.5">
-              {packages.length} package{packages.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-          <button
-            onClick={handleAdd}
-            className="px-4 py-2 text-sm font-medium text-white bg-[#FF9500] rounded-lg hover:opacity-90 transition"
-          >
-            + Add Package
-          </button>
+      {/* Page heading */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-[var(--foreground)]">Packages</h2>
+          <p className="text-sm text-[var(--muted)] mt-1">
+            Manage your service packages and pricing
+          </p>
         </div>
+        <button
+          onClick={handleAdd}
+          className="px-4 py-2 text-sm font-medium text-white bg-[var(--accent)] rounded-lg hover:opacity-90 transition"
+        >
+          + Add Package
+        </button>
+      </div>
 
+      <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-4 py-3 text-left font-medium text-gray-400">Name</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-400">Price</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-400">Services</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-400">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-400">Actions</th>
+              <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Name</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Price</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Services</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -172,7 +162,7 @@ export default function PackageList() {
                       </div>
                     </td>
                     <td className="px-4 py-3 font-medium">
-                      {formatCurrency(pkg.defaultPrice)}/mo
+                      {formatCurrency(pkg.defaultPrice)}{formatBillingFrequency(pkg.billingFrequency)}
                     </td>
                     <td className="px-4 py-3 text-gray-500">
                       {pkg.includedServices.length} service{pkg.includedServices.length !== 1 ? "s" : ""}
@@ -189,29 +179,12 @@ export default function PackageList() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEdit(pkg)}
-                          className="text-xs text-gray-500 hover:text-gray-800"
-                        >
-                          Edit
-                        </button>
-                        {pkg.active ? (
-                          <button
-                            onClick={() => handleDeactivate(pkg)}
-                            className="text-xs text-red-500 hover:text-red-700"
-                          >
-                            Deactivate
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleReactivate(pkg)}
-                            className="text-xs text-green-600 hover:text-green-800"
-                          >
-                            Reactivate
-                          </button>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => handleEdit(pkg)}
+                        className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                      >
+                        Edit
+                      </button>
                     </td>
                   </tr>
                 ))

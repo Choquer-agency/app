@@ -187,6 +187,13 @@ CREATE TABLE IF NOT EXISTS approvals (
 CREATE INDEX IF NOT EXISTS idx_approvals_client ON approvals(client_slug);
 CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status);
 
+-- Add links column to approvals (JSON array of {url, label})
+ALTER TABLE approvals ADD COLUMN IF NOT EXISTS links JSONB DEFAULT '[]';
+
+-- Add content_hash for deduplication across title variations
+ALTER TABLE approvals ADD COLUMN IF NOT EXISTS content_hash VARCHAR(32);
+CREATE INDEX IF NOT EXISTS idx_approvals_content_hash ON approvals(client_slug, content_hash);
+
 -- Team members (for specialist dropdown + future ticketing)
 CREATE TABLE IF NOT EXISTS team_members (
   id SERIAL PRIMARY KEY,

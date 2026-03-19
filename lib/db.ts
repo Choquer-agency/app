@@ -1,5 +1,6 @@
 import { sql } from "@vercel/postgres";
 import { TrackingEvent } from "@/types";
+import crypto from "crypto";
 
 /**
  * Log a batch of activity events
@@ -170,9 +171,10 @@ import { Approval } from "@/types";
  */
 export async function getApprovals(clientSlug: string): Promise<Approval[]> {
   const result = await sql`
-    SELECT id, client_slug, title, description, status, feedback, created_at, updated_at
+    SELECT id, client_slug, title, description, links, status, feedback, created_at, updated_at
     FROM approvals
     WHERE client_slug = ${clientSlug}
+      AND status != 'dismissed'
     ORDER BY
       CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
       created_at DESC
@@ -182,6 +184,7 @@ export async function getApprovals(clientSlug: string): Promise<Approval[]> {
     clientSlug: r.client_slug as string,
     title: r.title as string,
     description: r.description as string | null,
+    links: (r.links || []) as Approval["links"],
     status: r.status as Approval["status"],
     feedback: r.feedback as string | null,
     createdAt: (r.created_at as Date).toISOString(),
@@ -205,18 +208,117 @@ export async function updateApprovalStatus(
 }
 
 /**
- * Upsert an approval (skip if already exists to preserve status)
+ * Compute a content hash for an approval based on description + link URLs.
+ * Title is excluded because Claude may generate slightly different titles
+ * for the same underlying approval request on re-crawls.
+ */
+function computeApprovalHash(
+  description: string,
+  links?: Array<{ url: string; label: string }>
+): string {
+  const normalizedDesc = (description || "").toLowerCase().trim().replace(/\s+/g, " ");
+  const normalizedLinks = (links || [])
+    .map((l) => l.url.toLowerCase().trim())
+    .sort()
+    .join("|");
+  return crypto
+    .createHash("md5")
+    .update(`${normalizedDesc}::${normalizedLinks}`)
+    .digest("hex");
+}
+
+/**
+ * Upsert an approval (skip if already exists to preserve status).
+ * Uses content_hash to detect duplicates even when Claude generates different titles.
+ * If a non-pending approval with the same content already exists, skip entirely.
  */
 export async function upsertApproval(
   clientSlug: string,
   title: string,
-  description: string
+  description: string,
+  links?: Array<{ url: string; label: string }>
 ): Promise<void> {
-  await sql`
-    INSERT INTO approvals (client_slug, title, description)
-    VALUES (${clientSlug}, ${title}, ${description})
-    ON CONFLICT (client_slug, title) DO NOTHING
+  const linksJson = JSON.stringify(links || []);
+  const contentHash = computeApprovalHash(description, links);
+
+  // Check if this approval was already acted on (by content, not title)
+  const existing = await sql`
+    SELECT id FROM approvals
+    WHERE client_slug = ${clientSlug}
+      AND content_hash = ${contentHash}
+      AND status != 'pending'
+    LIMIT 1
   `;
+  if (existing.rows.length > 0) return;
+
+  await sql`
+    INSERT INTO approvals (client_slug, title, description, links, content_hash)
+    VALUES (${clientSlug}, ${title}, ${description}, ${linksJson}::jsonb, ${contentHash})
+    ON CONFLICT (client_slug, title) DO UPDATE
+      SET description = EXCLUDED.description,
+          links = EXCLUDED.links,
+          content_hash = EXCLUDED.content_hash
+      WHERE approvals.status = 'pending'
+  `;
+}
+
+/**
+ * Get all acted-on approvals for admin notifications (approved + rejected with feedback)
+ */
+export async function getActedApprovals() {
+  const result = await sql`
+    SELECT a.id, a.client_slug, a.title, a.description, a.status, a.feedback, a.updated_at, c.name as client_name
+    FROM approvals a
+    LEFT JOIN clients c ON c.slug = a.client_slug
+    WHERE a.status IN ('approved', 'rejected')
+    ORDER BY a.updated_at DESC
+  `;
+  return result.rows;
+}
+
+/**
+ * Dismiss an approval notification (marks as dismissed instead of deleting,
+ * so re-crawls don't resurrect it)
+ */
+export async function dismissApproval(id: number): Promise<void> {
+  await sql`UPDATE approvals SET status = 'dismissed', updated_at = NOW() WHERE id = ${id}`;
+}
+
+/**
+ * Auto-approve pending approvals older than 7 days.
+ * Returns the number of approvals that were auto-approved.
+ */
+export async function autoApproveStalePending(): Promise<number> {
+  const result = await sql`
+    UPDATE approvals
+    SET status = 'approved',
+        feedback = 'Auto-approved after 7 days',
+        updated_at = NOW()
+    WHERE status = 'pending'
+      AND created_at < NOW() - INTERVAL '7 days'
+    RETURNING id
+  `;
+  return result.rows.length;
+}
+
+/**
+ * Backfill content_hash for existing approval rows that don't have one.
+ * Call once to populate hashes for pre-existing approvals.
+ */
+export async function backfillApprovalHashes(): Promise<number> {
+  const rows = await sql`
+    SELECT id, description, links FROM approvals WHERE content_hash IS NULL
+  `;
+  let updated = 0;
+  for (const row of rows.rows) {
+    const hash = computeApprovalHash(
+      row.description || "",
+      (row.links || []) as Array<{ url: string; label: string }>
+    );
+    await sql`UPDATE approvals SET content_hash = ${hash} WHERE id = ${row.id}`;
+    updated++;
+  }
+  return updated;
 }
 
 // ─── Visitor Identification ──────────────────────────────────────────────────

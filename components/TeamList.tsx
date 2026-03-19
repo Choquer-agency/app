@@ -14,11 +14,19 @@ function TeamMemberFormModal({
   onSaved: () => void;
 }) {
   const isEditing = !!member;
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   const [name, setName] = useState(member?.name || "");
   const [email, setEmail] = useState(member?.email || "");
   const [role, setRole] = useState(member?.role || "");
   const [calLink, setCalLink] = useState(member?.calLink || "");
   const [profilePicUrl, setProfilePicUrl] = useState(member?.profilePicUrl || "");
+  const [startDate, setStartDate] = useState(member?.startDate || "");
+  const [birthday, setBirthday] = useState(member?.birthday || "");
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -79,6 +87,8 @@ function TeamMemberFormModal({
       role,
       calLink,
       profilePicUrl,
+      startDate: startDate || "",
+      birthday: birthday || "",
     };
 
     try {
@@ -166,6 +176,16 @@ function TeamMemberFormModal({
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Cal Link</label>
             <input type="url" value={calLink} onChange={(e) => setCalLink(e.target.value)} placeholder="https://cal.com/..." className={inputClass} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Start Date</label>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Birthday</label>
+              <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} className={inputClass} />
+            </div>
           </div>
 
           {error && (
@@ -299,12 +319,27 @@ export default function TeamList() {
             No team members yet. Click &quot;+ Add Member&quot; to get started.
           </p>
         ) : (
-          members.map((member) => (
+          members.map((member, index) => {
+            // Bryce is always first (from query) and always orange
+            // Everyone else gets a unique color from the palette
+            const teamColors = [
+              'var(--accent)',        // orange — Bryce
+              'var(--trust-blue)',    // blue
+              'var(--click-mint)',    // mint
+              'var(--serenity)',      // purple
+              '#F4A0A0',             // rose
+              '#A0D4C1',             // sage
+              '#FFD580',             // gold
+              '#B8C9E8',             // slate blue
+            ];
+            const cardColor = teamColors[index % teamColors.length];
+            return (
             <div
               key={member.id}
               className={`bg-white rounded-xl border border-gray-200 p-5 space-y-3 ${
                 !member.active ? "opacity-50" : ""
               }`}
+              style={{ borderLeftWidth: '4px', borderLeftColor: cardColor }}
             >
               {/* Header with pic */}
               <div className="flex items-center gap-3">
@@ -315,7 +350,7 @@ export default function TeamList() {
                     className="w-12 h-12 rounded-full object-cover border border-[var(--border)]"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-[var(--accent-light)] flex items-center justify-center text-[var(--accent)] font-bold text-lg">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg text-white" style={{ backgroundColor: cardColor }}>
                     {member.name.charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -341,6 +376,16 @@ export default function TeamList() {
                   >
                     Book a call
                   </a>
+                )}
+                {(member.startDate || member.birthday) && (
+                  <div className="flex gap-3 text-xs text-[var(--muted)] pt-1">
+                    {member.startDate && (
+                      <span>Started {new Date(member.startDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+                    )}
+                    {member.birthday && (
+                      <span>Birthday {new Date(member.birthday + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -369,7 +414,8 @@ export default function TeamList() {
                 )}
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

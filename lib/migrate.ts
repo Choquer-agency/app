@@ -45,6 +45,7 @@ export async function runCrmMigration(): Promise<void> {
   `;
   await sql`ALTER TABLE packages ADD COLUMN IF NOT EXISTS category VARCHAR(30) DEFAULT 'other'`;
   await sql`ALTER TABLE packages ADD COLUMN IF NOT EXISTS hours_included NUMERIC(5,1)`;
+  await sql`ALTER TABLE packages ADD COLUMN IF NOT EXISTS billing_frequency VARCHAR(20) DEFAULT 'monthly'`;
 
   // Client packages
   await sql`
@@ -92,4 +93,7 @@ export async function runCrmMigration(): Promise<void> {
   `;
   await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS cal_link VARCHAR(500) DEFAULT ''`;
   await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS profile_pic_url VARCHAR(500) DEFAULT ''`;
+  await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS color VARCHAR(30) DEFAULT ''`;
+  await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS start_date DATE`;
+  await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS birthday DATE`;
 }

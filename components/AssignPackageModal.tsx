@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Package } from "@/types";
 
 interface AssignPackageModalProps {
@@ -16,6 +16,11 @@ export default function AssignPackageModal({
   onClose,
   onSaved,
 }: AssignPackageModalProps) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   const [packageId, setPackageId] = useState<number | "">(packages[0]?.id || "");
   const [useCustomPrice, setUseCustomPrice] = useState(false);
   const [customPrice, setCustomPrice] = useState("");

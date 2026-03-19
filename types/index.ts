@@ -46,6 +46,7 @@ export interface CreateClientInput {
   notionPageUrl: string;
   ga4PropertyId: string;
   gscSiteUrl: string;
+  seRankingsProjectId?: string;
   calLink: string;
   active: boolean;
   // CRM fields (all optional for backward compat)
@@ -79,6 +80,9 @@ export interface CreateClientInput {
 // Package categories
 export type PackageCategory = "seo" | "retainer" | "google_ads" | "blog" | "website" | "other";
 
+// Billing frequency
+export type BillingFrequency = "one_time" | "weekly" | "bi_weekly" | "monthly" | "quarterly" | "annually";
+
 // Package (service offering)
 export interface Package {
   id: number;
@@ -86,6 +90,7 @@ export interface Package {
   description: string;
   defaultPrice: number;
   category: PackageCategory;
+  billingFrequency: BillingFrequency;
   hoursIncluded: number | null;
   includedServices: string[];
   active: boolean;
@@ -98,6 +103,7 @@ export interface CreatePackageInput {
   description?: string;
   defaultPrice: number;
   category?: PackageCategory;
+  billingFrequency?: BillingFrequency;
   hoursIncluded?: number | null;
   includedServices?: string[];
   active?: boolean;
@@ -142,17 +148,26 @@ export interface TeamMember {
   role: string;
   calLink: string;
   profilePicUrl: string;
+  color: string;
+  startDate: string | null;
+  birthday: string | null;
   active: boolean;
   createdAt?: string;
 }
 
 // Client approval requests
+export interface ApprovalLink {
+  url: string;
+  label: string;
+}
+
 export interface Approval {
   id: number;
   clientSlug: string;
   title: string;
   description: string | null;
-  status: "pending" | "approved" | "rejected";
+  links: ApprovalLink[];
+  status: "pending" | "approved" | "rejected" | "dismissed";
   feedback: string | null;
   createdAt: string;
   updatedAt: string;
@@ -177,12 +192,13 @@ export interface WorkLogEntry {
   id: string;
   task: string;
   category: string[];
-  subtasks: string;
+  subtasks: string | Array<{ text: string; completed: boolean; link?: string; linkLabel?: string }>;
   deliverableLinks: string[];
   monthlySummary: string;
   month: string; // ISO date string
   isPlan: boolean;
   impact?: string;
+  completed?: boolean;
 }
 
 // KPI card data
