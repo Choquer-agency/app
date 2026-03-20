@@ -160,6 +160,12 @@ export async function POST(request: NextRequest) {
     const backfilled = await backfillApprovalHashes();
     results.push(`006: approvals content_hash — OK (${backfilled} rows backfilled)`);
 
+    // Migration 007: Team member authentication (individual passwords)
+    await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)`;
+    await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS role_level VARCHAR(20) DEFAULT 'member'`;
+    await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS last_login TIMESTAMPTZ`;
+    results.push("007: team auth columns — OK");
+
     return NextResponse.json({ success: true, results });
   } catch (error) {
     console.error("Migration error:", error);

@@ -10,7 +10,7 @@ const NAV_LINKS = [
   { href: "/admin/activity", label: "Activity" },
 ];
 
-export default function AdminNav({ userName }: { userName?: string }) {
+export default function AdminNav({ userName, roleLevel }: { userName?: string; roleLevel?: "admin" | "member" }) {
   const pathname = usePathname();
 
   return (

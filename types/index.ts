@@ -157,6 +157,8 @@ export interface TeamMember {
   startDate: string | null;
   birthday: string | null;
   active: boolean;
+  roleLevel: "admin" | "member";
+  lastLogin: string | null;
   createdAt?: string;
 }
 

@@ -1,21 +1,30 @@
 import { NextRequest } from "next/server";
 
 export interface AdminSession {
+  teamMemberId: number;
   name: string;
   email: string;
+  roleLevel: "admin" | "member";
 }
 
 export const COOKIE_NAME = "insightpulse_admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
 
 interface CookiePayload {
-  pwd: string;
+  tid: number;
   name: string;
   email: string;
+  rl: string;
+  iat: number;
 }
 
 export function encodeCookie(session: AdminSession): string {
-  const payload: CookiePayload = { pwd: ADMIN_PASSWORD, ...session };
+  const payload: CookiePayload = {
+    tid: session.teamMemberId,
+    name: session.name,
+    email: session.email,
+    rl: session.roleLevel,
+    iat: Date.now(),
+  };
   return Buffer.from(JSON.stringify(payload)).toString("base64");
 }
 
@@ -24,9 +33,13 @@ function decodeCookie(cookieValue: string): AdminSession | null {
     const parsed: CookiePayload = JSON.parse(
       Buffer.from(cookieValue, "base64").toString("utf-8")
     );
-    if (parsed.pwd !== ADMIN_PASSWORD) return null;
-    if (!parsed.name || !parsed.email) return null;
-    return { name: parsed.name, email: parsed.email };
+    if (!parsed.tid || !parsed.name || !parsed.email) return null;
+    return {
+      teamMemberId: parsed.tid,
+      name: parsed.name,
+      email: parsed.email,
+      roleLevel: parsed.rl === "admin" ? "admin" : "member",
+    };
   } catch {
     return null;
   }

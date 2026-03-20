@@ -22,7 +22,8 @@ export default function AdminLogin() {
     if (res.ok) {
       router.refresh();
     } else {
-      setError("Invalid credentials");
+      const data = await res.json();
+      setError(data.error || "Invalid credentials");
     }
   }
 

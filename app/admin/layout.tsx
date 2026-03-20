@@ -14,7 +14,7 @@ export default async function AdminLayout({
   if (session) {
     return (
       <div className="min-h-screen bg-white" style={{ fontSize: "80%" }}>
-        <AdminNav userName={session.name} />
+        <AdminNav userName={session.name} roleLevel={session.roleLevel} />
         <div className="max-w-[1400px] mx-auto px-10 py-8">{children}</div>
       </div>
     );
