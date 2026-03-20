@@ -80,7 +80,45 @@ export async function POST(request: NextRequest) {
     await sql`CREATE INDEX IF NOT EXISTS idx_client_packages_client ON client_packages(client_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_client_packages_package ON client_packages(package_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_client_packages_active ON client_packages(active)`;
+    // Add missing columns from migration 002/003 (may already exist)
+    await sql`ALTER TABLE packages ADD COLUMN IF NOT EXISTS category VARCHAR(30) DEFAULT 'other'`;
+    await sql`ALTER TABLE packages ADD COLUMN IF NOT EXISTS billing_frequency VARCHAR(20) DEFAULT 'monthly'`;
+    await sql`ALTER TABLE packages ADD COLUMN IF NOT EXISTS hours_included NUMERIC(5,1)`;
+    await sql`ALTER TABLE packages ADD COLUMN IF NOT EXISTS setup_fee NUMERIC(10,2) DEFAULT 0`;
+    await sql`ALTER TABLE client_packages ADD COLUMN IF NOT EXISTS custom_hours NUMERIC(5,1)`;
+    await sql`ALTER TABLE client_packages ADD COLUMN IF NOT EXISTS apply_setup_fee BOOLEAN DEFAULT false`;
+    await sql`ALTER TABLE client_packages ADD COLUMN IF NOT EXISTS custom_setup_fee NUMERIC(10,2)`;
     results.push("003: client_packages table — OK");
+
+    // Migration 003b: Seed packages from choquer.agency (skip any that already exist by name)
+    let seededCount = 0;
+    const seedPkgs: Array<{ name: string; description: string; price: number; category: string; hours: number | null; setupFee: number; services: string }> = [
+      { name: 'Web Dev - Minimum', description: 'Webflow development for smaller projects', price: 4900, category: 'website', hours: null, setupFee: 0, services: '{"12-15 pages","1 Designer + 1 Developer","1 Dedicated Project Manager"}' },
+      { name: 'Web Dev - Growth', description: 'Webflow development for growing businesses', price: 6900, category: 'website', hours: null, setupFee: 0, services: '{"20-30 pages","1 Designer + 2 Developers","1 Dedicated Project Manager"}' },
+      { name: 'Web Dev - Corporate', description: 'Full-team Webflow development for enterprise', price: 10250, category: 'website', hours: null, setupFee: 0, services: '{"40+ pages","2 Designers + 2 Developers","1 Dedicated Project Manager","Direct team access communication"}' },
+      { name: 'Retainer - 10 Hours', description: 'Monthly retainer with 10 hours of work', price: 2200, category: 'retainer', hours: 10, setupFee: 0, services: '{"UI/UX Design","Brand Development/Identity","Copywriting","SEO Strategy","Dedicated Slack Channel","Monthly Meetings"}' },
+      { name: 'Retainer - 15 Hours', description: 'Monthly retainer with 15 hours of work', price: 3150, category: 'retainer', hours: 15, setupFee: 0, services: '{"UI/UX Design","Brand Development/Identity","Copywriting","SEO Strategy","Dedicated Slack Channel","Monthly Meetings"}' },
+      { name: 'Retainer - 20 Hours', description: 'Monthly retainer with 20 hours of work', price: 4000, category: 'retainer', hours: 20, setupFee: 0, services: '{"UI/UX Design","Brand Development/Identity","Copywriting","SEO Strategy","Dedicated Slack Channel","Monthly Meetings"}' },
+      { name: 'Retainer - 30 Hours', description: 'Monthly retainer with 30 hours (Most Popular)', price: 5700, category: 'retainer', hours: 30, setupFee: 0, services: '{"UI/UX Design","Brand Development/Identity","Copywriting","SEO Strategy","Dedicated Slack Channel","Monthly Meetings"}' },
+      { name: 'Retainer - 40 Hours', description: 'Monthly retainer with 40 hours of work', price: 7200, category: 'retainer', hours: 40, setupFee: 0, services: '{"UI/UX Design","Brand Development/Identity","Copywriting","SEO Strategy","Dedicated Slack Channel","Monthly Meetings"}' },
+      { name: 'Google Ads - Tier 1 ($500-$2,499 Ad Spend)', description: 'Google Ads management for $500-$2,499/mo ad spend', price: 625, category: 'google_ads', hours: null, setupFee: 2000, services: '{"Free $600 Ads Credit","Image Generation Assistance","Account Creation","Keyword Research","Ad Optimization"}' },
+      { name: 'Google Ads - Tier 2 ($2,500-$4,499 Ad Spend)', description: 'Google Ads management for $2,500-$4,499/mo ad spend', price: 995, category: 'google_ads', hours: null, setupFee: 2000, services: '{"Free $600 Ads Credit","Image Generation Assistance","Account Creation","Keyword Research","Ad Optimization"}' },
+      { name: 'Google Ads - Tier 3 ($4,500-$7,499 Ad Spend)', description: 'Google Ads management for $4,500-$7,499/mo ad spend', price: 1335, category: 'google_ads', hours: null, setupFee: 2000, services: '{"Free $600 Ads Credit","Image Generation Assistance","Account Creation","Keyword Research","Ad Optimization"}' },
+      { name: 'Google Ads - Tier 4 ($7,500-$15,000 Ad Spend)', description: 'Google Ads management for $7,500-$15,000/mo ad spend (Most Popular)', price: 1695, category: 'google_ads', hours: null, setupFee: 2000, services: '{"Free $600 Ads Credit","Image Generation Assistance","Account Creation","Keyword Research","Ad Optimization"}' },
+      { name: 'SEO - Starter', description: 'Entry-level organic SEO services', price: 2500, category: 'seo', hours: null, setupFee: 0, services: '{"1 Monthly Blog Post","1 Quarterly Landing Page","Basic Backlink & Citation Building","GBP Optimization","Quarterly Strategy Meeting","Quarterly Competitor Snapshot","Standard Keyword Reporting","48hr Email Support"}' },
+      { name: 'SEO - Ranking Master', description: 'Mid-tier SEO with active link building', price: 3500, category: 'seo', hours: null, setupFee: 0, services: '{"2 Monthly Blog Posts","1 Quarterly Landing Page","Active Backlink & Citation Building (4-6 links/mo)","GBP Optimization & Weekly Posts","Monthly Strategy Meeting","Quarterly CRO Landing Page Audit","Monthly Competitor Snapshot","Standard Keyword Reporting","24hr Email Support"}' },
+      { name: 'SEO - Corporate', description: 'Full-service SEO for maximum organic growth (Most Popular)', price: 6000, category: 'seo', hours: null, setupFee: 0, services: '{"4 Monthly Blog Posts","2-3 Monthly Landing Pages","Aggressive Backlink & Citation Building (8-12 links/mo)","GBP Optimization + Weekly Posts + Q&A Strategy","Monthly & On-Demand Strategy Meetings","Monthly CRO Recommendations","Weekly Competitor Snapshot","Full Custom Keyword Dashboard & Reporting","Slack & Email Same Day Response"}' },
+      { name: 'AI Chatbot', description: 'Custom AI chatbot trained on your business content', price: 50, category: 'other', hours: null, setupFee: 500, services: '{"Ongoing Conversation Flow Monitoring","Escalation Path Review (Handoff to Human/CRM)","Monthly Performance Summary","Brand Voice & Tone Configuration","Custom Chatbot Trained on Your Business Content","Embedded Across All Pages of Website","CRM or Email System Integration"}' },
+    ];
+    for (const p of seedPkgs) {
+      const exists = await sql`SELECT 1 FROM packages WHERE name = ${p.name} LIMIT 1`;
+      if (exists.rows.length === 0) {
+        await sql`INSERT INTO packages (name, description, default_price, category, billing_frequency, hours_included, setup_fee, included_services)
+          VALUES (${p.name}, ${p.description}, ${p.price}, ${p.category}, 'monthly', ${p.hours}, ${p.setupFee}, ${p.services}::text[])`;
+        seededCount++;
+      }
+    }
+    results.push(`003b: seeded ${seededCount} new packages — OK`);
 
     // Migration 004: Client notes
     await sql`

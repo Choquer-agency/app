@@ -60,6 +60,20 @@ export default function PackageList() {
     setShowModal(true);
   }
 
+  async function handleDelete(pkg: Package) {
+    if (!confirm(`Delete "${pkg.name}"? This will permanently remove this package.`)) return;
+    try {
+      const res = await fetch(`/api/admin/packages/${pkg.id}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchPackages();
+      } else {
+        alert("Failed to delete package");
+      }
+    } catch {
+      alert("Failed to delete package");
+    }
+  }
+
   function handleSaved() {
     setShowModal(false);
     setEditingPkg(null);
@@ -155,7 +169,7 @@ export default function PackageList() {
                       <div>
                         <span className="font-medium">{pkg.name}</span>
                         {pkg.description && (
-                          <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[250px]">
+                          <p className="text-xs text-gray-400 mt-0.5">
                             {pkg.description}
                           </p>
                         )}
@@ -178,12 +192,18 @@ export default function PackageList() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 space-x-3">
                       <button
                         onClick={() => handleEdit(pkg)}
                         className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
                       >
                         Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(pkg)}
+                        className="text-xs text-[#b91c1c] hover:text-red-700"
+                      >
+                        Delete
                       </button>
                     </td>
                   </tr>

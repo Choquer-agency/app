@@ -8,6 +8,8 @@ function rowToClientPackage(row: Record<string, unknown>): ClientPackage {
     packageId: row.package_id as number,
     customPrice: row.custom_price ? parseFloat(row.custom_price as string) : null,
     customHours: row.custom_hours ? parseFloat(row.custom_hours as string) : null,
+    applySetupFee: (row.apply_setup_fee as boolean) ?? false,
+    customSetupFee: row.custom_setup_fee ? parseFloat(row.custom_setup_fee as string) : null,
     signupDate: row.signup_date
       ? (row.signup_date as Date).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],
@@ -27,6 +29,9 @@ function rowToClientPackage(row: Record<string, unknown>): ClientPackage {
     packageHoursIncluded: row.package_hours_included
       ? parseFloat(row.package_hours_included as string)
       : null,
+    packageSetupFee: row.package_setup_fee
+      ? parseFloat(row.package_setup_fee as string)
+      : undefined,
   };
 }
 
@@ -48,7 +53,8 @@ export async function syncClientMrr(clientId: number): Promise<void> {
 export async function getClientPackages(clientId: number): Promise<ClientPackage[]> {
   const { rows } = await sql`
     SELECT cp.*, p.name AS package_name, p.default_price AS package_default_price,
-      p.category AS package_category, p.hours_included AS package_hours_included
+      p.category AS package_category, p.hours_included AS package_hours_included,
+      p.setup_fee AS package_setup_fee
     FROM client_packages cp
     JOIN packages p ON p.id = cp.package_id
     WHERE cp.client_id = ${clientId}
@@ -62,18 +68,22 @@ export async function assignPackage(data: {
   packageId: number;
   customPrice?: number | null;
   customHours?: number | null;
+  applySetupFee?: boolean;
+  customSetupFee?: number | null;
   signupDate?: string;
   contractEndDate?: string | null;
   notes?: string;
 }): Promise<ClientPackage> {
   try {
     const { rows } = await sql`
-      INSERT INTO client_packages (client_id, package_id, custom_price, custom_hours, signup_date, contract_end_date, notes)
+      INSERT INTO client_packages (client_id, package_id, custom_price, custom_hours, apply_setup_fee, custom_setup_fee, signup_date, contract_end_date, notes)
       VALUES (
         ${data.clientId},
         ${data.packageId},
         ${data.customPrice ?? null},
         ${data.customHours ?? null},
+        ${data.applySetupFee ?? false},
+        ${data.customSetupFee ?? null},
         ${data.signupDate || new Date().toISOString().split("T")[0]},
         ${data.contractEndDate || null},
         ${data.notes || ""}
@@ -85,12 +95,14 @@ export async function assignPackage(data: {
     if (error instanceof Error && error.message.includes("unique")) {
       await sql`ALTER TABLE client_packages DROP CONSTRAINT IF EXISTS client_packages_client_id_package_id_key`;
       const { rows } = await sql`
-        INSERT INTO client_packages (client_id, package_id, custom_price, custom_hours, signup_date, contract_end_date, notes)
+        INSERT INTO client_packages (client_id, package_id, custom_price, custom_hours, apply_setup_fee, custom_setup_fee, signup_date, contract_end_date, notes)
         VALUES (
           ${data.clientId},
           ${data.packageId},
           ${data.customPrice ?? null},
           ${data.customHours ?? null},
+          ${data.applySetupFee ?? false},
+          ${data.customSetupFee ?? null},
           ${data.signupDate || new Date().toISOString().split("T")[0]},
           ${data.contractEndDate || null},
           ${data.notes || ""}
@@ -107,6 +119,8 @@ export async function updateAssignment(
   id: number,
   data: {
     customPrice?: number | null;
+    applySetupFee?: boolean;
+    customSetupFee?: number | null;
     signupDate?: string;
     contractEndDate?: string | null;
     active?: boolean;
@@ -118,6 +132,8 @@ export async function updateAssignment(
 
   const current = existing.rows[0];
   const customPrice = data.customPrice !== undefined ? data.customPrice : current.custom_price;
+  const applySetupFee = data.applySetupFee !== undefined ? data.applySetupFee : current.apply_setup_fee;
+  const customSetupFee = data.customSetupFee !== undefined ? data.customSetupFee : current.custom_setup_fee;
   const signupDate = data.signupDate ?? current.signup_date;
   const contractEndDate = data.contractEndDate !== undefined ? data.contractEndDate : current.contract_end_date;
   const active = data.active ?? current.active;
@@ -126,6 +142,8 @@ export async function updateAssignment(
   const { rows } = await sql`
     UPDATE client_packages SET
       custom_price = ${customPrice},
+      apply_setup_fee = ${applySetupFee ?? false},
+      custom_setup_fee = ${customSetupFee},
       signup_date = ${signupDate},
       contract_end_date = ${contractEndDate},
       active = ${active},

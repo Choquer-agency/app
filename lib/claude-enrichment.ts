@@ -156,7 +156,10 @@ async function callClaude(
 
 IMPORTANT: The current month is ${currentMonthLabel}. Any work under a "${now.toLocaleString("en-US", { month: "long" })}" heading is currentMonth.
 
-For other months: if the work is marked as completed (all checkboxes checked) and the month name comes before ${now.toLocaleString("en-US", { month: "long" })} chronologically (or any month from a previous year), it is a pastMonth. If work is planned or incomplete and the month comes after ${now.toLocaleString("en-US", { month: "long" })}, it is an upcomingMonth. When month headings lack a year, infer the year: completed months before the current month are from the previous year if needed (e.g., if current month is March 2026, a completed "April" section is April 2025, not April 2026).${skipInstruction}
+For other months, categorize STRICTLY by chronological position — each month must appear in EXACTLY ONE category:
+- pastMonth: Any month that is chronologically BEFORE ${currentMonthLabel}. This includes all months from previous years and earlier months in ${now.getFullYear()}.
+- upcomingMonth: Any month that is chronologically AFTER ${currentMonthLabel}, regardless of whether tasks are checked or unchecked. Future months are NEVER pastMonths.
+When month headings lack a year, infer the year from context: if the notes have a year heading (e.g., "### 2025"), use that year. Otherwise, completed months with names after ${now.toLocaleString("en-US", { month: "long" })} are from the previous year (e.g., if current month is March 2026, a completed "April" section is April 2025, not April 2026). Always include the year in monthLabel (e.g., "March 2025", not just "March").${skipInstruction}
 
 Process these notes and return structured JSON:
 
@@ -441,10 +444,14 @@ export async function enrichClientContent(
   const currentMonthName = now.toLocaleString("en-US", { month: "long" });
 
   // Separate current/upcoming months from historical months
+  const currentYear = String(now.getFullYear());
   const historicalSections = allMonthSections.filter((s) => {
     const label = s.monthLabel.toLowerCase();
-    // Keep sections that are NOT the current month (historical or upcoming handled by pass 1)
-    return !label.startsWith(currentMonthName.toLowerCase());
+    // Only exclude the CURRENT month+year (e.g., "March 2026"), not same-named months from other years
+    const isCurrentMonth = label.startsWith(currentMonthName.toLowerCase());
+    const hasCurrentYear = s.monthLabel.includes(currentYear);
+    const hasNoYear = !s.monthLabel.match(/\d{4}/);
+    return !(isCurrentMonth && (hasCurrentYear || hasNoYear));
   });
 
   const useMultiPass = mode === "full" && historicalSections.length > MULTIPASS_MONTH_THRESHOLD;
@@ -490,6 +497,38 @@ export async function enrichClientContent(
   } else {
     // Single pass: small/medium page — 16384 tokens handles up to ~10 months comfortably
     structured = await callClaude(rawMarkdown, client, undefined, trace.id);
+  }
+
+  // Safeguard: remove any months from pastMonths that are chronologically after the current month
+  if (structured.pastMonths?.length) {
+    const MONTH_NAMES = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+    const currentVal = now.getFullYear() * 12 + now.getMonth();
+    structured.pastMonths = structured.pastMonths.filter((pm: { monthLabel?: string; label?: string }) => {
+      const label = (pm.monthLabel || pm.label || "").toLowerCase();
+      const parts = label.match(/(\w+)\s*(\d{4})?/);
+      if (!parts) return true;
+      const mi = MONTH_NAMES.indexOf(parts[1]);
+      if (mi === -1) return true;
+      const yr = parts[2] ? parseInt(parts[2]) : now.getFullYear();
+      const monthVal = yr * 12 + mi;
+      return monthVal < currentVal;
+    });
+  }
+
+  // Safeguard: remove any months from upcomingMonths that are chronologically before or equal to current month
+  if (structured.upcomingMonths?.length) {
+    const MONTH_NAMES = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+    const currentVal = now.getFullYear() * 12 + now.getMonth();
+    structured.upcomingMonths = structured.upcomingMonths.filter((um: { monthLabel?: string; label?: string }) => {
+      const label = (um.monthLabel || um.label || "").toLowerCase();
+      const parts = label.match(/(\w+)\s*(\d{4})?/);
+      if (!parts) return true;
+      const mi = MONTH_NAMES.indexOf(parts[1]);
+      if (mi === -1) return true;
+      const yr = parts[2] ? parseInt(parts[2]) : now.getFullYear();
+      const monthVal = yr * 12 + mi;
+      return monthVal > currentVal;
+    });
   }
 
   // Step 2: Fetch analytics for detected entities

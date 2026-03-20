@@ -11,6 +11,7 @@ function rowToPackage(row: Record<string, unknown>): Package {
     billingFrequency: ((row.billing_frequency as string) || "monthly") as BillingFrequency,
     hoursIncluded: row.hours_included ? parseFloat(row.hours_included as string) : null,
     includedServices: (row.included_services as string[]) || [],
+    setupFee: parseFloat((row.setup_fee as string) || "0"),
     active: row.active as boolean,
     createdAt: (row.created_at as Date)?.toISOString(),
     updatedAt: (row.updated_at as Date)?.toISOString(),
@@ -46,7 +47,7 @@ function toArrayLiteral(arr: string[]): string {
 export async function createPackage(data: CreatePackageInput): Promise<Package> {
   const servicesLiteral = toArrayLiteral(data.includedServices || []);
   const { rows } = await sql`
-    INSERT INTO packages (name, description, default_price, category, billing_frequency, hours_included, included_services, active)
+    INSERT INTO packages (name, description, default_price, category, billing_frequency, hours_included, included_services, setup_fee, active)
     VALUES (
       ${data.name},
       ${data.description || ""},
@@ -55,6 +56,7 @@ export async function createPackage(data: CreatePackageInput): Promise<Package> 
       ${data.billingFrequency || "monthly"},
       ${data.hoursIncluded ?? null},
       ${servicesLiteral}::text[],
+      ${data.setupFee ?? 0},
       ${data.active ?? true}
     )
     RETURNING *
@@ -78,6 +80,7 @@ export async function updatePackage(
   const hoursIncluded = data.hoursIncluded !== undefined ? data.hoursIncluded : current.hours_included;
   const includedServices = data.includedServices ?? current.included_services ?? [];
   const servicesLiteral = toArrayLiteral(includedServices as string[]);
+  const setupFee = data.setupFee !== undefined ? data.setupFee : current.setup_fee;
   const active = data.active ?? current.active;
 
   const { rows } = await sql`
@@ -89,6 +92,7 @@ export async function updatePackage(
       billing_frequency = ${billingFrequency},
       hours_included = ${hoursIncluded ?? null},
       included_services = ${servicesLiteral}::text[],
+      setup_fee = ${setupFee ?? 0},
       active = ${active},
       updated_at = NOW()
     WHERE id = ${id}

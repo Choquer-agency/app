@@ -44,6 +44,8 @@ export async function POST(
       packageId: body.packageId,
       customPrice: body.customPrice ?? null,
       customHours: body.customHours ?? null,
+      applySetupFee: body.applySetupFee ?? false,
+      customSetupFee: body.customSetupFee ?? null,
       signupDate: body.signupDate,
       contractEndDate: body.contractEndDate ?? null,
       notes: body.notes || "",
@@ -59,6 +61,10 @@ export async function POST(
     const hours = body.customHours ?? pkg?.hoursIncluded;
     const parts = [`${pkgName} — $${price.toLocaleString()}/mo`];
     if (hours) parts.push(`${hours}h/mo`);
+    if (body.applySetupFee) {
+      const setupFeeAmt = body.customSetupFee ?? pkg?.setupFee ?? 0;
+      parts.push(`setup fee: $${setupFeeAmt.toLocaleString()}`);
+    }
     if (body.signupDate) parts.push(`starts ${body.signupDate}`);
     if (body.contractEndDate) parts.push(`ends ${body.contractEndDate}`);
     await addNote({

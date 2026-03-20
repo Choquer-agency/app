@@ -62,6 +62,7 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
     seo: "SEO Hours",
     retainer: "Retainer Hours",
     google_ads: "Google Ads Hours",
+    social_media_ads: "Social Media Ads Hours",
     blog: "Blog",
     website: "Website",
   };
@@ -70,7 +71,7 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
   const hoursByCategory: { category: string; label: string; hours: number }[] = [];
   for (const cp of activeAssignments) {
     const cat = cp.packageCategory || "other";
-    if (["seo", "retainer", "google_ads"].includes(cat)) {
+    if (["seo", "retainer", "google_ads", "social_media_ads"].includes(cat)) {
       const hours = cp.customHours ?? cp.packageHoursIncluded ?? 0;
       if (hours > 0) {
         const existing = hoursByCategory.find((h) => h.category === cat);
@@ -202,7 +203,7 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
         )}
 
         {activeTab === "packages" && (
-          <ClientPackagesPanel clientId={client.id} onPackagesChanged={handlePackagesChanged} />
+          <ClientPackagesPanel clientId={client.id} clientCountry={client.country} onPackagesChanged={handlePackagesChanged} />
         )}
 
         {activeTab === "notes" && (

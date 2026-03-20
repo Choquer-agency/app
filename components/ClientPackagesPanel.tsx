@@ -6,10 +6,12 @@ import AssignPackageModal from "./AssignPackageModal";
 
 interface ClientPackagesPanelProps {
   clientId: number;
+  clientCountry?: "CA" | "US";
   onPackagesChanged?: () => void;
 }
 
-export default function ClientPackagesPanel({ clientId, onPackagesChanged }: ClientPackagesPanelProps) {
+export default function ClientPackagesPanel({ clientId, clientCountry = "US", onPackagesChanged }: ClientPackagesPanelProps) {
+  const currency = clientCountry === "CA" ? "CAD" : "USD";
   const [assignments, setAssignments] = useState<ClientPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAssign, setShowAssign] = useState(false);
@@ -70,7 +72,7 @@ export default function ClientPackagesPanel({ clientId, onPackagesChanged }: Cli
   function formatCurrency(val: number) {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(val);
@@ -122,6 +124,7 @@ export default function ClientPackagesPanel({ clientId, onPackagesChanged }: Cli
               <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
                 <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Package</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Price</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Setup Fee</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Sign-up Date</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Contract</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Actions</th>
@@ -135,9 +138,21 @@ export default function ClientPackagesPanel({ clientId, onPackagesChanged }: Cli
                   <tr key={a.id} className="border-b border-[var(--border)] hover:bg-[var(--accent-light)] transition">
                     <td className="px-4 py-3 font-medium text-[var(--foreground)]">{a.packageName}</td>
                     <td className="px-4 py-3">
-                      {formatCurrency(price)}/mo
+                      {formatCurrency(price)}/mo <span className="text-[10px] text-[var(--muted)]">{currency}</span>
                       {isCustom && (
                         <span className="ml-1 text-[10px] text-[var(--accent)]">custom</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--muted)]">
+                      {a.applySetupFee ? (
+                        <>
+                          {formatCurrency(a.customSetupFee ?? a.packageSetupFee ?? 0)}
+                          {a.customSetupFee !== null && (
+                            <span className="ml-1 text-[10px] text-[var(--accent)]">custom</span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-xs">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-[var(--muted)]">{a.signupDate}</td>
@@ -163,6 +178,7 @@ export default function ClientPackagesPanel({ clientId, onPackagesChanged }: Cli
       {showAssign && (
         <AssignPackageModal
           clientId={clientId}
+          clientCountry={clientCountry}
           packages={packages.filter((p) => p.active)}
           onClose={() => setShowAssign(false)}
           onSaved={handleAssigned}

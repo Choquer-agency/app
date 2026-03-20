@@ -78,7 +78,7 @@ export interface CreateClientInput {
 }
 
 // Package categories
-export type PackageCategory = "seo" | "retainer" | "google_ads" | "blog" | "website" | "other";
+export type PackageCategory = "seo" | "retainer" | "google_ads" | "social_media_ads" | "blog" | "website" | "other";
 
 // Billing frequency
 export type BillingFrequency = "one_time" | "weekly" | "bi_weekly" | "monthly" | "quarterly" | "annually";
@@ -93,6 +93,7 @@ export interface Package {
   billingFrequency: BillingFrequency;
   hoursIncluded: number | null;
   includedServices: string[];
+  setupFee: number;
   active: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -106,6 +107,7 @@ export interface CreatePackageInput {
   billingFrequency?: BillingFrequency;
   hoursIncluded?: number | null;
   includedServices?: string[];
+  setupFee?: number;
   active?: boolean;
 }
 
@@ -116,6 +118,8 @@ export interface ClientPackage {
   packageId: number;
   customPrice: number | null;
   customHours: number | null;
+  applySetupFee: boolean;
+  customSetupFee: number | null;
   signupDate: string;
   contractEndDate: string | null;
   active: boolean;
@@ -127,6 +131,7 @@ export interface ClientPackage {
   packageDefaultPrice?: number;
   packageCategory?: PackageCategory;
   packageHoursIncluded?: number | null;
+  packageSetupFee?: number;
 }
 
 // Client note / activity entry

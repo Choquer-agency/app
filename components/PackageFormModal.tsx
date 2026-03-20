@@ -24,6 +24,7 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
   const [billingFrequency, setBillingFrequency] = useState<BillingFrequency>(
     pkg?.billingFrequency || "monthly"
   );
+  const [setupFee, setSetupFee] = useState(pkg?.setupFee?.toString() || "0");
   const [hoursIncluded, setHoursIncluded] = useState(pkg?.hoursIncluded?.toString() || "");
   const [servicesText, setServicesText] = useState(
     (pkg?.includedServices || []).join("\n")
@@ -32,7 +33,7 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const showHours = ["seo", "retainer", "google_ads"].includes(category);
+  const showHours = ["seo", "retainer", "google_ads", "social_media_ads"].includes(category);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,6 +55,7 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
       billingFrequency,
       hoursIncluded: hoursIncluded ? parseFloat(hoursIncluded) : null,
       includedServices,
+      setupFee: parseFloat(setupFee) || 0,
       active,
     };
 
@@ -142,6 +144,26 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
 
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+              Default Setup Fee
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] text-sm pointer-events-none select-none">
+                $
+              </div>
+              <input
+                type="number"
+                step="0.01"
+                value={setupFee}
+                onChange={(e) => setSetupFee(e.target.value)}
+                placeholder="0"
+                className="w-full pl-7 pr-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
+              />
+            </div>
+            <p className="text-xs text-[var(--muted)] mt-1">One-time fee charged at signup (0 = none)</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
               Category
             </label>
             <select
@@ -152,6 +174,7 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
               <option value="seo">SEO</option>
               <option value="retainer">Retainer</option>
               <option value="google_ads">Google Ads</option>
+              <option value="social_media_ads">Social Media Ads</option>
               <option value="blog">Blog</option>
               <option value="website">Website</option>
               <option value="other">Other</option>

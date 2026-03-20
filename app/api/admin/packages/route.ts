@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       billingFrequency: body.billingFrequency || "monthly",
       hoursIncluded: body.hoursIncluded ?? null,
       includedServices: body.includedServices || [],
+      setupFee: body.setupFee ?? 0,
       active: body.active ?? true,
     });
 
