@@ -63,15 +63,33 @@ export default function VisitorIdentifier({ slug, onIdentified }: VisitorIdentif
 
   useEffect(() => {
     async function init() {
+      // If the user is a logged-in team member, skip the prompt entirely
+      const adminCookie = document.cookie.split("; ").find((c) => c.startsWith("insightpulse_admin="));
+      if (adminCookie) {
+        try {
+          const payload = JSON.parse(atob(adminCookie.split("=")[1]));
+          if (payload.name) {
+            const deviceId = generateDeviceId();
+            const identification: VisitorIdentification = {
+              visitorId: 0,
+              visitorName: payload.name,
+              deviceId,
+            };
+            onIdentified(identification);
+            return;
+          }
+        } catch {
+          // Malformed cookie — fall through to normal flow
+        }
+      }
+
       // Check localStorage first — trust it if present
       const stored = localStorage.getItem(getStorageKey(slug));
       if (stored) {
         try {
           const parsed: VisitorIdentification = JSON.parse(stored);
           if (parsed.visitorName && parsed.deviceId) {
-            // Use stored data immediately (works offline / no DB)
             onIdentified(parsed);
-            // Try to validate with server in background (updates last_seen)
             identify(parsed.deviceId).catch(() => {});
             return;
           }

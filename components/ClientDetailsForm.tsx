@@ -13,6 +13,7 @@ const STATUS_OPTIONS = [
   { value: "new", label: "New Client" },
   { value: "active", label: "Active" },
   { value: "offboarding", label: "Offboarding" },
+  { value: "inactive", label: "Inactive" },
 ];
 
 const COUNTRY_OPTIONS = [
@@ -96,6 +97,10 @@ export default function ClientDetailsForm({
   const [offboardingNote, setOffboardingNote] = useState("");
   const [showOffboardingPrompt, setShowOffboardingPrompt] = useState(false);
 
+  // Delete state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   // Team members for specialist dropdown
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   useEffect(() => {
@@ -164,6 +169,23 @@ export default function ClientDetailsForm({
     }
   }
 
+  async function handleDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/clients/${client.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete");
+      }
+      window.location.href = "/admin/clients";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete client");
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  }
+
   const inputClass =
     "w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent";
   const labelClass = "block text-sm font-medium text-[var(--foreground)] mb-1";
@@ -207,7 +229,9 @@ export default function ClientDetailsForm({
                       ? "bg-[#FFA69E] text-[#b91c1c]"
                       : opt.value === "new"
                         ? "bg-[#BDFFE8] text-[#0d7a55]"
-                        : "bg-[#B1D0FF] text-[#1a56db]"
+                        : opt.value === "inactive"
+                          ? "bg-gray-200 text-gray-600"
+                          : "bg-[#B1D0FF] text-[#1a56db]"
                     : "bg-gray-100 text-[var(--muted)] hover:bg-gray-200"
                 }`}
               >
@@ -372,6 +396,44 @@ export default function ClientDetailsForm({
           {submitting ? "Saving..." : "Save Changes"}
         </button>
       </div>
+
+      {/* Danger Zone — only shown for past/inactive clients */}
+      {(client.clientStatus === "inactive" || !client.active) && (
+        <div className="border border-red-200 rounded-lg p-4 mt-6 bg-red-50">
+          <h3 className="text-sm font-semibold text-[#b91c1c] mb-2">Danger Zone</h3>
+          <p className="text-xs text-gray-600 mb-3">
+            Permanently delete this client and all associated data. This action cannot be undone.
+          </p>
+          {!showDeleteConfirm ? (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-4 py-2 text-sm font-medium text-[#b91c1c] border border-[#b91c1c] rounded-lg hover:bg-red-100 transition"
+            >
+              Delete Client
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <p className="text-sm font-medium text-[#b91c1c]">Are you sure you want to delete this client?</p>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium text-white bg-[#b91c1c] rounded-lg hover:bg-red-800 transition disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Yes, Delete"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </form>
   );
 }

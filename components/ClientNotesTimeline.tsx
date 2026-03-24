@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { ClientNote } from "@/types";
+import { friendlyDateTime } from "@/lib/date-format";
 import NoteForm from "./NoteForm";
 
 const TYPE_ICONS: Record<string, { icon: string; color: string; label: string }> = {
@@ -58,14 +59,7 @@ export default function ClientNotesTimeline({ clientId }: ClientNotesTimelinePro
   }
 
   function formatDate(iso: string) {
-    const d = new Date(iso);
-    return d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    return friendlyDateTime(iso);
   }
 
   return (

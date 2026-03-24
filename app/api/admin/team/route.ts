@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllTeamMembers, addTeamMember, updateTeamMember } from "@/lib/team-members";
 import { getSession } from "@/lib/admin-auth";
+import { hasPermission } from "@/lib/permissions";
+import { TeamMember } from "@/types";
+
+function stripWages(member: TeamMember): TeamMember {
+  return { ...member, hourlyRate: null, salary: null, payType: "hourly" };
+}
 
 export async function GET(request: NextRequest) {
-  if (!getSession(request)) {
+  const session = getSession(request);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const members = await getAllTeamMembers();
-    return NextResponse.json(members);
+    const canSeeWages = hasPermission(session.roleLevel, "team:view_wages");
+    return NextResponse.json(canSeeWages ? members : members.map(stripWages));
   } catch (error) {
     console.error("Failed to fetch team members:", error);
     return NextResponse.json({ error: "Failed to fetch team members" }, { status: 500 });
@@ -17,7 +25,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!getSession(request)) {
+  const session = getSession(request);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -28,6 +37,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name and email are required" }, { status: 400 });
     }
 
+    // Gate wage fields
+    const wageData = hasPermission(session.roleLevel, "team:edit_wages")
+      ? { hourlyRate: body.hourlyRate, salary: body.salary, payType: body.payType }
+      : {};
+
+    // Gate role assignment
+    const roleData = hasPermission(session.roleLevel, "team:manage_roles")
+      ? { roleLevel: body.roleLevel }
+      : {};
+
     const member = await addTeamMember({
       name: body.name.trim(),
       email: body.email.trim(),
@@ -37,6 +56,10 @@ export async function POST(request: NextRequest) {
       color: body.color || "",
       startDate: body.startDate || "",
       birthday: body.birthday || "",
+      slackUserId: body.slackUserId || "",
+      tags: Array.isArray(body.tags) ? body.tags : [],
+      ...wageData,
+      ...roleData,
     });
 
     return NextResponse.json(member, { status: 201 });
@@ -51,7 +74,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  if (!getSession(request)) {
+  const session = getSession(request);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -59,6 +83,18 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     if (!body.id) {
       return NextResponse.json({ error: "ID is required" }, { status: 400 });
+    }
+
+    // Strip wage fields if user lacks permission
+    if (!hasPermission(session.roleLevel, "team:edit_wages")) {
+      delete body.hourlyRate;
+      delete body.salary;
+      delete body.payType;
+    }
+
+    // Strip role changes if user lacks permission
+    if (!hasPermission(session.roleLevel, "team:manage_roles")) {
+      delete body.roleLevel;
     }
 
     const member = await updateTeamMember(body.id, body);

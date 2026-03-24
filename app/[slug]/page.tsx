@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { friendlyMonthFull } from "@/lib/date-format";
 import Header from "@/components/Header";
 import MetricsSection from "@/components/MetricsSection";
 import GoalsSection from "@/components/GoalsSection";
@@ -9,6 +10,7 @@ import Footer from "@/components/Footer";
 import ClientDashboardTracker from "@/components/ClientDashboardTracker";
 import AnalyticsBlurOverlay from "@/components/AnalyticsBlurOverlay";
 import ApprovalSection from "@/components/ApprovalSection";
+import ClientPortalShell from "@/components/client-portal/ClientPortalShell";
 
 import { getGSCKPIs, getGSCTopPages, getDateRange } from "@/lib/gsc";
 import { getGA4KPIs, getGA4UsersTimeSeries, getGA4TrafficAcquisition, getGA4OrganicSessionsForRange } from "@/lib/ga4";
@@ -16,7 +18,9 @@ import type { TrafficChannel } from "@/lib/ga4";
 import { getKeywordRankings, getProjectStats } from "@/lib/serankings";
 import type { SERankingStats } from "@/lib/serankings";
 import { getClientBySlug } from "@/lib/clients";
+import { getClientPackages } from "@/lib/client-packages";
 import { getEnrichedContent, getApprovals } from "@/lib/db";
+import { getTickets } from "@/lib/tickets";
 import {
   ClientConfig,
   KPIData,
@@ -32,8 +36,8 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: PageProps) {
   const { slug } = await params;
   const client = await getClientBySlug(slug);
-  if (!client) return { title: "SEO Dashboard" };
-  return { title: `${client.name} — SEO Dashboard` };
+  if (!client) return { title: "Dashboard" };
+  return { title: `${client.name} — Dashboard` };
 }
 
 const USE_GOOGLE = !!process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
@@ -104,295 +108,311 @@ function isGoalExpired(deadline: string): boolean {
 }
 
 function formatMonthLabel(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return friendlyMonthFull(iso);
 }
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 interface PageProps {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function ClientDashboard({ params }: PageProps) {
+export default async function ClientDashboard({ params, searchParams }: PageProps) {
   const { slug } = await params;
+  const sp = await searchParams;
+  const activeTab = (typeof sp.tab === "string" ? sp.tab : undefined);
 
   // Get client from database — if not found, 404
   const client = await getClientBySlug(slug);
   if (!client) notFound();
 
-  // Try enriched content (from AI pipeline — file first, then DB)
-  const [enriched, approvals] = await Promise.all([
-    loadEnrichedContent(slug),
-    getApprovals(slug).catch(() => []),
+  // Fetch packages and ticket count for navigation
+  const [clientPackages, clientTickets] = await Promise.all([
+    getClientPackages(client.id).catch(() => []),
+    getTickets({ clientId: client.id, archived: false, isPersonal: false, limit: 1 }).catch(() => []),
   ]);
-  const pendingApprovals = approvals.filter((a) => a.status === "pending").length;
+  const activePackages = clientPackages.filter((p) => p.active);
+  const hasTickets = clientTickets.length > 0;
 
+  // Determine default tab from packages
+  const defaultTab = activePackages.length > 0
+    ? (activePackages
+        .map((p) => p.packageCategory || "other")
+        .sort((a, b) => {
+          const order: Record<string, number> = { seo: 1, retainer: 2, google_ads: 3, social_media_ads: 4, blog: 5, website: 6, other: 7 };
+          return (order[a] ?? 99) - (order[b] ?? 99);
+        })[0])
+    : "seo";
+
+  const effectiveTab = activeTab || defaultTab;
+  const isSeoTab = effectiveTab === "seo" || effectiveTab === defaultTab;
+
+  // ── Only fetch expensive analytics data when on the SEO tab ──
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let enriched: any = null;
+  let approvals: Awaited<ReturnType<typeof getApprovals>> = [];
   let goals: QuarterlyGoal[] = [];
   let workLog: WorkLogEntry[] = [];
-  let plan: WorkLogEntry[] = [];
   let historicalMonths: string[] = [];
   let workLogsByMonth: Record<string, WorkLogEntry[]> = {};
   let summariesByMonth: Record<string, string> = {};
   let metricsByMonth: Record<string, { sessions?: number; impressions?: number; notableWins?: string[] }> = {};
-
-  if (enriched) {
-    goals = (enriched.goals || [])
-      .filter((g: { deadline?: string }) => !g.deadline || !isGoalExpired(g.deadline))
-      .map((g: { goal: string; icon: string; targetMetric: string; progress: number; deadline: string; targetMetricType?: string; targetValue?: number }, i: number) => ({
-      id: `eg-${i}`,
-      goal: g.goal,
-      icon: g.icon || "\uD83C\uDFAF",
-      targetMetric: g.targetMetric,
-      progress: (g.targetMetricType && g.targetValue) ? 0 : g.progress || 0, // default 0 for live-data goals until KPI map overrides
-      quarter: g.deadline || getCurrentQuarter(),
-      targetMetricType: g.targetMetricType,
-      targetValue: g.targetValue,
-      verified: false, // will be set to true if live data backs it
-    }));
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    workLog = (enriched.currentMonth?.tasks || []).map((t: any, i: number) => ({
-      id: `et-${i}`,
-      task: t.task,
-      category: t.category || [],
-      subtasks: t.subtasks || [],
-      deliverableLinks: t.deliverableLinks || [],
-      monthlySummary: i === 0 ? (enriched.currentMonth?.summary || "") : "",
-      month: getCurrentMonth(),
-      isPlan: false,
-      impact: t.impact || "",
-      completed: t.completed,
-    }));
-
-    plan = [];
-
-    if (enriched.pastMonths?.length) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      enriched.pastMonths.forEach((pm: any, mi: number) => {
-        const monthKey = pm.label || pm.monthLabel || `past-${mi}`;
-        historicalMonths.push(monthKey);
-        workLogsByMonth[monthKey] = (pm.tasks || []).map(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (t: any, ti: number) => ({
-            id: `ep-${mi}-${ti}`,
-            task: typeof t === "string" ? t : t.task,
-            category: typeof t === "string" ? [] : (t.category || []),
-            subtasks: typeof t === "string" ? "" : (t.subtasks || []),
-            deliverableLinks: typeof t === "string" ? [] : (t.deliverableLinks || []),
-            monthlySummary: "",
-            month: monthKey,
-            isPlan: false,
-            completed: typeof t === "string" ? true : (t.completed ?? true),
-          })
-        );
-        if (pm.summary) summariesByMonth[monthKey] = pm.summary;
-        if (pm.metrics) metricsByMonth[monthKey] = pm.metrics;
-      });
-    }
-  }
-
-  // ── Fetch live analytics (GSC and GA4 independently) ────────────────────
   let usersTimeSeries: TimeSeriesPoint[] = [];
   let trafficChannels: TrafficChannel[] = [];
   let topPages: TopPage[] = [];
   let keywords: KeywordRanking[] = [];
   let gscConnected = false;
   let ga4Connected = false;
-
-  // Always initialize all base KPI slots so the layout stays consistent
   const UNAVAILABLE = -1;
   let clicksKpi: KPIData = { label: "Clicks", value: UNAVAILABLE, previousValue: 0, changePercent: 0, format: "number" };
   let impressionsKpi: KPIData = { label: "Impressions", value: UNAVAILABLE, previousValue: 0, changePercent: 0, format: "number" };
   let ctrKpi: KPIData = { label: "CTR", value: UNAVAILABLE, previousValue: 0, changePercent: 0, format: "percent" };
   let sessionsKpi: KPIData = { label: "Organic Sessions", value: UNAVAILABLE, previousValue: 0, changePercent: 0, format: "number" };
   let totalSessionsKpi: KPIData = { label: "Sessions", value: UNAVAILABLE, previousValue: 0, changePercent: 0, format: "number" };
-
-  if (USE_GOOGLE) {
-    const { startDate, endDate } = getDateRange("28d");
-
-    // Fetch GSC data independently
-    if (client.gscSiteUrl) {
-      try {
-        const [gscKpis, gscTopPages] = await Promise.all([
-          getGSCKPIs(client.gscSiteUrl, "28d"),
-          getGSCTopPages(client.gscSiteUrl, startDate, endDate, 10),
-        ]);
-        clicksKpi = gscKpis.clicks;
-        impressionsKpi = gscKpis.impressions;
-        ctrKpi = {
-          label: "CTR",
-          value: gscKpis.clicks.value && gscKpis.impressions.value
-            ? (gscKpis.clicks.value / gscKpis.impressions.value) * 100
-            : 0,
-          previousValue: 0,
-          changePercent: 0,
-          format: "percent",
-        };
-        topPages = gscTopPages;
-        gscConnected = true;
-      } catch (error) {
-        console.error(`GSC failed for ${slug}:`, error);
-      }
-    }
-
-    // Fetch GA4 data independently
-    if (client.ga4PropertyId) {
-      try {
-        const [ga4Kpis, usersTs, channels] = await Promise.all([
-          getGA4KPIs(client.ga4PropertyId),
-          getGA4UsersTimeSeries(client.ga4PropertyId, startDate, endDate),
-          getGA4TrafficAcquisition(client.ga4PropertyId, startDate, endDate),
-        ]);
-        sessionsKpi = ga4Kpis.organicSessions;
-        totalSessionsKpi = ga4Kpis.totalSessions;
-        usersTimeSeries = usersTs;
-        trafficChannels = channels;
-        ga4Connected = true;
-      } catch (error) {
-        console.error(`GA4 failed for ${slug}:`, error);
-      }
-    }
-  }
-
-  let kpis: KPIData[] = [clicksKpi, impressionsKpi, ctrKpi, sessionsKpi];
-
-  // Fetch SE Rankings keyword data independently
+  let kpis: KPIData[] = [];
   let seRankingStats: SERankingStats | null = null;
-  if (client.seRankingsProjectId) {
-    try {
-      [keywords, seRankingStats] = await Promise.all([
-        getKeywordRankings(client.seRankingsProjectId),
-        getProjectStats(client.seRankingsProjectId),
-      ]);
-    } catch (error) {
-      console.error(`SE Rankings failed for ${slug}:`, error);
+  let pendingApprovals = 0;
+  let isOnboarding = false;
+  let summary = "";
+  let allComplete = false;
+  let cumulativeData: { startMonth: string; sessionsChange: number } | null = null;
+  let upcomingMonths: { monthLabel: string; entries: WorkLogEntry[]; summary?: string }[] = [];
+  let lastUpdated: string | null = null;
+  let analyticsConnected = false;
+
+  if (isSeoTab) {
+    // Try enriched content (from AI pipeline)
+    [enriched, approvals] = await Promise.all([
+      loadEnrichedContent(slug),
+      getApprovals(slug).catch(() => []),
+    ]);
+    pendingApprovals = approvals.filter((a) => a.status === "pending").length;
+
+    if (enriched) {
+      goals = (enriched.goals || [])
+        .filter((g: { deadline?: string }) => !g.deadline || !isGoalExpired(g.deadline))
+        .map((g: { goal: string; icon: string; targetMetric: string; progress: number; deadline: string; targetMetricType?: string; targetValue?: number }, i: number) => ({
+        id: `eg-${i}`,
+        goal: g.goal,
+        icon: g.icon || "\uD83C\uDFAF",
+        targetMetric: g.targetMetric,
+        progress: (g.targetMetricType && g.targetValue) ? 0 : g.progress || 0,
+        quarter: g.deadline || getCurrentQuarter(),
+        targetMetricType: g.targetMetricType,
+        targetValue: g.targetValue,
+        verified: false,
+      }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      workLog = (enriched.currentMonth?.tasks || []).map((t: any, i: number) => ({
+        id: `et-${i}`,
+        task: t.task,
+        category: t.category || [],
+        subtasks: t.subtasks || [],
+        deliverableLinks: t.deliverableLinks || [],
+        monthlySummary: i === 0 ? (enriched.currentMonth?.summary || "") : "",
+        month: getCurrentMonth(),
+        isPlan: false,
+        impact: t.impact || "",
+        completed: t.completed,
+      }));
+
+      if (enriched.pastMonths?.length) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        enriched.pastMonths.forEach((pm: any, mi: number) => {
+          const monthKey = pm.label || pm.monthLabel || `past-${mi}`;
+          historicalMonths.push(monthKey);
+          workLogsByMonth[monthKey] = (pm.tasks || []).map(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (t: any, ti: number) => ({
+              id: `ep-${mi}-${ti}`,
+              task: typeof t === "string" ? t : t.task,
+              category: typeof t === "string" ? [] : (t.category || []),
+              subtasks: typeof t === "string" ? "" : (t.subtasks || []),
+              deliverableLinks: typeof t === "string" ? [] : (t.deliverableLinks || []),
+              monthlySummary: "",
+              month: monthKey,
+              isPlan: false,
+              completed: typeof t === "string" ? true : (t.completed ?? true),
+            })
+          );
+          if (pm.summary) summariesByMonth[monthKey] = pm.summary;
+          if (pm.metrics) metricsByMonth[monthKey] = pm.metrics;
+        });
+      }
     }
+
+    // ── Fetch live analytics (GSC and GA4 independently) ──
+    if (USE_GOOGLE) {
+      const { startDate, endDate } = getDateRange("28d");
+
+      if (client.gscSiteUrl) {
+        try {
+          const [gscKpis, gscTopPages] = await Promise.all([
+            getGSCKPIs(client.gscSiteUrl, "28d"),
+            getGSCTopPages(client.gscSiteUrl, startDate, endDate, 10),
+          ]);
+          clicksKpi = gscKpis.clicks;
+          impressionsKpi = gscKpis.impressions;
+          ctrKpi = {
+            label: "CTR",
+            value: gscKpis.clicks.value && gscKpis.impressions.value
+              ? (gscKpis.clicks.value / gscKpis.impressions.value) * 100
+              : 0,
+            previousValue: 0,
+            changePercent: 0,
+            format: "percent",
+          };
+          topPages = gscTopPages;
+          gscConnected = true;
+        } catch (error) {
+          console.error(`GSC failed for ${slug}:`, error);
+        }
+      }
+
+      if (client.ga4PropertyId) {
+        try {
+          const [ga4Kpis, usersTs, channels] = await Promise.all([
+            getGA4KPIs(client.ga4PropertyId),
+            getGA4UsersTimeSeries(client.ga4PropertyId, startDate, endDate),
+            getGA4TrafficAcquisition(client.ga4PropertyId, startDate, endDate),
+          ]);
+          sessionsKpi = ga4Kpis.organicSessions;
+          totalSessionsKpi = ga4Kpis.totalSessions;
+          usersTimeSeries = usersTs;
+          trafficChannels = channels;
+          ga4Connected = true;
+        } catch (error) {
+          console.error(`GA4 failed for ${slug}:`, error);
+        }
+      }
+    }
+
+    kpis = [clicksKpi, impressionsKpi, ctrKpi, sessionsKpi];
+
+    // Fetch SE Rankings keyword data
+    if (client.seRankingsProjectId) {
+      try {
+        [keywords, seRankingStats] = await Promise.all([
+          getKeywordRankings(client.seRankingsProjectId),
+          getProjectStats(client.seRankingsProjectId),
+        ]);
+      } catch (error) {
+        console.error(`SE Rankings failed for ${slug}:`, error);
+      }
+    }
+
+    // Add leads KPI from enriched data
+    const currentLeads = enriched?.currentMonth?.leads;
+    if (currentLeads !== undefined && currentLeads !== null) {
+      let prevLeads: number | undefined;
+      if (enriched?.pastMonths?.length) {
+        const lastPastMonth = enriched.pastMonths[0];
+        prevLeads = lastPastMonth?.leads;
+      }
+      const changePercent = prevLeads && prevLeads > 0
+        ? Math.round(((currentLeads - prevLeads) / prevLeads) * 100)
+        : 0;
+      kpis.push({
+        label: "Leads",
+        value: currentLeads,
+        previousValue: prevLeads || 0,
+        changePercent,
+        format: "number" as const,
+      });
+    }
+
+    analyticsConnected = gscConnected || ga4Connected;
+    isOnboarding = enriched?._onboarding === true;
+    summary = workLog.find((e) => e.monthlySummary)?.monthlySummary || "";
+    allComplete = workLog.length > 0 && workLog.every((e) => !e.isPlan);
+    lastUpdated = enriched?.processedAt || null;
+
+    // Compute cumulative impact
+    if (enriched?.pastMonths?.length && ga4Connected && client.ga4PropertyId) {
+      const allMonthKeys = [...historicalMonths].reverse();
+      const earliestMonthLabel = allMonthKeys[0];
+      const parsedStart = new Date(earliestMonthLabel + " 1");
+      if (!isNaN(parsedStart.getTime())) {
+        const baselineEnd = new Date(parsedStart.getFullYear(), parsedStart.getMonth(), 0);
+        const baselineStart = new Date(parsedStart.getFullYear(), parsedStart.getMonth() - 3, 1);
+        const now = new Date();
+        const recentEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        const recentStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+        const fmt = (d: Date) => d.toISOString().split("T")[0];
+        try {
+          const [baselineSessions, recentSessions] = await Promise.all([
+            getGA4OrganicSessionsForRange(client.ga4PropertyId, fmt(baselineStart), fmt(baselineEnd)),
+            getGA4OrganicSessionsForRange(client.ga4PropertyId, fmt(recentStart), fmt(recentEnd)),
+          ]);
+          if (baselineSessions > 0) {
+            cumulativeData = {
+              startMonth: earliestMonthLabel,
+              sessionsChange: Math.round(((recentSessions - baselineSessions) / baselineSessions) * 100),
+            };
+          }
+        } catch (error) {
+          console.error(`Cumulative impact fetch failed for ${slug}:`, error);
+        }
+      }
+    }
+
+    // Compute live goal progress from KPI data
+    if (kpis.length > 0) {
+      const kpiMap: Record<string, number> = {};
+      for (const kpi of kpis) {
+        if (kpi.value === -1) continue;
+        if (kpi.label === "Organic Sessions") kpiMap["organic_sessions"] = kpi.value;
+        if (kpi.label === "Clicks") kpiMap["clicks"] = kpi.value;
+        if (kpi.label === "Impressions") kpiMap["impressions"] = kpi.value;
+      }
+      if (totalSessionsKpi.value !== UNAVAILABLE) {
+        kpiMap["sessions"] = totalSessionsKpi.value;
+      }
+      goals = goals.map((g) => {
+        if (g.targetMetricType && g.targetValue && kpiMap[g.targetMetricType] !== undefined) {
+          return { ...g, progress: Math.min(100, Math.round((kpiMap[g.targetMetricType] / g.targetValue) * 100)), currentValue: kpiMap[g.targetMetricType], verified: true };
+        }
+        return g;
+      });
+    }
+
+    // Upcoming months
+    if (enriched?.upcomingMonths?.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      upcomingMonths = enriched.upcomingMonths.map((m: any, mi: number) => ({
+        monthLabel: m.monthLabel,
+        summary: m.summary,
+        entries: (m.tasks || []).map((t: string | { task: string; category?: string[]; subtasks?: string; deliverableLinks?: string[] }, ti: number) => {
+          const task = typeof t === "string" ? t : t.task;
+          const category = typeof t === "string" ? [] : (t.category || []);
+          return {
+            id: `eu-${mi}-${ti}`,
+            task,
+            category,
+            subtasks: typeof t === "string" ? "" : (t.subtasks || ""),
+            deliverableLinks: typeof t === "string" ? [] : (t.deliverableLinks || []),
+            monthlySummary: "",
+            month: "",
+            isPlan: true,
+          };
+        }),
+      }));
+    }
+  } else {
+    // Non-SEO tab: still need approvals count for the bell
+    approvals = await getApprovals(slug).catch(() => []);
+    pendingApprovals = approvals.filter((a) => a.status === "pending").length;
   }
 
-  // Add leads KPI from enriched data (manually updated in Notion)
-  const currentLeads = enriched?.currentMonth?.leads;
-  if (currentLeads !== undefined && currentLeads !== null) {
-    // Find previous month leads for MoM comparison
-    let prevLeads: number | undefined;
-    if (enriched?.pastMonths?.length) {
-      const lastPastMonth = enriched.pastMonths[0]; // most recent past month
-      prevLeads = lastPastMonth?.leads;
-    }
-    const changePercent = prevLeads && prevLeads > 0
-      ? Math.round(((currentLeads - prevLeads) / prevLeads) * 100)
-      : 0;
-    kpis.push({
-      label: "Leads",
-      value: currentLeads,
-      previousValue: prevLeads || 0,
-      changePercent,
-      format: "number" as const,
-    });
-  }
-
-  const analyticsConnected = gscConnected || ga4Connected;
-
-  const isOnboarding = enriched?._onboarding === true;
-
-  const summary = workLog.find((e) => e.monthlySummary)?.monthlySummary || "";
   const quarter = getCurrentQuarter();
   const currentMonthLabel = formatMonthLabel(getCurrentMonth());
-  const lastUpdated = enriched?.processedAt || null;
   const nextMonthLabel = formatMonthLabel(getNextMonth());
 
-  const allComplete = workLog.length > 0 && workLog.every((e) => !e.isPlan);
-
-  // Compute cumulative impact: compare pre-agency baseline (3 months before start) to recent 3 months
-  let cumulativeData: { startMonth: string; sessionsChange: number } | null = null;
-  if (enriched?.pastMonths?.length && ga4Connected && client.ga4PropertyId) {
-    // Find the earliest month from pastMonths (they're ordered most-recent-first)
-    const allMonthKeys = [...historicalMonths].reverse(); // chronological
-    const earliestMonthLabel = allMonthKeys[0]; // e.g. "December 2023"
-
-    // Parse the month label into a date
-    const parsedStart = new Date(earliestMonthLabel + " 1");
-    if (!isNaN(parsedStart.getTime())) {
-      // Pre-agency baseline: 3 months before the agency started
-      const baselineEnd = new Date(parsedStart.getFullYear(), parsedStart.getMonth(), 0); // last day of month before start
-      const baselineStart = new Date(parsedStart.getFullYear(), parsedStart.getMonth() - 3, 1); // 3 months before
-
-      // Recent period: last 3 full months
-      const now = new Date();
-      const recentEnd = new Date(now.getFullYear(), now.getMonth(), 0); // end of last full month
-      const recentStart = new Date(now.getFullYear(), now.getMonth() - 3, 1); // 3 months back
-
-      const fmt = (d: Date) => d.toISOString().split("T")[0];
-
-      try {
-        const [baselineSessions, recentSessions] = await Promise.all([
-          getGA4OrganicSessionsForRange(client.ga4PropertyId, fmt(baselineStart), fmt(baselineEnd)),
-          getGA4OrganicSessionsForRange(client.ga4PropertyId, fmt(recentStart), fmt(recentEnd)),
-        ]);
-
-        if (baselineSessions > 0) {
-          cumulativeData = {
-            startMonth: earliestMonthLabel,
-            sessionsChange: Math.round(((recentSessions - baselineSessions) / baselineSessions) * 100),
-          };
-        }
-      } catch (error) {
-        console.error(`Cumulative impact fetch failed for ${slug}:`, error);
-      }
-    }
-  }
-
-  // Compute live goal progress from KPI data
-  if (kpis.length > 0) {
-    const kpiMap: Record<string, number> = {};
-    for (const kpi of kpis) {
-      if (kpi.value === -1) continue; // skip unavailable metrics
-      if (kpi.label === "Organic Sessions") kpiMap["organic_sessions"] = kpi.value;
-      if (kpi.label === "Clicks") kpiMap["clicks"] = kpi.value;
-      if (kpi.label === "Impressions") kpiMap["impressions"] = kpi.value;
-    }
-    if (totalSessionsKpi.value !== UNAVAILABLE) {
-      kpiMap["sessions"] = totalSessionsKpi.value;
-    }
-    goals = goals.map((g) => {
-      if (g.targetMetricType && g.targetValue && kpiMap[g.targetMetricType] !== undefined) {
-        return { ...g, progress: Math.min(100, Math.round((kpiMap[g.targetMetricType] / g.targetValue) * 100)), currentValue: kpiMap[g.targetMetricType], verified: true };
-      }
-      return g;
-    });
-  }
-
-  // Upcoming months — from enriched data only
-  let upcomingMonths: { monthLabel: string; entries: WorkLogEntry[]; summary?: string }[];
-
-  if (enriched?.upcomingMonths?.length) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    upcomingMonths = enriched.upcomingMonths.map((m: any, mi: number) => ({
-      monthLabel: m.monthLabel,
-      summary: m.summary,
-      entries: (m.tasks || []).map((t: string | { task: string; category?: string[]; subtasks?: string; deliverableLinks?: string[] }, ti: number) => {
-        const task = typeof t === "string" ? t : t.task;
-        const category = typeof t === "string" ? [] : (t.category || []);
-        return {
-          id: `eu-${mi}-${ti}`,
-          task,
-          category,
-          subtasks: typeof t === "string" ? "" : (t.subtasks || ""),
-          deliverableLinks: typeof t === "string" ? [] : (t.deliverableLinks || []),
-          monthlySummary: "",
-          month: "",
-          isPlan: true,
-        };
-      }),
-    }));
-  } else {
-    upcomingMonths = [];
-  }
-
-  return (
-    <div className="min-h-screen bg-white">
-      <Header client={client} pendingApprovals={pendingApprovals} />
-
+  // SEO dashboard content (rendered server-side, hidden by shell when not active)
+  const seoContent = (
+    <>
       {/* ── Onboarding / Coming Soon ── */}
       {isOnboarding && (
         <div className="max-w-3xl mx-auto px-6 py-8">
@@ -449,7 +469,7 @@ export default async function ClientDashboard({ params }: PageProps) {
                 ? (enriched?.currentMonth?.strategy || undefined)
                 : undefined
             }
-            lastUpdated={lastUpdated}
+            lastUpdated={lastUpdated || undefined}
             analyticsEnrichments={enriched?.analyticsEnrichments || []}
             taskCompletion={enriched?.currentMonth?.taskCompletion}
           />
@@ -494,6 +514,25 @@ export default async function ClientDashboard({ params }: PageProps) {
           />
         </div>
       )}
+    </>
+  );
+
+  return (
+    <div className="min-h-screen bg-white">
+      <Header
+        client={client}
+        pendingApprovals={pendingApprovals}
+        packages={activePackages}
+        hasTickets={hasTickets}
+      />
+
+      <ClientPortalShell
+        client={client}
+        packages={activePackages}
+        defaultTab={defaultTab}
+      >
+        {seoContent}
+      </ClientPortalShell>
 
       <Footer />
       <ClientDashboardTracker slug={slug} />

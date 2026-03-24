@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MonthlySnapshot, WorkLogEntry } from "@/types";
+import { friendlyMonthFull } from "@/lib/date-format";
 import HistoricalChart from "./HistoricalChart";
 
 interface MonthMetrics {
@@ -56,8 +57,7 @@ function cleanLinkLabel(url: string): string {
 
 function fmtMonth(iso: string): string {
   if (iso.match(/^\d{4}-\d{2}/)) {
-    const d = new Date(iso);
-    return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    return friendlyMonthFull(iso);
   }
   return iso;
 }
@@ -65,7 +65,7 @@ function fmtMonth(iso: string): string {
 // Extract just the month name (e.g. "February" from "February 2026")
 function monthName(m: string): string {
   if (m.match(/^\d{4}-\d{2}/)) {
-    return new Date(m).toLocaleDateString("en-US", { month: "long" });
+    return friendlyMonthFull(m).split(" ")[0];
   }
   return m.split(" ")[0] || m;
 }

@@ -9,13 +9,14 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { MonthlySnapshot } from "@/types";
+import { friendlyDate } from "@/lib/date-format";
 
 interface HistoricalChartProps {
   snapshot: MonthlySnapshot;
 }
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return friendlyDate(d);
 }
 
 export default function HistoricalChart({ snapshot }: HistoricalChartProps) {

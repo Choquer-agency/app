@@ -86,7 +86,8 @@ function rowToClient(row: Record<string, unknown>): ClientConfig {
     clientStatus: ((row.client_status as string) || "active") as
       | "new"
       | "active"
-      | "offboarding",
+      | "offboarding"
+      | "inactive",
     offboardingDate: row.offboarding_date
       ? (row.offboarding_date as Date).toISOString().split("T")[0]
       : null,
@@ -208,7 +209,23 @@ export async function getClientBySlug(
 export async function getAllClients(): Promise<ClientConfig[]> {
   if (!HAS_POSTGRES) return getClientsFromNotion();
   const { rows } = await sql`
-    SELECT * FROM clients ORDER BY active DESC, name
+    SELECT * FROM clients
+    WHERE active = true
+      AND (client_status IS NULL OR client_status != 'inactive')
+      AND NOT (client_status = 'offboarding' AND offboarding_date IS NOT NULL AND offboarding_date <= CURRENT_DATE)
+    ORDER BY name
+  `;
+  return rows.map(rowToClient);
+}
+
+export async function getPastClients(): Promise<ClientConfig[]> {
+  if (!HAS_POSTGRES) return [];
+  const { rows } = await sql`
+    SELECT * FROM clients
+    WHERE active = false
+      OR client_status = 'inactive'
+      OR (client_status = 'offboarding' AND offboarding_date IS NOT NULL AND offboarding_date <= CURRENT_DATE)
+    ORDER BY updated_at DESC
   `;
   return rows.map(rowToClient);
 }
@@ -352,5 +369,11 @@ export async function deleteClient(id: number): Promise<boolean> {
   const { rowCount } = await sql`
     UPDATE clients SET active = false, updated_at = NOW() WHERE id = ${id}
   `;
+  return (rowCount ?? 0) > 0;
+}
+
+export async function hardDeleteClient(id: number): Promise<boolean> {
+  // Related tables use ON DELETE CASCADE
+  const { rowCount } = await sql`DELETE FROM clients WHERE id = ${id}`;
   return (rowCount ?? 0) > 0;
 }

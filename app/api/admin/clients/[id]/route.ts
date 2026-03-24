@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getClientById, updateClient, deleteClient } from "@/lib/clients";
+import { getClientById, updateClient, hardDeleteClient } from "@/lib/clients";
 import { syncClientMrr } from "@/lib/client-packages";
 import { getSession } from "@/lib/admin-auth";
 
@@ -39,6 +39,16 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+
+    // Auto-set active=false when status changes to inactive
+    if (body.clientStatus === "inactive") {
+      body.active = false;
+    }
+    // If coming back from inactive, re-activate
+    if (body.clientStatus && body.clientStatus !== "inactive" && body.active === undefined) {
+      body.active = true;
+    }
+
     let client;
 
     try {
@@ -78,7 +88,7 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    const success = await deleteClient(Number(id));
+    const success = await hardDeleteClient(Number(id));
 
     if (!success) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });

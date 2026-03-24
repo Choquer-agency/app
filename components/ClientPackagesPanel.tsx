@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ClientPackage, Package } from "@/types";
 import AssignPackageModal from "./AssignPackageModal";
+import { friendlyMonth } from "@/lib/date-format";
 
 interface ClientPackagesPanelProps {
   clientId: number;
@@ -83,7 +84,7 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
     const end = new Date(endDate);
     const now = new Date();
     if (end < now) return "Month-to-month";
-    return `Ends ${end.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`;
+    return `Ends ${friendlyMonth(endDate)}`;
   }
 
   function contractStyle(endDate: string | null) {

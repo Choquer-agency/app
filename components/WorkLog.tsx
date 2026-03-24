@@ -1,5 +1,6 @@
 import { WorkLogEntry } from "@/types";
 import { AnalyticsEnrichment } from "@/types/enrichment";
+import { friendlyDate } from "@/lib/date-format";
 
 interface WorkLogProps {
   entries: WorkLogEntry[];
@@ -33,7 +34,7 @@ function formatLastUpdated(dateStr: string): string {
   if (diffDays === 0) return "Updated today";
   if (diffDays === 1) return "Updated yesterday";
   if (diffDays < 7) return `Updated ${diffDays} days ago`;
-  return `Updated ${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  return `Updated ${friendlyDate(dateStr)}`;
 }
 
 function fmtNumber(n: number): string {
