@@ -46,6 +46,16 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   console.log("[slack] Received event, body length:", rawBody.length);
 
+  const payload = JSON.parse(rawBody);
+  console.log("[slack] Event type:", payload.type, "event:", payload.event?.type);
+
+  // URL verification challenge — handle BEFORE signature check so Slack can verify the URL
+  if (payload.type === "url_verification") {
+    console.log("[slack] URL verification challenge received");
+    return NextResponse.json({ challenge: payload.challenge });
+  }
+
+  // Verify signature for all other requests
   if (process.env.SLACK_SIGNING_SECRET) {
     if (!verifySlackSignature(request, rawBody)) {
       console.log("[slack] Signature verification FAILED");
@@ -54,14 +64,6 @@ export async function POST(request: NextRequest) {
     console.log("[slack] Signature verified OK");
   } else {
     console.log("[slack] No SLACK_SIGNING_SECRET set, skipping verification");
-  }
-
-  const payload = JSON.parse(rawBody);
-  console.log("[slack] Event type:", payload.type, "event:", payload.event?.type);
-
-  // URL verification challenge
-  if (payload.type === "url_verification") {
-    return NextResponse.json({ challenge: payload.challenge });
   }
 
   if (payload.type === "event_callback") {
