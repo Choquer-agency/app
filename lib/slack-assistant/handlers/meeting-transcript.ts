@@ -130,6 +130,14 @@ export class MeetingTranscriptHandler implements IntentHandler {
       return;
     }
 
+    // Check for consolidation: "make this 1 ticket", "combine all into one", "just 1 ticket"
+    const consolidateMatch = text.match(/(?:make|combine|merge|just|into)\s*(?:this|them|all|it)?\s*(?:into|as|just)?\s*(?:one|1)\s*(?:ticket|task)?/i) ||
+      text.match(/^(?:one|1)\s*ticket/i);
+    if (consolidateMatch) {
+      await this.consolidateItems(ctx, data);
+      return;
+    }
+
     // Check for removal: "remove 3" or "delete 2"
     const removeMatch = text.match(/^(?:remove|delete)\s+(\d+)/);
     if (removeMatch) {
@@ -164,7 +172,64 @@ export class MeetingTranscriptHandler implements IntentHandler {
     await replyInThread(
       channelId,
       conversation.threadTs,
-      `I didn't understand that. You can:\n• *approve* — create all tickets\n• *remove [number]* — remove an item\n• *change [number]'s [field] to [value]* — edit an item\n\nFields: title, assignee, client, due date, priority`
+      `I didn't understand that. You can:\n• *approve* — create all tickets\n• *combine into 1 ticket* — merge all items into a single ticket\n• *remove [number]* — remove an item\n• *change [number]'s [field] to [value]* — edit an item\n\nFields: title, assignee, client, due date, priority`
+    );
+  }
+
+  private async consolidateItems(ctx: HandlerContext, data: TranscriptConversationData): Promise<void> {
+    const { channelId, conversation } = ctx;
+    if (!conversation || data.items.length === 0) return;
+
+    // Collect all unique assignees
+    const assigneeIds = [...new Set(data.items.map((i) => i.assigneeId).filter(Boolean))] as number[];
+    const assigneeNames = [...new Set(data.items.map((i) => i.assigneeName).filter(Boolean))];
+
+    // Collect all unique clients
+    const clientIds = [...new Set(data.items.map((i) => i.clientId).filter(Boolean))] as number[];
+    const clientNames = [...new Set(data.items.map((i) => i.clientName).filter((n) => n && n !== "Internal"))];
+
+    // Use highest priority from all items
+    const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
+    const highestPriority = data.items.reduce((best, item) => {
+      return (priorityOrder[item.priority] || 0) > (priorityOrder[best] || 0) ? item.priority : best;
+    }, "normal" as "low" | "normal" | "high" | "urgent");
+
+    // Use earliest due date
+    const dueDates = data.items.map((i) => i.dueDate).filter(Boolean) as string[];
+    const earliestDue = dueDates.length > 0 ? dueDates.sort()[0] : null;
+
+    // Build consolidated description from all items
+    const description = data.items.map((item, i) => {
+      return `${i + 1}. ${item.task}${item.description ? `\n   ${item.description}` : ""}`;
+    }).join("\n\n");
+
+    // Create a single consolidated item
+    const consolidated = {
+      task: data.summary || data.items[0].task,
+      description,
+      assigneeName: assigneeNames[0] || data.items[0].assigneeName,
+      clientName: clientNames[0] || data.items[0].clientName,
+      dueDate: earliestDue,
+      priority: highestPriority,
+      contextFromTranscript: "",
+      assigneeId: assigneeIds[0] || null,
+      clientId: clientIds[0] || null,
+    };
+
+    // Replace all items with the single consolidated one
+    data.items = [consolidated];
+    // Store extra assignee IDs for multi-assign
+    (data as unknown as Record<string, unknown>).extraAssigneeIds = assigneeIds.slice(1);
+
+    await updateConversation(conversation.threadTs, { data: data as unknown as Record<string, unknown> });
+
+    const assigneeDisplay = assigneeNames.join(", ") || "Unassigned";
+    const clientDisplay = clientNames.join(", ") || "Internal";
+
+    await replyInThread(
+      channelId,
+      conversation.threadTs,
+      `Consolidated into *1 ticket*:\n\n• *${consolidated.task}* [${consolidated.priority}]\n  Assignees: ${assigneeDisplay}\n  Client: ${clientDisplay}\n  Due: ${consolidated.dueDate || "No due date"}\n\nAll ${data.items.length === 1 ? "8 original items" : "items"} will be in the ticket description.\n\nReply *approve* to create, or tell me what to change.`
     );
   }
 
@@ -293,6 +358,16 @@ export class MeetingTranscriptHandler implements IntentHandler {
 
     for (const item of data.items) {
       try {
+        // Collect all assignee IDs (main + extras from consolidation)
+        const assigneeIds: number[] = [];
+        if (item.assigneeId) assigneeIds.push(item.assigneeId);
+        const extraIds = (data as unknown as Record<string, unknown>).extraAssigneeIds as number[] | undefined;
+        if (extraIds) {
+          for (const id of extraIds) {
+            if (!assigneeIds.includes(id)) assigneeIds.push(id);
+          }
+        }
+
         const ticket = await createTicket(
           {
             title: item.task,
@@ -300,20 +375,23 @@ export class MeetingTranscriptHandler implements IntentHandler {
             clientId: item.clientId ?? null,
             dueDate: item.dueDate ?? null,
             priority: item.priority || "normal",
-            assigneeIds: item.assigneeId ? [item.assigneeId] : [],
+            assigneeIds,
           },
           owner.id,
           actor
         );
 
-        if (item.dueDate && item.assigneeId) {
-          await addCommitment({
-            ticketId: ticket.id,
-            teamMemberId: item.assigneeId,
-            committedDate: item.dueDate,
-            committedById: owner.id,
-            notes: "Created from Slack meeting transcript",
-          });
+        // Create commitments for all assignees
+        if (item.dueDate) {
+          for (const assigneeId of assigneeIds) {
+            await addCommitment({
+              ticketId: ticket.id,
+              teamMemberId: assigneeId,
+              committedDate: item.dueDate,
+              committedById: owner.id,
+              notes: "Created from Slack meeting transcript",
+            });
+          }
         }
 
         created.push({ ticketNumber: ticket.ticketNumber, title: ticket.title });
