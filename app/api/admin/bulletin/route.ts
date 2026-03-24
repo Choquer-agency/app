@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
 import { getTeamMembers } from "@/lib/team-members";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 export async function GET(request: NextRequest) {
   const session = getSession(request);
@@ -10,101 +11,104 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const convex = getConvexClient();
+
+    // Compute current week start (Monday-based) for quote lookup
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() + mondayOffset);
+    const weekStartStr = weekStart.toISOString().split("T")[0];
+
     // Fetch all data in parallel
-    const [noteResult, announcementsResult, projectsResult, quoteResult, calendarResult, teamMembers] = await Promise.all([
-      sql`SELECT content FROM personal_notes WHERE team_member_id = ${session.teamMemberId}`,
-      sql`
-        SELECT a.id, a.title, a.content, a.pinned, a.created_at,
-               a.author_id, a.source, a.announcement_type, a.image_url,
-               tm.name AS author_name, tm.profile_pic_url AS author_pic
-        FROM announcements a
-        JOIN team_members tm ON tm.id = a.author_id
-        WHERE (a.expires_at IS NULL OR a.expires_at > NOW())
-        ORDER BY a.pinned DESC, a.created_at DESC
-        LIMIT 20
-      `,
-      sql`
-        SELECT p.id, p.name AS project_name, p.status,
-               c.name AS client_name,
-               (SELECT COUNT(*) FROM tickets t WHERE t.project_id = p.id AND t.archived = false AND t.is_personal = false) AS ticket_count,
-               (SELECT COUNT(*) FROM tickets t WHERE t.project_id = p.id AND t.archived = false AND t.is_personal = false AND t.status = 'closed') AS completed_ticket_count
-        FROM projects p
-        LEFT JOIN clients c ON c.id = p.client_id
-        WHERE p.archived = false AND p.is_template = false AND p.status != 'completed'
-        ORDER BY p.updated_at DESC
-        LIMIT 15
-      `,
-      // Get the selected quote for this week (Monday-based)
-      sql`
-        SELECT quote, author FROM weekly_quotes
-        WHERE selected = true
-        ORDER BY week_start DESC
-        LIMIT 1
-      `,
-      sql`SELECT id, title, event_date, event_type FROM calendar_events ORDER BY event_date ASC`,
+    const [personalNoteDoc, announcements, projects, quoteDoc, calendarEvents, teamMembers] = await Promise.all([
+      convex.query(api.bulletin.getPersonalNote, { teamMemberId: session.teamMemberId as any }),
+      convex.query(api.bulletin.listAnnouncements, { limit: 20 }),
+      convex.query(api.projects.list, {}),
+      convex.query(api.bulletin.getQuoteForWeek, { weekStart: weekStartStr }),
+      convex.query(api.bulletin.listCalendarEvents, {}),
       getTeamMembers(),
     ]);
 
-    const personalNote = noteResult.rows[0]?.content || "";
+    const personalNote = personalNoteDoc?.content || "";
 
-    const weeklyQuote = quoteResult.rows[0]
-      ? { quote: quoteResult.rows[0].quote as string, author: (quoteResult.rows[0].author as string) || "" }
+    const weeklyQuote = quoteDoc
+      ? { quote: quoteDoc.quote as string, author: (quoteDoc.author as string) || "" }
       : null;
 
-    // Fetch reactions for all announcements
-    const announcementIds = announcementsResult.rows.map((r) => r.id as number);
-    const reactionsMap: Record<number, Array<{ emoji: string; memberName: string; memberId: number }>> = {};
-    if (announcementIds.length > 0) {
-      const idList = announcementIds.join(",");
-      const { rows: reactionRows } = await sql.query(
-        `SELECT ar.announcement_id, ar.emoji, ar.team_member_id, tm.name AS member_name
-         FROM announcement_reactions ar
-         JOIN team_members tm ON tm.id = ar.team_member_id
-         WHERE ar.announcement_id IN (${idList})
-         ORDER BY ar.created_at ASC`
-      );
-      for (const r of reactionRows) {
-        const annId = r.announcement_id as number;
-        if (!reactionsMap[annId]) reactionsMap[annId] = [];
-        reactionsMap[annId].push({
-          emoji: r.emoji as string,
-          memberName: r.member_name as string,
-          memberId: r.team_member_id as number,
-        });
-      }
+    // Fetch team members for author info
+    const memberMap = new Map<string, { name: string; profilePicUrl: string }>();
+    for (const m of teamMembers) {
+      memberMap.set(m.id, { name: m.name, profilePicUrl: m.profilePicUrl || "" });
     }
 
-    const announcements = announcementsResult.rows.map((r) => ({
-      id: r.id,
-      authorId: r.author_id,
-      authorName: r.author_name,
-      authorPic: (r.author_pic as string) || "",
-      title: r.title,
-      content: r.content,
-      pinned: r.pinned,
-      source: r.source || "manual",
-      announcementType: r.announcement_type || "general",
-      imageUrl: (r.image_url as string) || "",
-      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
-      reactions: reactionsMap[r.id as number] || [],
-    }));
+    // Filter announcements (not expired) and fetch reactions
+    const filteredAnnouncements = announcements.filter((a: any) => {
+      if (!a.expiresAt) return true;
+      return new Date(a.expiresAt) > new Date();
+    });
 
-    const projects = projectsResult.rows.map((r) => ({
-      id: r.id,
-      clientName: r.client_name || "No client",
-      projectName: r.project_name,
-      status: r.status,
-      ticketCount: Number(r.ticket_count) || 0,
-      completedTicketCount: Number(r.completed_ticket_count) || 0,
-    }));
+    // Fetch reactions for all announcements in parallel
+    const announcementData = await Promise.all(
+      filteredAnnouncements.map(async (a: any) => {
+        const reactions = await convex.query(api.bulletin.listReactions, { announcementId: a._id as any });
+        const reactionData = await Promise.all(
+          reactions.map(async (r: any) => {
+            const member = memberMap.get(r.teamMemberId);
+            return {
+              emoji: r.emoji,
+              memberName: member?.name || "Unknown",
+              memberId: r.teamMemberId,
+            };
+          })
+        );
+
+        const author = memberMap.get(a.authorId);
+        return {
+          id: a._id,
+          authorId: a.authorId,
+          authorName: author?.name || "Unknown",
+          authorPic: author?.profilePicUrl || "",
+          title: a.title,
+          content: a.content || "",
+          pinned: a.pinned || false,
+          source: a.source || "manual",
+          announcementType: a.announcementType || "general",
+          imageUrl: a.imageUrl || "",
+          createdAt: a._creationTime ? new Date(a._creationTime).toISOString() : new Date().toISOString(),
+          reactions: reactionData,
+        };
+      })
+    );
+
+    // Sort announcements: pinned first, then by date
+    announcementData.sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    // Filter active non-template, non-completed projects
+    const activeProjects = (projects as any[])
+      .filter((p: any) => !p.archived && !p.isTemplate && p.status !== "completed")
+      .slice(0, 15)
+      .map((p: any) => ({
+        id: p._id,
+        clientName: p.clientName || "No client",
+        projectName: p.name,
+        status: p.status,
+        ticketCount: p.ticketCount ?? 0,
+        completedTicketCount: p.completedTicketCount ?? 0,
+      }));
 
     // Generate birthday & anniversary announcements dynamically (not stored)
     const today = new Date();
     const todayMonth = today.getMonth();
     const todayDate = today.getDate();
     const autoAnnouncements: Array<{
-      id: number;
-      authorId: number;
+      id: string;
+      authorId: string;
       authorName: string;
       title: string;
       content: string;
@@ -114,7 +118,7 @@ export async function GET(request: NextRequest) {
       createdAt: string;
     }> = [];
 
-    let autoId = -1;
+    let autoIdx = 1;
     for (const member of teamMembers) {
       if (!member.active) continue;
 
@@ -132,8 +136,8 @@ export async function GET(request: NextRequest) {
         if (diff <= 14) {
           const display = diff === 0 ? "Today!" : diff === 1 ? "Tomorrow" : `In ${diff} days`;
           autoAnnouncements.push({
-            id: autoId--,
-            authorId: 0,
+            id: `auto-birthday-${autoIdx++}`,
+            authorId: "",
             authorName: "System",
             title: `${member.name}'s Birthday`,
             content: display,
@@ -168,8 +172,8 @@ export async function GET(request: NextRequest) {
             ? `Tomorrow (${years} year${years > 1 ? "s" : ""})`
             : `In ${diff} days (${years} year${years > 1 ? "s" : ""})`;
           autoAnnouncements.push({
-            id: autoId--,
-            authorId: 0,
+            id: `auto-anniversary-${autoIdx++}`,
+            authorId: "",
             authorName: "System",
             title: `${member.name}'s Work Anniversary`,
             content: display,
@@ -183,7 +187,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Merge: pinned first, then auto announcements (birthdays/anniversaries), then manual by date
-    const allAnnouncements = [...autoAnnouncements, ...announcements]
+    const allAnnouncements = [...autoAnnouncements, ...announcementData]
       .sort((a, b) => {
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
@@ -201,11 +205,12 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     // Custom events (holidays, etc.) — expand recurring ones
-    for (const r of calendarResult.rows) {
-      const baseDate = r.event_date as Date;
-      const recurrence = (r.recurrence as string) || "none";
-      const title = r.title as string;
-      const type = r.event_type as string;
+    for (const ev of calendarEvents as any[]) {
+      const baseDateStr = ev.eventDate as string;
+      const baseDate = new Date(baseDateStr + "T00:00:00");
+      const recurrence = (ev.recurrence as string) || "none";
+      const title = ev.title as string;
+      const type = ev.eventType as string;
 
       if (recurrence === "yearly") {
         for (let yr = today.getFullYear(); yr <= today.getFullYear() + 1; yr++) {
@@ -216,7 +221,6 @@ export async function GET(request: NextRequest) {
           });
         }
       } else if (recurrence === "quarterly") {
-        // Generate every 3 months from the base date, covering next 12 months
         for (let q = 0; q < 5; q++) {
           const d = new Date(baseDate.getFullYear(), baseDate.getMonth() + q * 3, baseDate.getDate());
           if (d.getFullYear() >= today.getFullYear()) {
@@ -229,10 +233,8 @@ export async function GET(request: NextRequest) {
           calendarEntries.push({ date: d.toISOString().split("T")[0], title, type });
         }
       } else if (recurrence === "weekly") {
-        // Generate weekly occurrences for next 3 months
         const startDay = baseDate.getDay();
         const start = new Date(today);
-        // Find next occurrence of this weekday
         const daysUntil = (startDay - start.getDay() + 7) % 7;
         start.setDate(start.getDate() + daysUntil);
         for (let w = 0; w < 13; w++) {
@@ -243,7 +245,7 @@ export async function GET(request: NextRequest) {
       } else {
         // One-time event
         calendarEntries.push({
-          date: baseDate.toISOString().split("T")[0],
+          date: baseDateStr,
           title,
           type,
         });
@@ -256,7 +258,6 @@ export async function GET(request: NextRequest) {
 
       if (member.birthday) {
         const bday = new Date(member.birthday + "T00:00:00");
-        // This year's birthday
         const thisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
         const nextYear = new Date(today.getFullYear() + 1, bday.getMonth(), bday.getDate());
         for (const d of [thisYear, nextYear]) {
@@ -289,7 +290,7 @@ export async function GET(request: NextRequest) {
       personalNote,
       weeklyQuote,
       announcements: allAnnouncements,
-      projects,
+      projects: activeProjects,
       calendar: calendarEntries,
     });
   } catch (error) {

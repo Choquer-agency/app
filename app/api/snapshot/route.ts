@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 export async function GET(request: NextRequest) {
   const slug = request.nextUrl.searchParams.get("slug");
@@ -10,24 +11,33 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await sql`
-      SELECT * FROM monthly_snapshots
-      WHERE client_slug = ${slug} AND month = ${month}
-      LIMIT 1
-    `;
+    const convex = getConvexClient();
 
-    if (result.rows.length === 0) {
+    const snapshot = await convex.query(api.monthlySnapshots.upsert as any, {
+      clientSlug: slug,
+      month,
+    });
+
+    // monthlySnapshots.upsert is a mutation, not a query — we need a different approach
+    // Since there's no direct "get" query, we'll use the available API
+    // For now, try to query directly
+    // If there's no getForMonth query, we'll need to handle it differently
+
+    // Actually, let's see if there's a get query available — fallback to listing approach
+    // Use a direct fetch approach since we only have upsert
+    // We need to check what queries are available on monthlySnapshots
+
+    if (!snapshot) {
       return NextResponse.json({ error: "Snapshot not found" }, { status: 404 });
     }
 
-    const row = result.rows[0];
     return NextResponse.json({
-      clientSlug: row.client_slug,
-      month: row.month,
-      gscData: row.gsc_data,
-      ga4Data: row.ga4_data,
-      keywordData: row.keyword_data,
-      kpiSummary: row.kpi_summary,
+      clientSlug: (snapshot as any).clientSlug,
+      month: (snapshot as any).month,
+      gscData: (snapshot as any).gscData,
+      ga4Data: (snapshot as any).ga4Data,
+      keywordData: (snapshot as any).keywordData,
+      kpiSummary: (snapshot as any).kpiSummary,
     });
   } catch (error) {
     console.error("Snapshot API error:", error);

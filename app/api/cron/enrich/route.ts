@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 import { getClientPageData, countCheckboxesInMarkdown, splitByMonthSections } from "@/lib/notion-pages";
 import { enrichClientContent } from "@/lib/claude-enrichment";
 import { getActiveClients } from "@/lib/clients";
-import { getExistingContentHash, getExistingEnrichedData, autoApproveStalePending } from "@/lib/db";
+import { autoApproveStalePending } from "@/lib/db";
 import crypto from "crypto";
 
 function stripCheckboxes(md: string): string {
@@ -20,6 +21,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const convex = getConvexClient();
+
     // Auto-approve any pending approvals older than 7 days
     const autoApproved = await autoApproveStalePending();
 
@@ -64,15 +67,12 @@ export async function GET(request: NextRequest) {
             rawContentHash: "",
           };
 
-          await sql`
-            INSERT INTO enriched_content (client_slug, month, raw_content, enriched_data)
-            VALUES (${client.slug}, ${monthKey}, ${rawMarkdown || ""}, ${JSON.stringify(onboardingData)})
-            ON CONFLICT (client_slug, month)
-            DO UPDATE SET
-              raw_content = EXCLUDED.raw_content,
-              enriched_data = EXCLUDED.enriched_data,
-              processed_at = NOW()
-          `;
+          await convex.mutation(api.enrichedContent.upsert, {
+            clientSlug: client.slug,
+            month: monthKey,
+            rawContent: rawMarkdown || "",
+            enrichedData: onboardingData as any,
+          });
 
           results.push(`${client.slug}: ONBOARDING (empty page)`);
           continue;
@@ -84,7 +84,14 @@ export async function GET(request: NextRequest) {
 
         // Step 3: Compute hash and check for changes
         const newHash = crypto.createHash("md5").update(rawMarkdown).digest("hex");
-        const existingHash = await getExistingContentHash(client.slug, monthKey);
+
+        // Get existing enriched content for this client/month
+        const existing = await convex.query(api.enrichedContent.getForMonth, {
+          clientSlug: client.slug,
+          month: monthKey,
+        });
+
+        const existingHash = existing?.enrichedData?.rawContentHash || null;
 
         if (existingHash && existingHash === newHash) {
           // Layer A: Content unchanged — skip entirely
@@ -94,8 +101,6 @@ export async function GET(request: NextRequest) {
         }
 
         // Step 4: Check if only checkboxes changed (Layer C)
-        const existing = await getExistingEnrichedData(client.slug, monthKey);
-
         if (existing?.rawContent && stripCheckboxes(rawMarkdown) === stripCheckboxes(existing.rawContent)) {
           // Layer C: Only checkbox states changed — update taskCompletion without Claude
           const updatedData = {
@@ -109,15 +114,12 @@ export async function GET(request: NextRequest) {
             processedAt: new Date().toISOString(),
           };
 
-          await sql`
-            INSERT INTO enriched_content (client_slug, month, raw_content, enriched_data)
-            VALUES (${client.slug}, ${monthKey}, ${rawMarkdown}, ${JSON.stringify(updatedData)})
-            ON CONFLICT (client_slug, month)
-            DO UPDATE SET
-              raw_content = EXCLUDED.raw_content,
-              enriched_data = EXCLUDED.enriched_data,
-              processed_at = NOW()
-          `;
+          await convex.mutation(api.enrichedContent.upsert, {
+            clientSlug: client.slug,
+            month: monthKey,
+            rawContent: rawMarkdown,
+            enrichedData: updatedData as any,
+          });
 
           checkboxOnly++;
           results.push(`${client.slug}: CHECKBOX UPDATE (${taskCompletion.completed}/${taskCompletion.total} tasks, no Claude call)`);
@@ -125,18 +127,13 @@ export async function GET(request: NextRequest) {
         }
 
         // Step 5: Determine enrichment mode
-        // If the stored month matches current month and we have existing data, use current-month-only mode
-        // If it's a new month (rollover), force full enrichment
-        const isMonthRollover = existing && !existingHash; // No existing hash means first run of new month
+        const isMonthRollover = existing && !existingHash;
         let mode: "full" | "current-month" = "full";
         let markdownToProcess = rawMarkdown;
 
         if (!isMonthRollover && existing?.enrichedData) {
-          // Layer B: Try current-month-only enrichment
           const { currentMonthSection } = splitByMonthSections(rawMarkdown);
 
-          // Only use partial mode if we successfully isolated the current month section
-          // (i.e., it's meaningfully smaller than the full page)
           if (currentMonthSection.length < rawMarkdown.length * 0.8) {
             mode = "current-month";
             markdownToProcess = currentMonthSection;
@@ -156,20 +153,12 @@ export async function GET(request: NextRequest) {
         });
 
         // Step 7: Store in database
-        await sql`
-          INSERT INTO enriched_content (client_slug, month, raw_content, enriched_data)
-          VALUES (
-            ${client.slug},
-            ${monthKey},
-            ${rawMarkdown},
-            ${JSON.stringify(enrichedData)}
-          )
-          ON CONFLICT (client_slug, month)
-          DO UPDATE SET
-            raw_content = EXCLUDED.raw_content,
-            enriched_data = EXCLUDED.enriched_data,
-            processed_at = NOW()
-        `;
+        await convex.mutation(api.enrichedContent.upsert, {
+          clientSlug: client.slug,
+          month: monthKey,
+          rawContent: rawMarkdown,
+          enrichedData: enrichedData as any,
+        });
 
         const modeLabel = mode === "current-month" ? "PARTIAL" : "FULL";
         results.push(`${client.slug}: OK [${modeLabel}] (${taskCompletion.completed}/${taskCompletion.total} tasks, ${enrichedData.goals.length} goals, ${enrichedData.analyticsEnrichments.length} enrichments)`);

@@ -1,114 +1,139 @@
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 import { autoResolveMissedCommitments, autoResolveMetCommitments } from "@/lib/commitments";
 import { createNotification, createBulkNotifications } from "@/lib/notifications";
 
 export async function GET() {
   try {
+    const convex = getConvexClient();
+
     // 1. Auto-resolve: mark missed and met commitments
     const missed = await autoResolveMissedCommitments();
     const met = await autoResolveMetCommitments();
 
-    // 2. Notify: commitments due today
-    const { rows: dueToday } = await sql`
-      SELECT tc.id, tc.ticket_id, tc.team_member_id, tc.notes,
-        t.ticket_number, t.title
-      FROM ticket_commitments tc
-      JOIN tickets t ON t.id = tc.ticket_id
-      WHERE tc.status = 'active'
-        AND tc.committed_date = CURRENT_DATE
-    `;
+    // 2. Get all active tickets and their commitments for "due today" notifications
+    const allTickets = await convex.query(api.tickets.list);
+    const todayStr = new Date().toISOString().split("T")[0];
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
 
-    for (const row of dueToday) {
+    // Collect all commitments across all tickets
+    const dueTodayItems: Array<{ teamMemberId: string; ticketId: string; ticketNumber: string; title: string }> = [];
+    const justMissedItems: Array<{ teamMemberId: string; ticketId: string; ticketNumber: string; title: string; missCount: number }> = [];
+
+    for (const ticket of allTickets) {
+      const commitments = await convex.query(api.commitments.listByTicket, {
+        ticketId: ticket._id as any,
+      });
+
+      for (const c of commitments) {
+        // Due today
+        if (c.status === "active" && (c as any).committedDate === todayStr) {
+          dueTodayItems.push({
+            teamMemberId: (c as any).teamMemberId,
+            ticketId: ticket._id,
+            ticketNumber: ticket.ticketNumber,
+            title: ticket.title,
+          });
+        }
+
+        // Just missed (resolved within last day)
+        if (c.status === "missed" && c.resolvedAt && c.resolvedAt > oneDayAgo) {
+          // Count total misses for this member on this ticket
+          const missCount = commitments.filter(
+            (cc: any) => cc.teamMemberId === (c as any).teamMemberId && cc.status === "missed"
+          ).length;
+
+          justMissedItems.push({
+            teamMemberId: (c as any).teamMemberId,
+            ticketId: ticket._id,
+            ticketNumber: ticket.ticketNumber,
+            title: ticket.title,
+            missCount,
+          });
+        }
+      }
+    }
+
+    // Notify: commitments due today
+    for (const item of dueTodayItems) {
       await createNotification(
-        row.team_member_id as number,
-        row.ticket_id as number,
+        item.teamMemberId as any,
+        item.ticketId as any,
         "due_soon",
-        `Commitment due today: ${row.ticket_number}`,
-        row.title as string,
-        `/admin/tickets?ticket=${row.ticket_id}`
+        `Commitment due today: ${item.ticketNumber}`,
+        item.title,
+        `/admin/tickets?ticket=${item.ticketId}`
       );
     }
 
-    // 3. Notify: commitments that were just marked missed (yesterday's misses)
-    const { rows: justMissed } = await sql`
-      SELECT tc.ticket_id, tc.team_member_id,
-        t.ticket_number, t.title,
-        (SELECT COUNT(*) FROM ticket_commitments tc2
-         WHERE tc2.ticket_id = tc.ticket_id
-           AND tc2.team_member_id = tc.team_member_id
-           AND tc2.status = 'missed') AS miss_count
-      FROM ticket_commitments tc
-      JOIN tickets t ON t.id = tc.ticket_id
-      WHERE tc.status = 'missed'
-        AND tc.resolved_at > NOW() - INTERVAL '1 day'
-    `;
+    // Notify: just missed commitments
+    const allMembers = await convex.query(api.teamMembers.list);
+    const admins = allMembers.filter(
+      (m: any) => ["owner", "c_suite"].includes(m.roleLevel) && m.active
+    );
+    const adminIds = admins.map((a: any) => a._id);
 
-    for (const row of justMissed) {
-      const missCount = Number(row.miss_count);
-
+    for (const item of justMissedItems) {
       // Notify the team member
       await createNotification(
-        row.team_member_id as number,
-        row.ticket_id as number,
+        item.teamMemberId as any,
+        item.ticketId as any,
         "overdue",
-        `Missed commitment on ${row.ticket_number}`,
-        missCount > 1
-          ? `This is miss #${missCount}. Please set a new commitment date.`
-          : `${row.title} — please set a new date.`,
-        `/admin/tickets?ticket=${row.ticket_id}`
+        `Missed commitment on ${item.ticketNumber}`,
+        item.missCount > 1
+          ? `This is miss #${item.missCount}. Please set a new commitment date.`
+          : `${item.title} — please set a new date.`,
+        `/admin/tickets?ticket=${item.ticketId}`
       );
 
-      // If 2+ misses, also notify the owner (admins)
-      if (missCount >= 2) {
-        const { rows: admins } = await sql`
-          SELECT id FROM team_members WHERE role_level IN ('owner', 'c_suite') AND active = true
-        `;
-        const adminIds = admins.map((a) => a.id as number).filter((id) => id !== (row.team_member_id as number));
-
-        if (adminIds.length > 0) {
+      // If 2+ misses, also notify admins
+      if (item.missCount >= 2) {
+        const filteredAdminIds = adminIds.filter((id: string) => id !== item.teamMemberId);
+        if (filteredAdminIds.length > 0) {
           await createBulkNotifications(
-            adminIds,
-            row.ticket_id as number,
+            filteredAdminIds,
+            item.ticketId as any,
             "overdue",
-            `${row.ticket_number} — ${missCount} missed commitments`,
-            `${row.title} needs attention`,
-            `/admin/tickets?ticket=${row.ticket_id}`
+            `${item.ticketNumber} — ${item.missCount} missed commitments`,
+            `${item.title} needs attention`,
+            `/admin/tickets?ticket=${item.ticketId}`
           );
         }
       }
     }
 
     // 4. Notify owner: tickets overdue 14+ days with no active commitment
-    const { rows: longOverdue } = await sql`
-      SELECT t.id, t.ticket_number, t.title, t.due_date
-      FROM tickets t
-      WHERE t.status NOT IN ('closed', 'approved_go_live')
-        AND t.archived = false
-        AND t.due_date < CURRENT_DATE - INTERVAL '14 days'
-        AND t.parent_ticket_id IS NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM ticket_commitments tc
-          WHERE tc.ticket_id = t.id AND tc.status = 'active'
-        )
-      LIMIT 20
-    `;
+    const fourteenDaysAgoStr = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    const longOverdue: typeof allTickets = [];
+    for (const ticket of allTickets) {
+      if (["closed", "approved_go_live"].includes(ticket.status)) continue;
+      if (ticket.archived) continue;
+      if (!ticket.dueDate || ticket.dueDate >= fourteenDaysAgoStr) continue;
+      if ((ticket as any).parentTicketId) continue;
+
+      // Check if ticket has active commitments
+      const commitments = await convex.query(api.commitments.listByTicket, {
+        ticketId: ticket._id as any,
+      });
+      const hasActive = commitments.some((c: any) => c.status === "active");
+      if (!hasActive) {
+        longOverdue.push(ticket);
+      }
+      if (longOverdue.length >= 20) break;
+    }
 
     if (longOverdue.length > 0) {
-      const { rows: admins } = await sql`
-        SELECT id FROM team_members WHERE role_level IN ('owner', 'c_suite') AND active = true
-      `;
-      const adminIds = admins.map((a) => a.id as number);
-
-      for (const row of longOverdue) {
-        const daysOverdue = Math.ceil((Date.now() - new Date(row.due_date as string).getTime()) / (1000 * 60 * 60 * 24));
+      for (const ticket of longOverdue) {
+        const daysOverdue = Math.ceil((Date.now() - new Date(ticket.dueDate as string).getTime()) / (1000 * 60 * 60 * 24));
         await createBulkNotifications(
           adminIds,
-          row.id as number,
+          ticket._id as any,
           "overdue",
-          `${row.ticket_number} — ${daysOverdue} days overdue, no commitment`,
-          row.title as string,
-          `/admin/tickets?ticket=${row.id}`
+          `${ticket.ticketNumber} — ${daysOverdue} days overdue, no commitment`,
+          ticket.title,
+          `/admin/tickets?ticket=${ticket._id}`
         );
       }
     }
@@ -117,8 +142,8 @@ export async function GET() {
       success: true,
       resolved: { missed, met },
       notified: {
-        dueToday: dueToday.length,
-        justMissed: justMissed.length,
+        dueToday: dueTodayItems.length,
+        justMissed: justMissedItems.length,
         longOverdue: longOverdue.length,
       },
     });

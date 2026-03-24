@@ -196,6 +196,25 @@ export const createCalendarEvent = mutation({
   },
 });
 
+export const updateCalendarEvent = mutation({
+  args: {
+    id: v.id("calendarEvents"),
+    title: v.optional(v.string()),
+    eventDate: v.optional(v.string()),
+    eventType: v.optional(v.string()),
+    recurrence: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...fields } = args;
+    const updates: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) updates[key] = value;
+    }
+    await ctx.db.patch(id, updates);
+    return await ctx.db.get(id);
+  },
+});
+
 export const deleteCalendarEvent = mutation({
   args: { id: v.id("calendarEvents") },
   handler: async (ctx, args) => {

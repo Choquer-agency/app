@@ -1,5 +1,6 @@
-import { sql } from "@vercel/postgres";
 import { NextRequest, NextResponse } from "next/server";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 // POST — add a role assignment to a ticket
 export async function POST(
@@ -7,14 +8,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const ticketId = Number(id);
   const { templateRoleId } = await req.json();
 
-  await sql`
-    INSERT INTO ticket_template_role_assignments (ticket_id, template_role_id)
-    VALUES (${ticketId}, ${templateRoleId})
-    ON CONFLICT (ticket_id, template_role_id) DO NOTHING
-  `;
+  const convex = getConvexClient();
+  await convex.mutation(api.ticketTemplateRoleAssignments.add, {
+    ticketId: id as any,
+    templateRoleId: templateRoleId as any,
+  });
 
   return NextResponse.json({ ok: true });
 }
@@ -25,13 +25,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const ticketId = Number(id);
   const { templateRoleId } = await req.json();
 
-  await sql`
-    DELETE FROM ticket_template_role_assignments
-    WHERE ticket_id = ${ticketId} AND template_role_id = ${templateRoleId}
-  `;
+  const convex = getConvexClient();
+  await convex.mutation(api.ticketTemplateRoleAssignments.remove, {
+    ticketId: id as any,
+    templateRoleId: templateRoleId as any,
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 import { sendSlackDM, logSlackMessage } from "@/lib/slack";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 interface DueItem {
-  ticket_id: number;
+  ticket_id: string;
   ticket_number: string;
   title: string;
   client_name: string | null;
@@ -14,64 +15,84 @@ interface DueItem {
 
 export async function GET() {
   try {
+    const convex = getConvexClient();
+
     // Get active team members with Slack configured
-    const { rows: members } = await sql`
-      SELECT id, name, slack_user_id
-      FROM team_members
-      WHERE active = true AND slack_user_id != '' AND slack_user_id IS NOT NULL
-    `;
+    const allMembers = await convex.query(api.teamMembers.list);
+    const members = allMembers.filter(
+      (m: any) => m.active && m.slackUserId
+    );
 
     if (members.length === 0) {
       return NextResponse.json({ success: true, sent: 0, reason: "No members with Slack configured" });
     }
 
+    const allTickets = await convex.query(api.tickets.list);
+    const allClients = await convex.query(api.clients.list);
+    const todayStr = new Date().toISOString().split("T")[0];
+
     let sentCount = 0;
 
     for (const member of members) {
-      const memberId = member.id as number;
+      const memberId = member._id;
       const memberName = (member.name as string).split(" ")[0]; // First name
-      const slackId = member.slack_user_id as string;
+      const slackId = member.slackUserId as string;
 
-      // Get tickets due today (commitments + due dates)
-      const { rows: commitmentsDueToday } = await sql`
-        SELECT DISTINCT t.id AS ticket_id, t.ticket_number, t.title,
-          c.name AS client_name, 'commitment' AS source
-        FROM ticket_commitments tc
-        JOIN tickets t ON t.id = tc.ticket_id
-        LEFT JOIN clients c ON c.id = t.client_id
-        WHERE tc.team_member_id = ${memberId}
-          AND tc.status = 'active'
-          AND tc.committed_date = CURRENT_DATE
-          AND t.status NOT IN ('closed', 'approved_go_live')
-          AND t.archived = false
-      `;
+      // Get tickets assigned to this member
+      const assignments = await convex.query(api.ticketAssignees.listByMember, {
+        teamMemberId: memberId as any,
+      });
 
-      const { rows: ticketsDueToday } = await sql`
-        SELECT DISTINCT t.id AS ticket_id, t.ticket_number, t.title,
-          c.name AS client_name, 'due_date' AS source
-        FROM tickets t
-        JOIN ticket_assignees ta ON ta.ticket_id = t.id
-        LEFT JOIN clients c ON c.id = t.client_id
-        WHERE ta.team_member_id = ${memberId}
-          AND t.due_date = CURRENT_DATE
-          AND t.status NOT IN ('closed', 'approved_go_live')
-          AND t.archived = false
-      `;
-
-      // Deduplicate by ticket_id (a ticket could be both committed and due today)
-      const seen = new Set<number>();
       const allItems: DueItem[] = [];
+      const seen = new Set<string>();
 
-      for (const row of [...commitmentsDueToday, ...ticketsDueToday]) {
-        const ticketId = row.ticket_id as number;
-        if (!seen.has(ticketId)) {
-          seen.add(ticketId);
+      // Check commitments due today
+      for (const assignment of assignments) {
+        const commitments = await convex.query(api.commitments.listByTicket, {
+          ticketId: assignment.ticketId as any,
+        });
+
+        for (const c of commitments) {
+          if ((c as any).teamMemberId !== memberId) continue;
+          if (c.status !== "active") continue;
+          if ((c as any).committedDate !== todayStr) continue;
+
+          const ticket = allTickets.find((t: any) => t._id === assignment.ticketId);
+          if (!ticket) continue;
+          if (["closed", "approved_go_live"].includes(ticket.status)) continue;
+          if (ticket.archived) continue;
+
+          if (!seen.has(ticket._id)) {
+            seen.add(ticket._id);
+            const client = ticket.clientId ? allClients.find((cl: any) => cl._id === ticket.clientId) : null;
+            allItems.push({
+              ticket_id: ticket._id,
+              ticket_number: ticket.ticketNumber,
+              title: ticket.title,
+              client_name: client ? client.name : null,
+              source: "commitment",
+            });
+          }
+        }
+      }
+
+      // Check tickets due today
+      for (const assignment of assignments) {
+        const ticket = allTickets.find((t: any) => t._id === assignment.ticketId);
+        if (!ticket) continue;
+        if (ticket.dueDate !== todayStr) continue;
+        if (["closed", "approved_go_live"].includes(ticket.status)) continue;
+        if (ticket.archived) continue;
+
+        if (!seen.has(ticket._id)) {
+          seen.add(ticket._id);
+          const client = ticket.clientId ? allClients.find((cl: any) => cl._id === ticket.clientId) : null;
           allItems.push({
-            ticket_id: ticketId,
-            ticket_number: row.ticket_number as string,
-            title: row.title as string,
-            client_name: (row.client_name as string) || null,
-            source: row.source as "commitment" | "due_date",
+            ticket_id: ticket._id,
+            ticket_number: ticket.ticketNumber,
+            title: ticket.title,
+            client_name: client ? client.name : null,
+            source: "due_date",
           });
         }
       }
@@ -107,7 +128,7 @@ export async function GET() {
       // Send via Slack
       const result = await sendSlackDM(slackId, message);
       if (result.ok) {
-        await logSlackMessage(memberId, "eod_checkin", message, result.ts);
+        await logSlackMessage(memberId as any, "eod_checkin", message, result.ts);
         sentCount++;
       } else {
         console.error(`[eod-checkin] Failed to send to ${memberName}:`, result.error);

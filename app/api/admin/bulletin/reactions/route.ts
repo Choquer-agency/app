@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 // Toggle a reaction (add if not exists, remove if exists)
 export async function POST(request: NextRequest) {
@@ -15,26 +16,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "announcementId and emoji are required" }, { status: 400 });
     }
 
-    // Check if reaction already exists
-    const { rows: existing } = await sql`
-      SELECT id FROM announcement_reactions
-      WHERE announcement_id = ${announcementId}
-        AND team_member_id = ${session.teamMemberId}
-        AND emoji = ${emoji}
-    `;
+    const convex = getConvexClient();
+    const action = await convex.mutation(api.bulletin.toggleReaction, {
+      announcementId: announcementId as any,
+      teamMemberId: session.teamMemberId as any,
+      emoji,
+    });
 
-    if (existing.length > 0) {
-      // Remove it (toggle off)
-      await sql`DELETE FROM announcement_reactions WHERE id = ${existing[0].id}`;
-      return NextResponse.json({ action: "removed" });
-    } else {
-      // Add it
-      await sql`
-        INSERT INTO announcement_reactions (announcement_id, team_member_id, emoji)
-        VALUES (${announcementId}, ${session.teamMemberId}, ${emoji})
-      `;
-      return NextResponse.json({ action: "added" });
-    }
+    return NextResponse.json({ action });
   } catch (error) {
     console.error("Reaction error:", error);
     return NextResponse.json(

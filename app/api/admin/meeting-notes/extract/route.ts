@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
-import { extractActionItems, ExtractedItem, toLegacyItems, LegacyExtractedItem } from "@/lib/meeting-extraction";
+import { extractActionItems, toLegacyItems, LegacyExtractedItem } from "@/lib/meeting-extraction";
 import { getTeamMembers } from "@/lib/team-members";
 import { getAllClients } from "@/lib/clients";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 export interface ExtractedItemWithMatches extends LegacyExtractedItem {
-  resolvedAssigneeId: number | null;
-  resolvedClientId: number | null;
+  resolvedAssigneeId: string | null;
+  resolvedClientId: string | null;
   duplicates: Array<{
-    ticketId: number;
+    ticketId: string;
     ticketNumber: string;
     title: string;
     status: string;
@@ -24,15 +25,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const { meetingNoteId, transcript, teamMemberId } = await request.json();
+    const convex = getConvexClient();
 
-    // Get the transcript either from the DB or from the request
+    // Get the transcript either from Convex or from the request
     let transcriptText = transcript;
     if (meetingNoteId && !transcriptText) {
-      const { rows } = await sql`SELECT transcript FROM meeting_notes WHERE id = ${meetingNoteId}`;
-      if (rows.length === 0) {
+      const note = await convex.query(api.meetingNotes.getById, { id: meetingNoteId as any });
+      if (!note) {
         return NextResponse.json({ error: "Meeting note not found" }, { status: 404 });
       }
-      transcriptText = rows[0].transcript as string;
+      transcriptText = (note as any).transcript as string;
     }
 
     if (!transcriptText?.trim()) {
@@ -75,38 +77,32 @@ export async function POST(request: NextRequest) {
         );
 
         // Find duplicate/similar open tickets — strict matching only
-        // Only flag as duplicate if the title is very close (most words match)
         const duplicates: ExtractedItemWithMatches["duplicates"] = [];
         if (client) {
-          // Use the full task title for a tight ILIKE match
           const taskWords = item.task
             .replace(/[^a-zA-Z0-9\s]/g, "")
             .toLowerCase()
             .split(/\s+/)
             .filter((w) => w.length > 3);
 
-          // Need at least 2 significant words to even attempt matching
           if (taskWords.length >= 2) {
-            // Search by client + tight title match (require 2+ keywords to match)
-            const { rows: candidates } = await sql`
-              SELECT t.id AS ticket_id, t.ticket_number, t.title, t.status, t.due_date
-              FROM tickets t
-              WHERE t.client_id = ${client.id}
-                AND t.status NOT IN ('closed', 'approved_go_live')
-                AND t.archived = false
-              LIMIT 50
-            `;
+            // Fetch open tickets for this client
+            const candidates = await convex.query(api.tickets.list, {
+              clientId: client.id as any,
+              archived: false,
+              limit: 50,
+            });
 
-            for (const row of candidates) {
+            for (const row of candidates as any[]) {
+              if (row.status === "closed" || row.status === "approved_go_live") continue;
               const existingTitle = (row.title as string).toLowerCase();
               const matchingWords = taskWords.filter((w) => existingTitle.includes(w));
-              // Only flag if majority of significant words match
               if (matchingWords.length >= Math.ceil(taskWords.length * 0.6) && matchingWords.length >= 2) {
                 duplicates.push({
-                  ticketId: row.ticket_id as number,
-                  ticketNumber: row.ticket_number as string,
-                  title: row.title as string,
-                  status: row.status as string,
+                  ticketId: row._id,
+                  ticketNumber: row.ticketNumber,
+                  title: row.title,
+                  status: row.status,
                 });
               }
             }
@@ -124,11 +120,11 @@ export async function POST(request: NextRequest) {
 
     // Update meeting note with extraction results if we have an ID
     if (meetingNoteId) {
-      await sql`
-        UPDATE meeting_notes
-        SET summary = ${summary}, raw_extraction = ${JSON.stringify(enrichedItems)}::jsonb
-        WHERE id = ${meetingNoteId}
-      `;
+      await convex.mutation(api.meetingNotes.update, {
+        id: meetingNoteId as any,
+        summary,
+        rawExtraction: enrichedItems,
+      });
     }
 
     return NextResponse.json({

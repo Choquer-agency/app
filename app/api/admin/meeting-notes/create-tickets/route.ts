@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
 import { createTicket } from "@/lib/tickets";
 import { addCommitment } from "@/lib/commitments";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 interface TicketToCreate {
   title: string;
   description: string;
-  assigneeId: number | null;
-  clientId: number | null;
+  assigneeId: string | null;
+  clientId: string | null;
   dueDate: string | null;
   priority: string;
 }
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const { meetingNoteId, items } = (await request.json()) as {
-      meetingNoteId?: number;
+      meetingNoteId?: string;
       items: TicketToCreate[];
     };
 
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     const actor = { id: session.teamMemberId, name: session.name || "System" };
-    const created: Array<{ ticketId: number; ticketNumber: string; title: string }> = [];
+    const created: Array<{ ticketId: string; ticketNumber: string; title: string }> = [];
 
     for (const item of items) {
       const ticket = await createTicket(
@@ -66,11 +67,14 @@ export async function POST(request: NextRequest) {
 
     // Link tickets to meeting note if we have one
     if (meetingNoteId) {
-      await sql`
-        UPDATE meeting_notes
-        SET raw_extraction = raw_extraction || ${JSON.stringify({ createdTickets: created })}::jsonb
-        WHERE id = ${meetingNoteId}
-      `;
+      const convex = getConvexClient();
+      // Get existing extraction data and merge
+      const note = await convex.query(api.meetingNotes.getById, { id: meetingNoteId as any });
+      const existingExtraction = (note as any)?.rawExtraction || {};
+      await convex.mutation(api.meetingNotes.update, {
+        id: meetingNoteId as any,
+        rawExtraction: { ...existingExtraction, createdTickets: created },
+      });
     }
 
     return NextResponse.json({ created }, { status: 201 });

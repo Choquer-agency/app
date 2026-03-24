@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 export async function PUT(request: NextRequest) {
   const session = getSession(request);
@@ -14,12 +15,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "content must be a string" }, { status: 400 });
     }
 
-    await sql`
-      INSERT INTO personal_notes (team_member_id, content, updated_at)
-      VALUES (${session.teamMemberId}, ${content}, NOW())
-      ON CONFLICT (team_member_id)
-      DO UPDATE SET content = ${content}, updated_at = NOW()
-    `;
+    const convex = getConvexClient();
+    await convex.mutation(api.bulletin.upsertPersonalNote, {
+      teamMemberId: session.teamMemberId as any,
+      content,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

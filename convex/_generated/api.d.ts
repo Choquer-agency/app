@@ -35,6 +35,7 @@ import type * as ticketAssignees from "../ticketAssignees.js";
 import type * as ticketAttachments from "../ticketAttachments.js";
 import type * as ticketComments from "../ticketComments.js";
 import type * as ticketDependencies from "../ticketDependencies.js";
+import type * as ticketTemplateRoleAssignments from "../ticketTemplateRoleAssignments.js";
 import type * as tickets from "../tickets.js";
 import type * as timeEntries from "../timeEntries.js";
 import type * as visitors from "../visitors.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   ticketAttachments: typeof ticketAttachments;
   ticketComments: typeof ticketComments;
   ticketDependencies: typeof ticketDependencies;
+  ticketTemplateRoleAssignments: typeof ticketTemplateRoleAssignments;
   tickets: typeof tickets;
   timeEntries: typeof timeEntries;
   visitors: typeof visitors;

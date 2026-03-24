@@ -1,21 +1,23 @@
-import { sql } from "@vercel/postgres";
 import { NextRequest, NextResponse } from "next/server";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
-// GET /api/admin/projects/[id]/role-assignments — get all ticket→role assignments for a project
+// GET /api/admin/projects/[id]/role-assignments — get all ticket->role assignments for a project
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const projectId = Number(id);
 
-  const { rows } = await sql`
-    SELECT tra.ticket_id AS "ticketId", tra.template_role_id AS "templateRoleId"
-    FROM ticket_template_role_assignments tra
-    JOIN tickets t ON t.id = tra.ticket_id
-    WHERE t.project_id = ${projectId}
-    ORDER BY tra.ticket_id, tra.template_role_id
-  `;
+  const convex = getConvexClient();
+  const assignments = await convex.query(api.ticketTemplateRoleAssignments.listByProject, {
+    projectId: id as any,
+  });
+
+  const rows = (assignments as any[]).map((a: any) => ({
+    ticketId: a.ticketId,
+    templateRoleId: a.templateRoleId,
+  }));
 
   return NextResponse.json(rows);
 }

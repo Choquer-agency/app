@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 import crypto from "crypto";
 import { handleOwnerMessage } from "@/lib/slack-assistant";
 import { handleQuoteSelection } from "@/lib/slack-assistant/handlers/quote-selection";
@@ -36,14 +37,14 @@ function verifySlackSignature(request: NextRequest, body: string): boolean {
   }
 }
 
-async function getOwner(): Promise<{ id: number; slackUserId: string } | null> {
-  const { rows } = await sql`
-    SELECT id, slack_user_id FROM team_members
-    WHERE role_level = 'owner' AND active = true
-    LIMIT 1
-  `;
-  if (rows.length === 0) return null;
-  return { id: rows[0].id as number, slackUserId: rows[0].slack_user_id as string };
+async function getOwner(): Promise<{ id: string; slackUserId: string } | null> {
+  const convex = getConvexClient();
+  const allMembers = await convex.query(api.teamMembers.list);
+  const owner = allMembers.find(
+    (m: any) => m.roleLevel === "owner" && m.active
+  );
+  if (!owner) return null;
+  return { id: owner._id, slackUserId: owner.slackUserId as string };
 }
 
 // Track processed event IDs to handle Slack retries

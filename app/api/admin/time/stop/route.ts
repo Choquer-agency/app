@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
 import { stopTimerByMember } from "@/lib/time-entries";
 import { hasPermission } from "@/lib/permissions";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 export async function POST(request: NextRequest) {
   const session = getSession(request);
@@ -26,20 +27,38 @@ export async function DELETE(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
+  const convex = getConvexClient();
 
-  if (searchParams.get("reset") === "true") {
-    // Nuclear option: delete ALL time entries
-    const { rowCount } = await sql`DELETE FROM time_entries`;
-    return NextResponse.json({ cleaned: rowCount, mode: "reset" });
+  // Get all time entries to filter/delete
+  // We need to fetch all and then delete matching ones
+  const allMembers = await convex.query(api.teamMembers.list, {});
+  let cleaned = 0;
+
+  for (const member of allMembers as any[]) {
+    const entries = await convex.query(api.timeEntries.listByMember, {
+      teamMemberId: member._id as any,
+    });
+
+    for (const entry of entries as any[]) {
+      if (searchParams.get("reset") === "true") {
+        // Nuclear option: delete ALL time entries
+        await convex.mutation(api.timeEntries.remove, { id: entry._id as any });
+        cleaned++;
+      } else {
+        // Delete entries with suspiciously long durations (> 1 hour when actual time range is < 15 min)
+        if (entry.endTime && entry.durationSeconds > 3600) {
+          const startMs = new Date(entry.startTime).getTime();
+          const endMs = new Date(entry.endTime).getTime();
+          const actualSeconds = (endMs - startMs) / 1000;
+          if (actualSeconds < 900) {
+            await convex.mutation(api.timeEntries.remove, { id: entry._id as any });
+            cleaned++;
+          }
+        }
+      }
+    }
   }
 
-  // Default: delete entries with suspiciously long durations (> 1 hour when actual time range is < 15 min)
-  const { rowCount } = await sql`
-    DELETE FROM time_entries
-    WHERE end_time IS NOT NULL
-      AND duration_seconds > 3600
-      AND EXTRACT(EPOCH FROM end_time - start_time) < 900
-  `;
-
-  return NextResponse.json({ cleaned: rowCount });
+  const mode = searchParams.get("reset") === "true" ? "reset" : "cleanup";
+  return NextResponse.json({ cleaned, mode });
 }

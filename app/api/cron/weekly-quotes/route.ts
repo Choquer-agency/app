@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 import { sendSlackDM, logSlackMessage } from "@/lib/slack";
 
 /**
@@ -66,22 +67,34 @@ function getNextMonday(): string {
 
 export async function GET() {
   try {
+    const convex = getConvexClient();
     const weekStart = getNextMonday();
 
     // Check if quotes already generated for this week
-    const { rows: existing } = await sql`
-      SELECT COUNT(*) as count FROM weekly_quotes WHERE week_start = ${weekStart}
-    `;
-    if (parseInt(existing[0].count as string) > 0) {
+    const existingQuote = await convex.query(api.bulletin.getQuoteForWeek, {
+      weekStart,
+    });
+    if (existingQuote) {
       return NextResponse.json({ success: true, reason: "Quotes already generated for this week" });
     }
 
     // Get recently used quotes (last 12 weeks) to avoid repeats
-    const { rows: recent } = await sql`
-      SELECT quote FROM weekly_quotes
-      WHERE week_start >= (CURRENT_DATE - INTERVAL '84 days')
-    `;
-    const recentQuotes = new Set(recent.map((r) => r.quote as string));
+    // We'll use getQuoteForWeek for recent weeks
+    const recentQuotes = new Set<string>();
+    const now = new Date();
+    for (let i = 1; i <= 12; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i * 7);
+      // Find the Monday of that week
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      d.setDate(d.getDate() + diff);
+      const ws = d.toISOString().split("T")[0];
+      const q = await convex.query(api.bulletin.getQuoteForWeek, { weekStart: ws });
+      if (q && (q as any).quote) {
+        recentQuotes.add((q as any).quote);
+      }
+    }
 
     // Filter available quotes
     const available = QUOTE_POOL.filter((q) => !recentQuotes.has(q.quote));
@@ -105,18 +118,19 @@ export async function GET() {
 
     // Insert into database
     for (const q of selected) {
-      await sql`
-        INSERT INTO weekly_quotes (quote, author, week_start, selected)
-        VALUES (${q.quote}, ${q.author}, ${weekStart}, false)
-      `;
+      await convex.mutation(api.bulletin.createQuote, {
+        quote: q.quote,
+        author: q.author,
+        weekStart,
+        selected: false,
+      });
     }
 
     // Send to owner via Slack DM
-    const { rows: owners } = await sql`
-      SELECT id, slack_user_id FROM team_members
-      WHERE role_level = 'owner' AND active = true AND slack_user_id != ''
-      LIMIT 1
-    `;
+    const allMembers = await convex.query(api.teamMembers.list);
+    const owners = allMembers.filter(
+      (m: any) => m.roleLevel === "owner" && m.active && m.slackUserId
+    );
 
     if (owners.length > 0) {
       const owner = owners[0];
@@ -129,9 +143,9 @@ export async function GET() {
 
       message += "_React with :one: through :keycap_ten: or reply with a number (1-10) to select._";
 
-      const result = await sendSlackDM(owner.slack_user_id as string, message);
+      const result = await sendSlackDM(owner.slackUserId as string, message);
       await logSlackMessage(
-        owner.id as number,
+        owner._id as any,
         "weekly_quotes",
         message,
         result.ts

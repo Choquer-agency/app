@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 import { getActiveClients } from "@/lib/clients";
-import { getGSCPerformance, getGSCTimeSeries, getGSCTopPages, getGSCKPIs } from "@/lib/gsc";
-import { getGA4Sessions, getGA4TimeSeries, getGA4KPIs } from "@/lib/ga4";
-import { getKeywordRankings, getKeywordsImprovedCount } from "@/lib/serankings";
+import { getGSCPerformance, getGSCTimeSeries, getGSCTopPages } from "@/lib/gsc";
+import { getGA4Sessions, getGA4TimeSeries } from "@/lib/ga4";
+import { getKeywordRankings } from "@/lib/serankings";
 
 export async function GET(request: NextRequest) {
   // Verify cron secret
@@ -13,6 +14,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const convex = getConvexClient();
     const clients = await getActiveClients();
 
     // Calculate prior month date range
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
             getKeywordRankings(client.seRankingsProjectId),
           ]);
 
-        const keywordsImproved = keywords.filter((kw) => kw.change > 0).length;
+        const keywordsImproved = keywords.filter((kw: any) => kw.change > 0).length;
 
         function pctChange(curr: number, prev: number): number {
           if (prev === 0) return 0;
@@ -84,24 +86,14 @@ export async function GET(request: NextRequest) {
         ];
 
         // Upsert snapshot
-        await sql`
-          INSERT INTO monthly_snapshots (client_slug, month, gsc_data, ga4_data, keyword_data, kpi_summary)
-          VALUES (
-            ${client.slug},
-            ${monthKey},
-            ${JSON.stringify({ performance: gscPerf, timeSeries: gscTimeSeries, topPages: gscTopPages })},
-            ${JSON.stringify({ sessions: ga4Sessions, timeSeries: ga4TimeSeries })},
-            ${JSON.stringify(keywords)},
-            ${JSON.stringify(kpiSummary)}
-          )
-          ON CONFLICT (client_slug, month)
-          DO UPDATE SET
-            gsc_data = EXCLUDED.gsc_data,
-            ga4_data = EXCLUDED.ga4_data,
-            keyword_data = EXCLUDED.keyword_data,
-            kpi_summary = EXCLUDED.kpi_summary,
-            created_at = NOW()
-        `;
+        await convex.mutation(api.monthlySnapshots.upsert, {
+          clientSlug: client.slug,
+          month: monthKey,
+          gscData: { performance: gscPerf, timeSeries: gscTimeSeries, topPages: gscTopPages } as any,
+          ga4Data: { sessions: ga4Sessions, timeSeries: ga4TimeSeries } as any,
+          keywordData: keywords as any,
+          kpiSummary: kpiSummary as any,
+        });
 
         results.push(`${client.slug}: OK`);
       } catch (error) {

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
 import { hasMinRole, type RoleLevel } from "@/lib/permissions";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 export async function POST(request: NextRequest) {
   const session = getSession(request);
@@ -20,15 +21,20 @@ export async function POST(request: NextRequest) {
     endOfDay.setHours(23, 59, 59, 999);
     const expiresAt = endOfDay.toISOString();
 
-    const result = await sql`
-      INSERT INTO announcements (author_id, title, content, pinned, source, announcement_type, expires_at)
-      VALUES (${session.teamMemberId}, ${title}, ${content || ""}, ${pinned || false}, 'manual', 'general', ${expiresAt})
-      RETURNING id, created_at
-    `;
+    const convex = getConvexClient();
+    const newId = await convex.mutation(api.bulletin.createAnnouncement, {
+      authorId: session.teamMemberId as any,
+      title,
+      content: content || "",
+      pinned: pinned || false,
+      source: "manual",
+      announcementType: "general",
+      expiresAt,
+    });
 
     return NextResponse.json({
-      id: result.rows[0].id,
-      createdAt: result.rows[0].created_at,
+      id: newId,
+      createdAt: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Create announcement error:", error);
@@ -55,7 +61,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    await sql`DELETE FROM announcements WHERE id = ${parseInt(id)}`;
+    const convex = getConvexClient();
+    await convex.mutation(api.bulletin.deleteAnnouncement, { id: id as any });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Delete announcement error:", error);

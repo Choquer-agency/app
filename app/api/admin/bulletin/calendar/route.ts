@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
 import { hasMinRole, type RoleLevel } from "@/lib/permissions";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 // GET — list all calendar events
 export async function GET(request: NextRequest) {
@@ -10,17 +11,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { rows } = await sql`
-      SELECT id, title, event_date, event_type, recurrence
-      FROM calendar_events
-      ORDER BY event_date ASC
-    `;
+    const convex = getConvexClient();
+    const events = await convex.query(api.bulletin.listCalendarEvents, {});
+
     return NextResponse.json(
-      rows.map((r) => ({
-        id: r.id,
+      (events as any[]).map((r: any) => ({
+        id: r._id,
         title: r.title,
-        eventDate: (r.event_date as Date).toISOString().split("T")[0],
-        eventType: r.event_type,
+        eventDate: r.eventDate,
+        eventType: r.eventType,
         recurrence: r.recurrence || "none",
       }))
     );
@@ -30,7 +29,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST — add a calendar event (owner/c_suite only)
+// POST — add or update a calendar event (owner/c_suite only)
 export async function POST(request: NextRequest) {
   const session = getSession(request);
   if (!session) {
@@ -46,23 +45,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "title and eventDate are required" }, { status: 400 });
     }
 
+    const convex = getConvexClient();
+
     // If id is provided, update existing event
     if (id) {
-      await sql`
-        UPDATE calendar_events
-        SET title = ${title}, event_date = ${eventDate}, event_type = ${eventType || "custom"}, recurrence = ${recurrence || "none"}
-        WHERE id = ${id}
-      `;
+      await convex.mutation(api.bulletin.updateCalendarEvent, {
+        id: id as any,
+        title,
+        eventDate,
+        eventType: eventType || "custom",
+        recurrence: recurrence || "none",
+      });
       return NextResponse.json({ id });
     }
 
-    const { rows } = await sql`
-      INSERT INTO calendar_events (title, event_date, event_type, recurrence)
-      VALUES (${title}, ${eventDate}, ${eventType || "custom"}, ${recurrence || "none"})
-      RETURNING id
-    `;
+    const newId = await convex.mutation(api.bulletin.createCalendarEvent, {
+      title,
+      eventDate,
+      eventType: eventType || "custom",
+      recurrence: recurrence || "none",
+    });
 
-    return NextResponse.json({ id: rows[0].id });
+    return NextResponse.json({ id: newId });
   } catch (error) {
     console.error("Calendar create error:", error);
     return NextResponse.json({ error: "Failed to create event" }, { status: 500 });
@@ -84,7 +88,8 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
-    await sql`DELETE FROM calendar_events WHERE id = ${parseInt(id)}`;
+    const convex = getConvexClient();
+    await convex.mutation(api.bulletin.deleteCalendarEvent, { id: id as any });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Calendar delete error:", error);

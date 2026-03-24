@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 import { checkRunawayTimers, getClientHourCap } from "@/lib/time-entries";
-import { getTicketAssignees } from "@/lib/tickets";
 import { deleteOldNotifications } from "@/lib/notifications";
 import {
   notifyDueSoon,
@@ -28,20 +28,30 @@ export async function GET(request: NextRequest) {
   };
 
   try {
+    const convex = getConvexClient();
+
     // 1. Due soon — tickets due within 24 hours
-    const { rows: dueSoonRows } = await sql`
-      SELECT id, ticket_number, title, created_by_id FROM tickets
-      WHERE due_date = CURRENT_DATE + INTERVAL '1 day'
-        AND archived = false AND status != 'closed'
-    `;
-    for (const row of dueSoonRows) {
-      const assignees = await getTicketAssignees(row.id as number);
-      const assigneeIds = assignees.map((a) => a.teamMemberId);
+    const allTickets = await convex.query(api.tickets.list);
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split("T")[0];
+    const todayStr = now.toISOString().split("T")[0];
+
+    const dueSoonTickets = allTickets.filter(
+      (t: any) => t.dueDate === tomorrowStr && !t.archived && t.status !== "closed"
+    );
+
+    for (const ticket of dueSoonTickets) {
+      const assignees = await convex.query(api.ticketAssignees.listByTicket, {
+        ticketId: ticket._id as any,
+      });
+      const assigneeIds = assignees.map((a: any) => a.teamMemberId);
       if (assigneeIds.length > 0) {
         await notifyDueSoon(
-          row.id as number,
-          row.ticket_number as string,
-          row.title as string,
+          ticket._id as any,
+          ticket.ticketNumber as string,
+          ticket.title as string,
           assigneeIds
         );
         results.dueSoon++;
@@ -49,19 +59,20 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Overdue — tickets past due date
-    const { rows: overdueRows } = await sql`
-      SELECT id, ticket_number, title, created_by_id FROM tickets
-      WHERE due_date < CURRENT_DATE
-        AND archived = false AND status != 'closed'
-    `;
-    for (const row of overdueRows) {
-      const assignees = await getTicketAssignees(row.id as number);
-      const assigneeIds = assignees.map((a) => a.teamMemberId);
+    const overdueTickets = allTickets.filter(
+      (t: any) => t.dueDate && t.dueDate < todayStr && !t.archived && t.status !== "closed"
+    );
+
+    for (const ticket of overdueTickets) {
+      const assignees = await convex.query(api.ticketAssignees.listByTicket, {
+        ticketId: ticket._id as any,
+      });
+      const assigneeIds = assignees.map((a: any) => a.teamMemberId);
       await notifyOverdue(
-        row.id as number,
-        row.ticket_number as string,
-        row.title as string,
-        (row.created_by_id as number) ?? null,
+        ticket._id as any,
+        ticket.ticketNumber as string,
+        ticket.title as string,
+        (ticket as any).createdById ?? null,
         assigneeIds
       );
       results.overdue++;
@@ -80,18 +91,18 @@ export async function GET(request: NextRequest) {
     }
 
     // 4. Hour caps — check all clients with active tickets
-    const { rows: clientRows } = await sql`
-      SELECT DISTINCT t.client_id, c.name AS client_name
-      FROM tickets t
-      JOIN clients c ON c.id = t.client_id
-      WHERE t.archived = false AND t.status != 'closed' AND t.client_id IS NOT NULL
-    `;
+    const clients = await convex.query(api.clients.list);
+    const clientsWithActiveTickets = allTickets
+      .filter((t: any) => !t.archived && t.status !== "closed" && t.clientId)
+      .map((t: any) => t.clientId);
+    const uniqueClientIds = [...new Set(clientsWithActiveTickets)];
+
     const currentMonth = new Date().toISOString().slice(0, 7) + "-01";
-    for (const row of clientRows) {
-      const summary = await getClientHourCap(
-        row.client_id as number,
-        currentMonth
-      );
+    for (const clientId of uniqueClientIds) {
+      const client = clients.find((c: any) => c._id === clientId);
+      if (!client) continue;
+
+      const summary = await getClientHourCap(clientId as any, currentMonth);
       if (summary.status === "warning" || summary.status === "exceeded") {
         await notifyHourCap(
           summary.clientId,

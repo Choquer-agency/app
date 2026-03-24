@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 // POST: Save a meeting transcript
 export async function POST(request: NextRequest) {
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { teamMemberIds, teamMemberId, transcript, meetingDate, source } = await request.json();
 
     // Support both single ID and array of IDs
-    const memberIds: number[] = teamMemberIds || (teamMemberId ? [teamMemberId] : []);
+    const memberIds: string[] = teamMemberIds || (teamMemberId ? [teamMemberId] : []);
 
     if (memberIds.length === 0 || !transcript?.trim()) {
       return NextResponse.json(
@@ -26,19 +27,35 @@ export async function POST(request: NextRequest) {
     const src = source || "manual";
     const text = transcript.trim();
 
+    const convex = getConvexClient();
+
     // Create a meeting note for each team member (same transcript, linked to each)
-    const created = [];
+    const created: any[] = [];
     for (const memberId of memberIds) {
-      const { rows } = await sql`
-        INSERT INTO meeting_notes (team_member_id, created_by_id, transcript, meeting_date, source)
-        VALUES (${memberId}, ${session.teamMemberId}, ${text}, ${date}, ${src})
-        RETURNING *
-      `;
-      created.push(rows[0]);
+      const note = await convex.mutation(api.meetingNotes.create, {
+        teamMemberId: memberId as any,
+        createdById: session.teamMemberId as any,
+        transcript: text,
+        meetingDate: date,
+        source: src,
+      });
+      created.push(note);
     }
 
     // Return the first one (used for extraction), but all are saved
-    return NextResponse.json({ ...created[0], allIds: created.map((r) => r.id) }, { status: 201 });
+    const first = created[0];
+    return NextResponse.json(
+      {
+        id: first._id,
+        team_member_id: first.teamMemberId,
+        created_by_id: first.createdById,
+        transcript: first.transcript,
+        meeting_date: first.meetingDate,
+        source: first.source,
+        allIds: created.map((r: any) => r._id),
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Failed to save meeting note:", error);
     return NextResponse.json({ error: "Failed to save meeting note" }, { status: 500 });
@@ -54,23 +71,37 @@ export async function GET(request: NextRequest) {
 
   try {
     const memberId = request.nextUrl.searchParams.get("memberId");
+    const convex = getConvexClient();
 
-    const { rows } = memberId
-      ? await sql`
-          SELECT mn.*, tm.name AS member_name
-          FROM meeting_notes mn
-          JOIN team_members tm ON tm.id = mn.team_member_id
-          WHERE mn.team_member_id = ${Number(memberId)}
-          ORDER BY mn.meeting_date DESC, mn.created_at DESC
-          LIMIT 50
-        `
-      : await sql`
-          SELECT mn.*, tm.name AS member_name
-          FROM meeting_notes mn
-          JOIN team_members tm ON tm.id = mn.team_member_id
-          ORDER BY mn.meeting_date DESC, mn.created_at DESC
-          LIMIT 50
-        `;
+    let notes: any[];
+    if (memberId) {
+      notes = await convex.query(api.meetingNotes.listByMember, {
+        teamMemberId: memberId as any,
+        limit: 50,
+      });
+    } else {
+      notes = await convex.query(api.meetingNotes.listAll, { limit: 50 });
+    }
+
+    // Fetch team member names for display
+    const allMembers = await convex.query(api.teamMembers.list, {});
+    const memberMap = new Map<string, string>();
+    for (const m of allMembers as any[]) {
+      memberMap.set(m._id, m.name);
+    }
+
+    const rows = (notes as any[]).map((n: any) => ({
+      id: n._id,
+      team_member_id: n.teamMemberId,
+      created_by_id: n.createdById,
+      transcript: n.transcript,
+      summary: n.summary || null,
+      raw_extraction: n.rawExtraction || null,
+      meeting_date: n.meetingDate,
+      source: n.source,
+      created_at: n._creationTime ? new Date(n._creationTime).toISOString() : null,
+      member_name: memberMap.get(n.teamMemberId) || "Unknown",
+    }));
 
     return NextResponse.json(rows);
   } catch (error) {
@@ -92,7 +123,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    await sql`DELETE FROM meeting_notes WHERE id = ${id}`;
+    const convex = getConvexClient();
+    await convex.mutation(api.meetingNotes.remove, { id: id as any });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to delete meeting note:", error);
