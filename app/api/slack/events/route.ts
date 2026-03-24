@@ -20,13 +20,20 @@ function verifySlackSignature(request: NextRequest, body: string): boolean {
   const timestamp = request.headers.get("x-slack-request-timestamp") || "";
   const slackSignature = request.headers.get("x-slack-signature") || "";
 
+  if (!timestamp || !slackSignature) return false;
+
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - parseInt(timestamp)) > 300) return false;
 
   const sigBasestring = `v0:${timestamp}:${body}`;
   const mySignature = "v0=" + crypto.createHmac("sha256", signingSecret).update(sigBasestring).digest("hex");
 
-  return crypto.timingSafeEqual(Buffer.from(mySignature), Buffer.from(slackSignature));
+  // timingSafeEqual throws if buffers differ in length — catch that
+  try {
+    return crypto.timingSafeEqual(Buffer.from(mySignature), Buffer.from(slackSignature));
+  } catch {
+    return false;
+  }
 }
 
 async function getOwner(): Promise<{ id: number; slackUserId: string } | null> {
