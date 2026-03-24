@@ -14,12 +14,22 @@ interface SlackResponse {
  */
 export async function sendSlackDM(
   slackUserId: string,
-  text: string
+  text: string,
+  threadTs?: string
 ): Promise<{ ok: boolean; ts?: string; error?: string }> {
   const token = process.env.SLACK_BOT_TOKEN || process.env.SLACK_USER_TOKEN;
   if (!token) {
     console.error("No Slack token configured (SLACK_BOT_TOKEN or SLACK_USER_TOKEN)");
     return { ok: false, error: "No Slack token configured" };
+  }
+
+  const body: Record<string, unknown> = {
+    channel: slackUserId,
+    text,
+    mrkdwn: true,
+  };
+  if (threadTs) {
+    body.thread_ts = threadTs;
   }
 
   const res = await fetch(`${SLACK_API_BASE}/chat.postMessage`, {
@@ -28,12 +38,7 @@ export async function sendSlackDM(
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      channel: slackUserId,
-      text,
-      // Using mrkdwn so *bold* and bullet points render nicely
-      mrkdwn: true,
-    }),
+    body: JSON.stringify(body),
   });
 
   const data: SlackResponse = await res.json();
@@ -43,6 +48,48 @@ export async function sendSlackDM(
   }
 
   return { ok: data.ok, ts: data.ts, error: data.error };
+}
+
+/**
+ * Reply in a Slack thread. Convenience wrapper around sendSlackDM.
+ */
+export async function replyInThread(
+  channelId: string,
+  threadTs: string,
+  text: string
+): Promise<{ ok: boolean; ts?: string; error?: string }> {
+  return sendSlackDM(channelId, text, threadTs);
+}
+
+/**
+ * Add a reaction emoji to a Slack message.
+ */
+export async function addSlackReaction(
+  channelId: string,
+  messageTs: string,
+  emoji: string
+): Promise<boolean> {
+  const token = process.env.SLACK_BOT_TOKEN || process.env.SLACK_USER_TOKEN;
+  if (!token) return false;
+
+  try {
+    const res = await fetch(`${SLACK_API_BASE}/reactions.add`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        timestamp: messageTs,
+        name: emoji,
+      }),
+    });
+    const data: SlackResponse = await res.json();
+    return data.ok;
+  } catch {
+    return false;
+  }
 }
 
 /**

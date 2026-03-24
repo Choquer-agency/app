@@ -191,6 +191,25 @@ export async function getTicketById(id: number): Promise<Ticket | null> {
   return ticket;
 }
 
+export async function getTicketByNumber(ticketNumber: string): Promise<Ticket | null> {
+  const { rows } = await sql`
+    SELECT t.*,
+      c.name AS client_name,
+      tm.name AS created_by_name,
+      (SELECT COUNT(*) FROM tickets sub WHERE sub.parent_ticket_id = t.id AND sub.archived = false) AS sub_ticket_count,
+      (SELECT COUNT(*) FROM ticket_comments tc WHERE tc.ticket_id = t.id) AS comment_count
+    FROM tickets t
+    LEFT JOIN clients c ON c.id = t.client_id
+    LEFT JOIN team_members tm ON tm.id = t.created_by_id
+    WHERE UPPER(t.ticket_number) = UPPER(${ticketNumber})
+  `;
+  if (rows.length === 0) return null;
+
+  const ticket = rowToTicket(rows[0]);
+  ticket.assignees = await getTicketAssignees(ticket.id);
+  return ticket;
+}
+
 export async function createTicket(
   data: CreateTicketInput,
   createdById: number,
