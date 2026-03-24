@@ -198,14 +198,28 @@ export class MeetingTranscriptHandler implements IntentHandler {
     const dueDates = data.items.map((i) => i.dueDate).filter(Boolean) as string[];
     const earliestDue = dueDates.length > 0 ? dueDates.sort()[0] : null;
 
-    // Build consolidated description from all items
-    const description = data.items.map((item, i) => {
-      return `${i + 1}. ${item.task}${item.description ? `\n   ${item.description}` : ""}`;
-    }).join("\n\n");
+    // Generate a short title using Claude
+    const shortTitle = await this.generateShortTitle(data.items, data.summary);
+
+    // Build well-structured description with hierarchy
+    const descriptionParts: string[] = [];
+    if (data.summary) {
+      descriptionParts.push(data.summary);
+      descriptionParts.push("");
+    }
+    descriptionParts.push("Action Items:");
+    data.items.forEach((item, i) => {
+      descriptionParts.push(`${i + 1}. ${item.task}`);
+      if (item.description) {
+        descriptionParts.push(`   ${item.description}`);
+      }
+      descriptionParts.push("");
+    });
+    const description = descriptionParts.join("\n");
 
     // Create a single consolidated item
     const consolidated = {
-      task: data.summary || data.items[0].task,
+      task: shortTitle,
       description,
       assigneeName: assigneeNames[0] || data.items[0].assigneeName,
       clientName: clientNames[0] || data.items[0].clientName,
@@ -226,10 +240,11 @@ export class MeetingTranscriptHandler implements IntentHandler {
     const assigneeDisplay = assigneeNames.join(", ") || "Unassigned";
     const clientDisplay = clientNames.join(", ") || "Internal";
 
+    const originalCount = descriptionParts.filter((l) => /^\d+\./.test(l)).length;
     await replyInThread(
       channelId,
       conversation.threadTs,
-      `Consolidated into *1 ticket*:\n\n• *${consolidated.task}* [${consolidated.priority}]\n  Assignees: ${assigneeDisplay}\n  Client: ${clientDisplay}\n  Due: ${consolidated.dueDate || "No due date"}\n\nAll ${data.items.length === 1 ? "8 original items" : "items"} will be in the ticket description.\n\nReply *approve* to create, or tell me what to change.`
+      `Consolidated into *1 ticket*:\n\n*${consolidated.task}*\nPriority: ${consolidated.priority} | Due: ${consolidated.dueDate || "none"}\nAssignees: ${assigneeDisplay}\nClient: ${clientDisplay}\n\n_${originalCount} action items in the description._\n\nReply *approve* to create, or tell me what to change.`
     );
   }
 
@@ -285,6 +300,40 @@ export class MeetingTranscriptHandler implements IntentHandler {
         item.clientId = rows[0].id as number;
       }
       return;
+    }
+  }
+
+  private async generateShortTitle(
+    items: Array<{ task: string }>,
+    summary: string
+  ): Promise<string> {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return items[0]?.task || "Consolidated ticket";
+
+    try {
+      const taskList = items.map((i) => i.task).join(", ");
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 50,
+          messages: [{
+            role: "user",
+            content: `Generate a short ticket title (5-8 words max, imperative form) that summarizes these tasks:\n\nTasks: ${taskList}\nContext: ${summary}\n\nReturn ONLY the title, nothing else. Examples of good titles: "Revamp AARC West website per CEO feedback", "Fix homepage layout and update copy", "Redesign client dashboard analytics page"`,
+          }],
+        }),
+      });
+      if (!res.ok) return items[0]?.task || "Consolidated ticket";
+      const data = await res.json();
+      const title = data.content?.[0]?.text?.trim();
+      return title || items[0]?.task || "Consolidated ticket";
+    } catch {
+      return items[0]?.task || "Consolidated ticket";
     }
   }
 
