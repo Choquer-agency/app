@@ -3,7 +3,8 @@
  * Handles both numeric text replies and emoji reactions for selecting weekly quotes.
  */
 
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "../../convex-server";
+import { api } from "@/convex/_generated/api";
 import { IntentHandler, HandlerContext, QuoteSelectionData } from "../types";
 import { sendSlackDM } from "@/lib/slack";
 
@@ -22,19 +23,18 @@ export async function handleQuoteSelection(
   quoteNumber: number,
   owner: { id: number; slackUserId: string }
 ): Promise<void> {
-  const { rows: quotes } = await sql`
-    SELECT id, week_start FROM weekly_quotes
-    WHERE week_start = (SELECT MAX(week_start) FROM weekly_quotes)
-    ORDER BY id ASC
-  `;
+  const convex = getConvexClient();
+  const quotes = await convex.query(api.weeklyQuotes.listCurrentWeek, {}) as any[];
 
   if (quoteNumber < 1 || quoteNumber > quotes.length) return;
 
   const selectedQuote = quotes[quoteNumber - 1];
   if (!selectedQuote) return;
 
-  await sql`UPDATE weekly_quotes SET selected = false WHERE week_start = ${selectedQuote.week_start}`;
-  await sql`UPDATE weekly_quotes SET selected = true WHERE id = ${selectedQuote.id}`;
+  // Deselect all quotes for this week, then select the chosen one
+  await convex.mutation(api.weeklyQuotes.selectQuote, {
+    quoteId: selectedQuote._id as any,
+  });
 
   try {
     await sendSlackDM(owner.slackUserId, `Quote #${quoteNumber} selected for this week's bulletin!`);

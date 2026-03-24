@@ -3,7 +3,8 @@
  * Polishes the message with Claude AI, downloads images, creates announcement.
  */
 
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "../../convex-server";
+import { api } from "@/convex/_generated/api";
 import { IntentHandler, HandlerContext } from "../types";
 import { addSlackReaction } from "@/lib/slack";
 
@@ -26,10 +27,16 @@ export class AnnouncementHandler implements IntentHandler {
     }
 
     // Create the announcement
-    await sql`
-      INSERT INTO announcements (author_id, title, content, source, announcement_type, expires_at, image_url)
-      VALUES (${owner.id}, ${cleanedText}, '', 'slack', 'general', ${expiresAt}, ${imageUrl})
-    `;
+    const convex = getConvexClient();
+    await convex.mutation(api.announcements.create, {
+      authorId: owner.id as any,
+      title: cleanedText,
+      content: "",
+      source: "slack",
+      announcementType: "general",
+      expiresAt: expiresAt || undefined,
+      imageUrl,
+    });
 
     // Acknowledge
     await addSlackReaction(channelId, messageTs, "white_check_mark");

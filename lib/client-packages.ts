@@ -1,71 +1,44 @@
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "./convex-server";
+import { api } from "@/convex/_generated/api";
 import { ClientPackage, PackageCategory } from "@/types";
 
-function rowToClientPackage(row: Record<string, unknown>): ClientPackage {
+function docToClientPackage(doc: any): ClientPackage {
   return {
-    id: row.id as number,
-    clientId: row.client_id as number,
-    packageId: row.package_id as number,
-    customPrice: row.custom_price ? parseFloat(row.custom_price as string) : null,
-    customHours: row.custom_hours ? parseFloat(row.custom_hours as string) : null,
-    applySetupFee: (row.apply_setup_fee as boolean) ?? false,
-    customSetupFee: row.custom_setup_fee ? parseFloat(row.custom_setup_fee as string) : null,
-    signupDate: row.signup_date
-      ? (row.signup_date as Date).toISOString().split("T")[0]
-      : new Date().toISOString().split("T")[0],
-    contractEndDate: row.contract_end_date
-      ? (row.contract_end_date as Date).toISOString().split("T")[0]
-      : null,
-    active: row.active as boolean,
-    notes: (row.notes as string) || "",
-    createdAt: (row.created_at as Date)?.toISOString(),
-    updatedAt: (row.updated_at as Date)?.toISOString(),
-    // Joined fields
-    packageName: (row.package_name as string) || undefined,
-    packageDefaultPrice: row.package_default_price
-      ? parseFloat(row.package_default_price as string)
-      : undefined,
-    packageCategory: ((row.package_category as string) || "other") as PackageCategory,
-    packageHoursIncluded: row.package_hours_included
-      ? parseFloat(row.package_hours_included as string)
-      : null,
-    packageSetupFee: row.package_setup_fee
-      ? parseFloat(row.package_setup_fee as string)
-      : undefined,
+    id: doc._id,
+    clientId: doc.clientId,
+    packageId: doc.packageId,
+    customPrice: doc.customPrice ?? null,
+    customHours: doc.customHours ?? null,
+    applySetupFee: doc.applySetupFee ?? false,
+    customSetupFee: doc.customSetupFee ?? null,
+    signupDate: doc.signupDate ?? new Date().toISOString().split("T")[0],
+    contractEndDate: doc.contractEndDate ?? null,
+    active: doc.active ?? true,
+    notes: doc.notes ?? "",
+    createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : undefined,
+    updatedAt: undefined,
+    // Enriched fields from the Convex query
+    packageName: doc.packageName,
+    packageDefaultPrice: doc.packageDefaultPrice,
+    packageCategory: (doc.packageCategory ?? "other") as PackageCategory,
+    packageHoursIncluded: doc.packageHoursIncluded ?? null,
+    packageSetupFee: doc.packageSetupFee,
   };
 }
 
-// Recalculate and update clients.mrr from active package assignments
-export async function syncClientMrr(clientId: number): Promise<void> {
-  await sql`
-    UPDATE clients SET
-      mrr = COALESCE((
-        SELECT SUM(COALESCE(cp.custom_price, p.default_price))
-        FROM client_packages cp
-        JOIN packages p ON p.id = cp.package_id
-        WHERE cp.client_id = ${clientId} AND cp.active = true
-      ), 0),
-      updated_at = NOW()
-    WHERE id = ${clientId}
-  `;
+export async function syncClientMrr(clientId: string): Promise<void> {
+  // MRR is synced automatically by the Convex mutation
 }
 
-export async function getClientPackages(clientId: number): Promise<ClientPackage[]> {
-  const { rows } = await sql`
-    SELECT cp.*, p.name AS package_name, p.default_price AS package_default_price,
-      p.category AS package_category, p.hours_included AS package_hours_included,
-      p.setup_fee AS package_setup_fee
-    FROM client_packages cp
-    JOIN packages p ON p.id = cp.package_id
-    WHERE cp.client_id = ${clientId}
-    ORDER BY cp.active DESC, cp.signup_date DESC
-  `;
-  return rows.map(rowToClientPackage);
+export async function getClientPackages(clientId: string): Promise<ClientPackage[]> {
+  const convex = getConvexClient();
+  const docs = await convex.query(api.clientPackages.listByClient, { clientId: clientId as any });
+  return docs.map(docToClientPackage);
 }
 
 export async function assignPackage(data: {
-  clientId: number;
-  packageId: number;
+  clientId: string;
+  packageId: string;
   customPrice?: number | null;
   customHours?: number | null;
   applySetupFee?: boolean;
@@ -74,49 +47,23 @@ export async function assignPackage(data: {
   contractEndDate?: string | null;
   notes?: string;
 }): Promise<ClientPackage> {
-  try {
-    const { rows } = await sql`
-      INSERT INTO client_packages (client_id, package_id, custom_price, custom_hours, apply_setup_fee, custom_setup_fee, signup_date, contract_end_date, notes)
-      VALUES (
-        ${data.clientId},
-        ${data.packageId},
-        ${data.customPrice ?? null},
-        ${data.customHours ?? null},
-        ${data.applySetupFee ?? false},
-        ${data.customSetupFee ?? null},
-        ${data.signupDate || new Date().toISOString().split("T")[0]},
-        ${data.contractEndDate || null},
-        ${data.notes || ""}
-      )
-      RETURNING *
-    `;
-    return rowToClientPackage(rows[0]);
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("unique")) {
-      await sql`ALTER TABLE client_packages DROP CONSTRAINT IF EXISTS client_packages_client_id_package_id_key`;
-      const { rows } = await sql`
-        INSERT INTO client_packages (client_id, package_id, custom_price, custom_hours, apply_setup_fee, custom_setup_fee, signup_date, contract_end_date, notes)
-        VALUES (
-          ${data.clientId},
-          ${data.packageId},
-          ${data.customPrice ?? null},
-          ${data.customHours ?? null},
-          ${data.applySetupFee ?? false},
-          ${data.customSetupFee ?? null},
-          ${data.signupDate || new Date().toISOString().split("T")[0]},
-          ${data.contractEndDate || null},
-          ${data.notes || ""}
-        )
-        RETURNING *
-      `;
-      return rowToClientPackage(rows[0]);
-    }
-    throw error;
-  }
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.clientPackages.create, {
+    clientId: data.clientId as any,
+    packageId: data.packageId as any,
+    customPrice: data.customPrice ?? undefined,
+    customHours: data.customHours ?? undefined,
+    applySetupFee: data.applySetupFee,
+    customSetupFee: data.customSetupFee ?? undefined,
+    signupDate: data.signupDate,
+    contractEndDate: data.contractEndDate ?? undefined,
+    notes: data.notes,
+  });
+  return docToClientPackage(doc);
 }
 
 export async function updateAssignment(
-  id: number,
+  id: string,
   data: {
     customPrice?: number | null;
     applySetupFee?: boolean;
@@ -127,38 +74,22 @@ export async function updateAssignment(
     notes?: string;
   }
 ): Promise<ClientPackage | null> {
-  const existing = await sql`SELECT * FROM client_packages WHERE id = ${id}`;
-  if (existing.rows.length === 0) return null;
-
-  const current = existing.rows[0];
-  const customPrice = data.customPrice !== undefined ? data.customPrice : current.custom_price;
-  const applySetupFee = data.applySetupFee !== undefined ? data.applySetupFee : current.apply_setup_fee;
-  const customSetupFee = data.customSetupFee !== undefined ? data.customSetupFee : current.custom_setup_fee;
-  const signupDate = data.signupDate ?? current.signup_date;
-  const contractEndDate = data.contractEndDate !== undefined ? data.contractEndDate : current.contract_end_date;
-  const active = data.active ?? current.active;
-  const notes = data.notes ?? current.notes;
-
-  const { rows } = await sql`
-    UPDATE client_packages SET
-      custom_price = ${customPrice},
-      apply_setup_fee = ${applySetupFee ?? false},
-      custom_setup_fee = ${customSetupFee},
-      signup_date = ${signupDate},
-      contract_end_date = ${contractEndDate},
-      active = ${active},
-      notes = ${notes},
-      updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING *
-  `;
-  if (rows.length === 0) return null;
-  return rowToClientPackage(rows[0]);
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.clientPackages.update, {
+    id: id as any,
+    customPrice: data.customPrice ?? undefined,
+    applySetupFee: data.applySetupFee,
+    customSetupFee: data.customSetupFee ?? undefined,
+    signupDate: data.signupDate,
+    contractEndDate: data.contractEndDate ?? undefined,
+    active: data.active,
+    notes: data.notes,
+  } as any);
+  if (!doc) return null;
+  return docToClientPackage(doc);
 }
 
-export async function removeAssignment(id: number): Promise<boolean> {
-  const { rowCount } = await sql`
-    DELETE FROM client_packages WHERE id = ${id}
-  `;
-  return (rowCount ?? 0) > 0;
+export async function removeAssignment(id: string): Promise<boolean> {
+  const convex = getConvexClient();
+  return await convex.mutation(api.clientPackages.remove, { id: id as any });
 }

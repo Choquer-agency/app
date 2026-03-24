@@ -60,9 +60,11 @@ export async function POST(
       session.teamMemberId
     );
 
-    if (action === "start_timer") {
+    if (action === "get_or_create_ticket") {
+      return NextResponse.json({ ticketId });
+    } else if (action === "start_timer") {
       const timeEntry = await startTimer(ticketId, session.teamMemberId);
-      return NextResponse.json(timeEntry);
+      return NextResponse.json({ ...timeEntry, ticketId });
     } else if (action === "manual_entry") {
       const timeEntry = await addManualEntry({
         ticketId,

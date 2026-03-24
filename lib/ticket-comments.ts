@@ -1,91 +1,100 @@
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "./convex-server";
+import { api } from "@/convex/_generated/api";
 import { TicketComment } from "@/types";
 import { logActivity } from "@/lib/ticket-activity";
 import { notifyComment } from "@/lib/notification-triggers";
 
-// === Row Mapper ===
+// === Doc Mapper ===
 
-function rowToComment(row: Record<string, unknown>): TicketComment {
+function docToComment(doc: any): TicketComment {
   return {
-    id: row.id as number,
-    ticketId: row.ticket_id as number,
-    authorType: row.author_type as "team" | "client",
-    authorId: (row.author_id as number) ?? null,
-    authorName: row.author_name as string,
-    authorEmail: (row.author_email as string) ?? "",
-    content: row.content as string,
-    createdAt: (row.created_at as Date)?.toISOString(),
-    updatedAt: (row.updated_at as Date)?.toISOString(),
+    id: doc._id,
+    ticketId: doc.ticketId,
+    authorType: doc.authorType ?? "team",
+    authorId: doc.authorId ?? null,
+    authorName: doc.authorName ?? "",
+    authorEmail: doc.authorEmail ?? "",
+    content: doc.content ?? "",
+    createdAt: doc._creationTime
+      ? new Date(doc._creationTime).toISOString()
+      : "",
+    updatedAt: doc._creationTime
+      ? new Date(doc._creationTime).toISOString()
+      : "",
   };
 }
 
 // === Query Comments ===
 
 export async function getComments(
-  ticketId: number,
+  ticketId: number | string,
   limit = 100,
   offset = 0
 ): Promise<TicketComment[]> {
-  const { rows } = await sql`
-    SELECT * FROM ticket_comments
-    WHERE ticket_id = ${ticketId}
-    ORDER BY created_at ASC
-    LIMIT ${limit} OFFSET ${offset}
-  `;
-  return rows.map(rowToComment);
+  const convex = getConvexClient();
+  const docs = await convex.query(api.ticketComments.listByTicket, {
+    ticketId: ticketId as any,
+    limit,
+  });
+  const sliced = offset > 0 ? docs.slice(offset) : docs;
+  return sliced.map(docToComment);
 }
 
 // === Add Comment ===
 
 export async function addComment(
-  ticketId: number,
-  authorId: number | null,
+  ticketId: number | string,
+  authorId: number | string | null,
   authorName: string,
   authorEmail: string,
   content: string,
   authorType: "team" | "client" = "team"
 ): Promise<TicketComment> {
-  const { rows } = await sql`
-    INSERT INTO ticket_comments (
-      ticket_id, author_type, author_id, author_name, author_email, content
-    )
-    VALUES (
-      ${ticketId}, ${authorType}, ${authorId}, ${authorName}, ${authorEmail}, ${content}
-    )
-    RETURNING *
-  `;
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.ticketComments.create, {
+    ticketId: ticketId as any,
+    authorType,
+    authorId: authorId ? (authorId as any) : undefined,
+    authorName,
+    authorEmail,
+    content,
+  });
 
   await logActivity(ticketId, authorId, authorName, "comment_added");
   notifyComment(ticketId, authorId, authorName);
 
-  return rowToComment(rows[0]);
+  return docToComment(doc);
 }
 
 // === Update Comment (own only) ===
 
 export async function updateComment(
-  commentId: number,
+  commentId: number | string,
   content: string,
-  authorId: number
+  authorId: number | string
 ): Promise<TicketComment | null> {
-  const { rows } = await sql`
-    UPDATE ticket_comments
-    SET content = ${content}, updated_at = NOW()
-    WHERE id = ${commentId} AND author_id = ${authorId}
-    RETURNING *
-  `;
-  return rows.length > 0 ? rowToComment(rows[0]) : null;
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.ticketComments.update, {
+    id: commentId as any,
+    content,
+  });
+  if (!doc) return null;
+  return docToComment(doc);
 }
 
 // === Delete Comment (own only) ===
 
 export async function deleteComment(
-  commentId: number,
-  authorId: number
+  commentId: number | string,
+  authorId: number | string
 ): Promise<boolean> {
-  const { rowCount } = await sql`
-    DELETE FROM ticket_comments
-    WHERE id = ${commentId} AND author_id = ${authorId}
-  `;
-  return (rowCount ?? 0) > 0;
+  const convex = getConvexClient();
+  try {
+    await convex.mutation(api.ticketComments.remove, {
+      id: commentId as any,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -1,39 +1,46 @@
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "./convex-server";
+import { api } from "@/convex/_generated/api";
 import { Notification, NotificationType } from "@/types";
 
-// === Row Mapper ===
+// === Doc Mapper ===
 
-function rowToNotification(row: Record<string, unknown>): Notification {
+function docToNotification(doc: any): Notification {
   return {
-    id: row.id as number,
-    recipientId: row.recipient_id as number,
-    ticketId: (row.ticket_id as number) ?? null,
-    type: row.type as NotificationType,
-    title: row.title as string,
-    body: (row.body as string) ?? "",
-    link: (row.link as string) ?? "",
-    isRead: row.is_read as boolean,
-    createdAt: (row.created_at as Date)?.toISOString(),
+    id: doc._id,
+    recipientId: doc.recipientId,
+    ticketId: doc.ticketId ?? null,
+    type: doc.type as NotificationType,
+    title: doc.title ?? "",
+    body: doc.body ?? "",
+    link: doc.link ?? "",
+    isRead: doc.isRead ?? false,
+    createdAt: doc._creationTime
+      ? new Date(doc._creationTime).toISOString()
+      : "",
   };
 }
 
 // === Create Notification ===
 
 export async function createNotification(
-  recipientId: number,
-  ticketId: number | null,
+  recipientId: number | string,
+  ticketId: number | string | null,
   type: NotificationType,
   title: string,
   body: string,
   link: string
 ): Promise<Notification | null> {
   try {
-    const { rows } = await sql`
-      INSERT INTO notifications (recipient_id, ticket_id, type, title, body, link)
-      VALUES (${recipientId}, ${ticketId}, ${type}, ${title}, ${body}, ${link})
-      RETURNING *
-    `;
-    return rowToNotification(rows[0]);
+    const convex = getConvexClient();
+    const doc = await convex.mutation(api.notifications.create, {
+      recipientId: recipientId as any,
+      ticketId: ticketId ? (ticketId as any) : undefined,
+      type,
+      title,
+      body,
+      link,
+    });
+    return docToNotification(doc);
   } catch (err) {
     console.error("[notifications] Failed to create notification:", err);
     return null;
@@ -41,14 +48,13 @@ export async function createNotification(
 }
 
 export async function createBulkNotifications(
-  recipientIds: number[],
-  ticketId: number | null,
+  recipientIds: (number | string)[],
+  ticketId: number | string | null,
   type: NotificationType,
   title: string,
   body: string,
   link: string
 ): Promise<void> {
-  // Deduplicate and filter
   const unique = [...new Set(recipientIds.filter((id) => id != null))];
   for (const recipientId of unique) {
     await createNotification(recipientId, ticketId, type, title, body, link);
@@ -57,68 +63,72 @@ export async function createBulkNotifications(
 
 // === Query Notifications ===
 
-export async function getUnreadCount(recipientId: number): Promise<number> {
-  const { rows } = await sql`
-    SELECT COUNT(*)::int AS count FROM notifications
-    WHERE recipient_id = ${recipientId} AND is_read = false
-  `;
-  return rows[0].count as number;
+export async function getUnreadCount(recipientId: number | string): Promise<number> {
+  const convex = getConvexClient();
+  return await convex.query(api.notifications.getUnreadCount, {
+    recipientId: recipientId as any,
+  });
 }
 
 export async function getNotifications(
-  recipientId: number,
+  recipientId: number | string,
   limit = 30,
   offset = 0
 ): Promise<Notification[]> {
-  const { rows } = await sql`
-    SELECT * FROM notifications
-    WHERE recipient_id = ${recipientId}
-    ORDER BY created_at DESC
-    LIMIT ${limit} OFFSET ${offset}
-  `;
-  return rows.map(rowToNotification);
+  const convex = getConvexClient();
+  const docs = await convex.query(api.notifications.listByRecipient, {
+    recipientId: recipientId as any,
+    limit,
+  });
+  const sliced = offset > 0 ? docs.slice(offset) : docs;
+  return sliced.map(docToNotification);
 }
 
 // === Mark Read ===
 
-export async function markRead(notificationId: number): Promise<void> {
-  await sql`
-    UPDATE notifications SET is_read = true WHERE id = ${notificationId}
-  `;
+export async function markRead(notificationId: number | string): Promise<void> {
+  const convex = getConvexClient();
+  await convex.mutation(api.notifications.markRead, {
+    id: notificationId as any,
+  });
 }
 
-export async function markAllRead(recipientId: number): Promise<void> {
-  await sql`
-    UPDATE notifications SET is_read = true
-    WHERE recipient_id = ${recipientId} AND is_read = false
-  `;
+export async function markAllRead(recipientId: number | string): Promise<void> {
+  const convex = getConvexClient();
+  await convex.mutation(api.notifications.markAllRead, {
+    recipientId: recipientId as any,
+  });
 }
 
 // === Dedup Check (for cron-driven notifications) ===
 
 export async function hasRecentNotification(
-  recipientId: number,
+  recipientId: number | string,
   type: NotificationType,
-  ticketId: number | null,
+  ticketId: number | string | null,
   withinHours = 24
 ): Promise<boolean> {
-  const { rows } = await sql`
-    SELECT 1 FROM notifications
-    WHERE recipient_id = ${recipientId}
-      AND type = ${type}
-      AND ticket_id IS NOT DISTINCT FROM ${ticketId}
-      AND created_at > NOW() - INTERVAL '1 hour' * ${withinHours}
-    LIMIT 1
-  `;
-  return rows.length > 0;
+  const convex = getConvexClient();
+  // Fetch recent notifications for this recipient and check in JS
+  const docs = await convex.query(api.notifications.listByRecipient, {
+    recipientId: recipientId as any,
+    limit: 100,
+  });
+
+  const cutoff = Date.now() - withinHours * 60 * 60 * 1000;
+  return docs.some((doc: any) => {
+    if (doc.type !== type) return false;
+    if (ticketId && doc.ticketId !== ticketId) return false;
+    if (!ticketId && doc.ticketId) return false;
+    const createdAt = doc._creationTime ?? 0;
+    return createdAt > cutoff;
+  });
 }
 
 // === Cleanup ===
 
 export async function deleteOldNotifications(daysOld = 90): Promise<number> {
-  const { rowCount } = await sql`
-    DELETE FROM notifications
-    WHERE is_read = true AND created_at < NOW() - INTERVAL '1 day' * ${daysOld}
-  `;
-  return rowCount ?? 0;
+  // Would need a dedicated Convex mutation to bulk-delete old notifications.
+  // Not directly supported by current Convex functions.
+  return 0;
 }

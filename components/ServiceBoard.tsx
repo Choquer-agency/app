@@ -6,6 +6,55 @@ import MonthPicker from "./MonthPicker";
 import HourCountdown from "./HourCountdown";
 import ServiceBoardStatusBadge from "./ServiceBoardStatusBadge";
 import ServiceBoardDetailPanel from "./ServiceBoardDetailPanel";
+import TimeTracker from "./TimeTracker";
+
+// Wrapper that lazily gets/creates the service ticket for a board entry
+function ServiceTimeTracker({ entryId }: { entryId: number }) {
+  const [ticketId, setTicketId] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Fetch time data to check if a service ticket exists
+    fetch(`/api/admin/service-board/${entryId}/time-entries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "get_or_create_ticket" }) })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.ticketId) setTicketId(data.ticketId); })
+      .catch(() => {});
+  }, [entryId]);
+
+  if (!ticketId) {
+    // Show a play button that creates the ticket on click
+    return (
+      <button
+        onClick={async (e) => {
+          e.stopPropagation();
+          try {
+            const res = await fetch(`/api/admin/service-board/${entryId}/time-entries`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "start_timer" }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.ticketId) setTicketId(data.ticketId);
+              window.dispatchEvent(new CustomEvent("timerChange"));
+            }
+          } catch {}
+        }}
+        className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-emerald-600 transition"
+        title="Start timer"
+      >
+        <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+        0h
+      </button>
+    );
+  }
+
+  return (
+    <TimeTracker
+      ticketId={ticketId}
+      onTimerChange={() => window.dispatchEvent(new CustomEvent("timerChange"))}
+    />
+  );
+}
 
 function getCurrentMonth(): string {
   const now = new Date();
@@ -172,6 +221,7 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
             <thead>
               <tr className="text-left text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100">
                 <th className="px-6 py-3 font-medium">Client</th>
+                <th className="px-4 py-3 font-medium">Time Tracked</th>
                 <th className="px-4 py-3 font-medium">Hours</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Specialist</th>
@@ -196,6 +246,11 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
                   <td className="px-6 py-3">
                     <span className="text-sm font-medium text-gray-900">{entry.clientName}</span>
                     <div className="text-xs text-gray-400">{entry.packageName}</div>
+                  </td>
+
+                  {/* Time Tracked */}
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ServiceTimeTracker entryId={entry.id} />
                   </td>
 
                   {/* Hours */}

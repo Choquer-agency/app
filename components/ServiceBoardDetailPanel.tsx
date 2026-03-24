@@ -32,20 +32,49 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
   const fetchTimeData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/service-board/${entry.id}/time-entries`);
-      if (res.ok) {
-        const data = await res.json();
+      const [timeRes, timerRes] = await Promise.all([
+        fetch(`/api/admin/service-board/${entry.id}/time-entries`),
+        fetch("/api/admin/time/running"),
+      ]);
+      if (timeRes.ok) {
+        const data = await timeRes.json();
         setTimeData(data);
+      }
+      // Check if the running timer belongs to this service board entry's service ticket
+      if (timerRes.ok) {
+        const timerData = await timerRes.json();
+        if (timerData.timer?.serviceCategory === entry.category && timerData.timer?.clientId === entry.clientId) {
+          setTimerRunning(true);
+          setTimerElapsed(Math.floor((Date.now() - new Date(timerData.timer.startTime).getTime()) / 1000));
+        } else {
+          setTimerRunning(false);
+          setTimerElapsed(0);
+        }
       }
     } catch (e) {
       console.error("Failed to fetch time data:", e);
     } finally {
       setLoading(false);
     }
-  }, [entry.id]);
+  }, [entry.id, entry.category, entry.clientId]);
 
   useEffect(() => {
     fetchTimeData();
+  }, [fetchTimeData]);
+
+  // Live elapsed counter when timer is running
+  const [timerElapsed, setTimerElapsed] = useState(0);
+  useEffect(() => {
+    if (!timerRunning) return;
+    const id = setInterval(() => setTimerElapsed((e) => e + 1), 1000);
+    return () => clearInterval(id);
+  }, [timerRunning]);
+
+  // Listen for global timer changes
+  useEffect(() => {
+    function handleTimerChange() { fetchTimeData(); }
+    window.addEventListener("timerChange", handleTimerChange);
+    return () => window.removeEventListener("timerChange", handleTimerChange);
   }, [fetchTimeData]);
 
   useEffect(() => {
@@ -68,6 +97,8 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
       });
       if (res.ok) {
         setTimerRunning(true);
+        setTimerElapsed(0);
+        window.dispatchEvent(new CustomEvent("timerChange"));
         fetchTimeData();
       }
     } catch (e) {
@@ -80,6 +111,8 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
       const res = await fetch("/api/admin/time/stop", { method: "POST" });
       if (res.ok) {
         setTimerRunning(false);
+        setTimerElapsed(0);
+        window.dispatchEvent(new CustomEvent("timerChange"));
         fetchTimeData();
         const entryRes = await fetch(`/api/admin/service-board/${entry.id}`);
         if (entryRes.ok) onUpdate(await entryRes.json());
@@ -295,8 +328,12 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
                       onClick={handleStopTimer}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-red-50 text-red-700 hover:bg-red-100 transition"
                     >
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                      </span>
+                      {Math.floor(timerElapsed / 3600)}:{String(Math.floor((timerElapsed % 3600) / 60)).padStart(2, "0")}:{String(timerElapsed % 60).padStart(2, "0")}
                       <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>
-                      Stop Timer
                     </button>
                   )}
                   <button

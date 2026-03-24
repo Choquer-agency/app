@@ -3,7 +3,8 @@
  * Creates a ticket from natural language, always confirming before creation.
  */
 
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "../../convex-server";
+import { api } from "@/convex/_generated/api";
 import { IntentHandler, HandlerContext, QuickTicketData } from "../types";
 import { createConversation, updateConversation } from "../conversation";
 import { replyInThread, addSlackReaction } from "@/lib/slack";
@@ -14,9 +15,9 @@ interface TicketDraft {
   title: string;
   description: string | null;
   assigneeName: string | null;
-  assigneeId: number | null;
+  assigneeId: string | null;
   clientName: string | null;
-  clientId: number | null;
+  clientId: string | null;
   dueDate: string | null;
   priority: "low" | "normal" | "high" | "urgent";
 }
@@ -48,29 +49,29 @@ export class QuickTicketHandler implements IntentHandler {
       priority: data?.priority || "normal",
     };
 
+    const convex = getConvexClient();
+
     if (data?.assigneeName) {
-      const { rows } = await sql`
-        SELECT id, name FROM team_members
-        WHERE active = true AND LOWER(name) LIKE ${`%${data.assigneeName.toLowerCase()}%`}
-        LIMIT 1
-      `;
-      if (rows.length > 0) {
-        draft.assigneeName = rows[0].name as string;
-        draft.assigneeId = rows[0].id as number;
+      const teamDocs = await convex.query(api.teamMembers.list, { activeOnly: true }) as any[];
+      const match = teamDocs.find(
+        (t: any) => (t.name as string).toLowerCase().includes(data.assigneeName!.toLowerCase())
+      );
+      if (match) {
+        draft.assigneeName = match.name as string;
+        draft.assigneeId = match._id as string;
       } else {
         draft.assigneeName = data.assigneeName;
       }
     }
 
     if (data?.clientName) {
-      const { rows } = await sql`
-        SELECT id, name FROM clients
-        WHERE active = true AND LOWER(name) LIKE ${`%${data.clientName.toLowerCase()}%`}
-        LIMIT 1
-      `;
-      if (rows.length > 0) {
-        draft.clientName = rows[0].name as string;
-        draft.clientId = rows[0].id as number;
+      const clientDocs = await convex.query(api.clients.list, {}) as any[];
+      const match = clientDocs.find(
+        (c: any) => (c.name as string).toLowerCase().includes(data.clientName!.toLowerCase())
+      );
+      if (match) {
+        draft.clientName = match.name as string;
+        draft.clientId = match._id as string;
       } else {
         draft.clientName = data.clientName;
       }
@@ -168,12 +169,13 @@ export class QuickTicketHandler implements IntentHandler {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-      const [teamResult, clientResult] = await Promise.all([
-        sql`SELECT id, name FROM team_members WHERE active = true`,
-        sql`SELECT id, name FROM clients WHERE active = true`,
+      const convex = getConvexClient();
+      const [teamDocs, clientDocs] = await Promise.all([
+        convex.query(api.teamMembers.list, { activeOnly: true }),
+        convex.query(api.clients.list, {}),
       ]);
-      const teamMembers = teamResult.rows as Array<{ id: number; name: string }>;
-      const clients = clientResult.rows as Array<{ id: number; name: string }>;
+      const teamMembers = (teamDocs as any[]).map((d: any) => ({ id: d._id as string, name: d.name as string }));
+      const clients = (clientDocs as any[]).map((d: any) => ({ id: d._id as string, name: d.name as string }));
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -260,7 +262,7 @@ Only include fields that the user is updating. Use null for unchanged fields. Us
 
     await updateConversation(conversation.threadTs, { state: "creating" });
 
-    const actor = { id: owner.id, name: "Slack Assistant" };
+    const actor = { id: owner.id as any, name: "Slack Assistant" };
 
     try {
       const ticket = await createTicket(
@@ -272,16 +274,16 @@ Only include fields that the user is updating. Use null for unchanged fields. Us
           priority: draft.priority || "normal",
           assigneeIds: draft.assigneeId ? [draft.assigneeId] : [],
         },
-        owner.id,
+        owner.id as any,
         actor
       );
 
       if (draft.dueDate && draft.assigneeId) {
         await addCommitment({
           ticketId: ticket.id,
-          teamMemberId: draft.assigneeId,
+          teamMemberId: draft.assigneeId as any,
           committedDate: draft.dueDate,
-          committedById: owner.id,
+          committedById: owner.id as any,
           notes: "Created from Slack",
         });
       }

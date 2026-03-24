@@ -4,7 +4,8 @@
  * Adapts to input type: transcripts → many tickets, direct tasks → fewer tickets.
  */
 
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "../../convex-server";
+import { api } from "@/convex/_generated/api";
 import { IntentHandler, HandlerContext } from "../types";
 import { createConversation, updateConversation } from "../conversation";
 import { replyInThread, addSlackReaction } from "@/lib/slack";
@@ -13,14 +14,14 @@ import { createTicket } from "@/lib/tickets";
 import { addCommitment } from "@/lib/commitments";
 
 interface ResolvedItem extends ExtractedItem {
-  assigneeIds: number[];
-  clientId: number | null;
+  assigneeIds: string[];
+  clientId: string | null;
 }
 
 interface TranscriptConversationData {
   items: ResolvedItem[];
   summary: string;
-  meetingNoteId: number | null;
+  meetingNoteId: string | null;
 }
 
 export class MeetingTranscriptHandler implements IntentHandler {
@@ -36,20 +37,23 @@ export class MeetingTranscriptHandler implements IntentHandler {
     const { messageText, channelId, messageTs, owner, classification } = ctx;
 
     // Get team member and client names for extraction
-    const [teamResult, clientResult] = await Promise.all([
-      sql`SELECT id, name FROM team_members WHERE active = true`,
-      sql`SELECT id, name FROM clients WHERE active = true`,
+    const convex = getConvexClient();
+    const [teamDocs, clientDocs] = await Promise.all([
+      convex.query(api.teamMembers.list, { activeOnly: true }),
+      convex.query(api.clients.list, {}),
     ]);
-    const teamMembers = teamResult.rows as Array<{ id: number; name: string }>;
-    const clients = clientResult.rows as Array<{ id: number; name: string }>;
+    const teamMembers = teamDocs.map((d: any) => ({ id: d._id as string, name: d.name as string }));
+    const clients = clientDocs.map((d: any) => ({ id: d._id as string, name: d.name as string }));
 
     // Save as meeting note
-    const { rows: noteRows } = await sql`
-      INSERT INTO meeting_notes (team_member_id, created_by_id, transcript, source, meeting_date)
-      VALUES (${owner.id}, ${owner.id}, ${messageText}, 'slack', ${new Date().toISOString().split("T")[0]})
-      RETURNING id
-    `;
-    const meetingNoteId = noteRows[0]?.id as number | null;
+    const meetingNoteDoc = await convex.mutation(api.meetingNotes.create, {
+      teamMemberId: owner.id as any,
+      createdById: owner.id as any,
+      transcript: messageText,
+      source: "slack",
+      meetingDate: new Date().toISOString().split("T")[0],
+    });
+    const meetingNoteId = meetingNoteDoc?._id as string | null;
 
     // Determine extraction options from classification
     const estimatedCount = classification?.estimatedTicketCount;
@@ -104,7 +108,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
     const resolvedItems: ResolvedItem[] = extraction.items.map((item) => {
       const assigneeIds = item.assigneeNames
         .map((name) => teamMembers.find((t) => t.name.toLowerCase() === name.toLowerCase())?.id)
-        .filter(Boolean) as number[];
+        .filter(Boolean) as string[];
       const clientMatch = clients.find(
         (c) => c.name.toLowerCase() === item.clientName.toLowerCase()
       );
@@ -299,10 +303,14 @@ export class MeetingTranscriptHandler implements IntentHandler {
     const assigneeMatch = changeText.match(/(?:assignee|assign)\s+(?:to\s+)?(.+)/i);
     if (assigneeMatch) {
       const name = assigneeMatch[1].trim();
-      const { rows } = await sql`SELECT id, name FROM team_members WHERE active = true AND LOWER(name) LIKE ${`%${name.toLowerCase()}%`} LIMIT 1`;
-      if (rows.length > 0) {
-        item.assigneeNames = [rows[0].name as string];
-        item.assigneeIds = [rows[0].id as number];
+      const convex = getConvexClient();
+      const teamDocs = await convex.query(api.teamMembers.list, { activeOnly: true });
+      const match = (teamDocs as any[]).find(
+        (t: any) => (t.name as string).toLowerCase().includes(name.toLowerCase())
+      );
+      if (match) {
+        item.assigneeNames = [match.name as string];
+        item.assigneeIds = [match._id as string];
       }
       return;
     }
@@ -322,10 +330,14 @@ export class MeetingTranscriptHandler implements IntentHandler {
     const clientMatch = changeText.match(/(?:client)\s+(?:to\s+)?(.+)/i);
     if (clientMatch) {
       const name = clientMatch[1].trim();
-      const { rows } = await sql`SELECT id, name FROM clients WHERE active = true AND LOWER(name) LIKE ${`%${name.toLowerCase()}%`} LIMIT 1`;
-      if (rows.length > 0) {
-        item.clientName = rows[0].name as string;
-        item.clientId = rows[0].id as number;
+      const convex = getConvexClient();
+      const clientDocs = await convex.query(api.clients.list, {});
+      const match = (clientDocs as any[]).find(
+        (c: any) => (c.name as string).toLowerCase().includes(name.toLowerCase())
+      );
+      if (match) {
+        item.clientName = match.name as string;
+        item.clientId = match._id as string;
       }
       return;
     }
@@ -382,7 +394,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
     if (!conversation) return;
 
     await updateConversation(conversation.threadTs, { state: "creating_tickets" });
-    const actor = { id: owner.id, name: "Slack Assistant" };
+    const actor = { id: owner.id as any, name: "Slack Assistant" };
     const created: Array<{ ticketNumber: string; title: string }> = [];
 
     for (const item of data.items) {
@@ -396,7 +408,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
             priority: item.priority || "normal",
             assigneeIds: item.assigneeIds,
           },
-          owner.id,
+          owner.id as any,
           actor
         );
 
@@ -405,9 +417,9 @@ export class MeetingTranscriptHandler implements IntentHandler {
           for (const assigneeId of item.assigneeIds) {
             await addCommitment({
               ticketId: ticket.id,
-              teamMemberId: assigneeId,
+              teamMemberId: assigneeId as any,
               committedDate: item.dueDate,
-              committedById: owner.id,
+              committedById: owner.id as any,
               notes: "Created from Slack",
             });
           }
@@ -421,11 +433,15 @@ export class MeetingTranscriptHandler implements IntentHandler {
 
     // Link to meeting note
     if (data.meetingNoteId && created.length > 0) {
-      await sql`
-        UPDATE meeting_notes
-        SET raw_extraction = raw_extraction || ${JSON.stringify({ createdTickets: created })}::jsonb
-        WHERE id = ${data.meetingNoteId}
-      `;
+      try {
+        const convex = getConvexClient();
+        await convex.mutation(api.meetingNotes.update, {
+          id: data.meetingNoteId as any,
+          rawExtraction: { createdTickets: created },
+        });
+      } catch (err) {
+        console.error("Failed to update meeting note:", err);
+      }
     }
 
     await updateConversation(conversation.threadTs, { state: "done" });

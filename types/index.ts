@@ -1,6 +1,6 @@
-// Client configuration (stored in Postgres)
+// Client configuration
 export interface ClientConfig {
-  id: number;
+  id: string;
   name: string;
   slug: string;
   ga4PropertyId: string;
@@ -85,7 +85,7 @@ export type BillingFrequency = "one_time" | "weekly" | "bi_weekly" | "monthly" |
 
 // Package (service offering)
 export interface Package {
-  id: number;
+  id: string;
   name: string;
   description: string;
   defaultPrice: number;
@@ -113,9 +113,9 @@ export interface CreatePackageInput {
 
 // Client-package assignment
 export interface ClientPackage {
-  id: number;
-  clientId: number;
-  packageId: number;
+  id: string;
+  clientId: string;
+  packageId: string;
   customPrice: number | null;
   customHours: number | null;
   applySetupFee: boolean;
@@ -136,8 +136,8 @@ export interface ClientPackage {
 
 // Client note / activity entry
 export interface ClientNote {
-  id: number;
-  clientId: number;
+  id: string;
+  clientId: string;
   author: string;
   noteType: "note" | "call" | "email" | "meeting" | "status_change" | "package_change" | "system";
   content: string;
@@ -147,7 +147,7 @@ export interface ClientNote {
 
 // Team member
 export interface TeamMember {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: string;
@@ -182,24 +182,24 @@ export type TicketStatus =
 export type TicketPriority = "low" | "normal" | "high" | "urgent";
 
 export interface Ticket {
-  id: number;
+  id: string;
   ticketNumber: string;
   title: string;
   description: string;
   descriptionFormat: "plain" | "tiptap";
-  clientId: number | null;
-  projectId: number | null;
-  parentTicketId: number | null;
+  clientId: string | null;
+  projectId: string | null;
+  parentTicketId: string | null;
   status: TicketStatus;
   priority: TicketPriority;
   ticketGroup: string;
-  groupId: number | null;
-  templateRoleId: number | null;
+  groupId: string | null;
+  templateRoleId: string | null;
   startDate: string | null;
   dueDate: string | null;
   dueTime: string | null;
   sortOrder: number;
-  createdById: number | null;
+  createdById: string | null;
   archived: boolean;
   isPersonal: boolean;
   isMeeting: boolean;
@@ -223,9 +223,9 @@ export interface Ticket {
 }
 
 export interface TicketAssignee {
-  id: number;
-  ticketId: number;
-  teamMemberId: number;
+  id: string;
+  ticketId: string;
+  teamMemberId: string;
   assignedAt: string;
   // Joined from team_members
   memberName?: string;
@@ -238,9 +238,9 @@ export interface CreateTicketInput {
   title: string;
   description?: string;
   descriptionFormat?: "plain" | "tiptap";
-  clientId?: number | null;
-  projectId?: number | null;
-  parentTicketId?: number | null;
+  clientId?: string | null;
+  projectId?: string | null;
+  parentTicketId?: string | null;
   status?: TicketStatus;
   priority?: TicketPriority;
   ticketGroup?: string;
@@ -248,26 +248,26 @@ export interface CreateTicketInput {
   dueDate?: string | null;
   dueTime?: string | null;
   sortOrder?: number;
-  assigneeIds?: number[];
+  assigneeIds?: string[];
   isPersonal?: boolean;
   isMeeting?: boolean;
   isEmail?: boolean;
   assignAllRoles?: boolean;
   dayOffsetStart?: number | null;
   dayOffsetDue?: number | null;
-  groupId?: number | null;
-  templateRoleId?: number | null;
+  groupId?: string | null;
+  templateRoleId?: string | null;
   serviceCategory?: ServiceBoardCategory | null;
 }
 
 export interface TicketFilters {
-  clientId?: number;
-  projectId?: number;
+  clientId?: string;
+  projectId?: string;
   status?: TicketStatus | TicketStatus[];
   priority?: TicketPriority | TicketPriority[];
-  assigneeId?: number;
-  createdById?: number;
-  parentTicketId?: number | null;
+  assigneeId?: string;
+  createdById?: string;
+  parentTicketId?: string | null;
   archived?: boolean;
   isPersonal?: boolean;
   startDateActive?: boolean; // true = only show tickets where start_date <= today or start_date is null
@@ -279,8 +279,8 @@ export interface TicketFilters {
 }
 
 export interface SavedView {
-  id: number;
-  teamMemberId: number;
+  id: string;
+  teamMemberId: string;
   name: string;
   filters: TicketFilters;
   isDefault: boolean;
@@ -297,9 +297,9 @@ export interface CreateSavedViewInput {
 
 // Ticket activity log entry
 export interface TicketActivity {
-  id: number;
-  ticketId: number;
-  actorId: number | null;
+  id: string;
+  ticketId: string;
+  actorId: string | null;
   actorName: string;
   actionType: string;
   fieldName: string | null;
@@ -312,10 +312,10 @@ export interface TicketActivity {
 // === Comment Types ===
 
 export interface TicketComment {
-  id: number;
-  ticketId: number;
+  id: string;
+  ticketId: string;
   authorType: "team" | "client";
-  authorId: number | null;
+  authorId: string | null;
   authorName: string;
   authorEmail: string;
   content: string;
@@ -326,9 +326,9 @@ export interface TicketComment {
 // === Attachment Types ===
 
 export interface TicketAttachment {
-  id: number;
-  ticketId: number;
-  uploadedById: number | null;
+  id: string;
+  ticketId: string;
+  uploadedById: string | null;
   uploadedByName: string;
   fileName: string;
   fileUrl: string;
@@ -340,9 +340,9 @@ export interface TicketAttachment {
 // === Time Tracking Types ===
 
 export interface TimeEntry {
-  id: number;
-  ticketId: number;
-  teamMemberId: number;
+  id: string;
+  ticketId: string;
+  teamMemberId: string;
   startTime: string;
   endTime: string | null;
   durationSeconds: number | null;
@@ -355,21 +355,23 @@ export interface TimeEntry {
   memberProfilePicUrl?: string;
   ticketNumber?: string;
   ticketTitle?: string;
-  clientId?: number | null;
+  clientId?: string | null;
   clientName?: string | null;
 }
 
 export interface RunningTimer {
-  entryId: number;
-  ticketId: number;
+  entryId: string;
+  ticketId: string;
   ticketNumber: string;
   ticketTitle: string;
   startTime: string;
   clientName: string | null;
+  serviceCategory: string | null;
+  clientId: string | null;
 }
 
 export interface ClientHoursSummary {
-  clientId: number;
+  clientId: string;
   clientName: string;
   month: string;
   loggedHours: number;
@@ -377,7 +379,7 @@ export interface ClientHoursSummary {
   percentUsed: number;
   status: "ok" | "warning" | "exceeded";
   byTicket: Array<{
-    ticketId: number;
+    ticketId: string;
     ticketNumber: string;
     ticketTitle: string;
     hours: number;
@@ -385,12 +387,12 @@ export interface ClientHoursSummary {
 }
 
 export interface TeamTimeReportEntry {
-  teamMemberId: number;
+  teamMemberId: string;
   memberName: string;
   memberColor: string;
   totalSeconds: number;
   byClient: Array<{
-    clientId: number | null;
+    clientId: string | null;
     clientName: string | null;
     seconds: number;
   }>;
@@ -409,9 +411,9 @@ export type NotificationType =
   | "runaway_timer";
 
 export interface Notification {
-  id: number;
-  recipientId: number;
-  ticketId: number | null;
+  id: string;
+  recipientId: string;
+  ticketId: string | null;
   type: NotificationType;
   title: string;
   body: string;
@@ -425,16 +427,16 @@ export interface Notification {
 export type ProjectStatus = "active" | "completed" | "on_hold";
 
 export interface Project {
-  id: number;
+  id: string;
   name: string;
   description: string;
-  clientId: number | null;
+  clientId: string | null;
   isTemplate: boolean;
   status: ProjectStatus;
   archived: boolean;
   startDate: string | null;
   dueDate: string | null;
-  createdById: number | null;
+  createdById: string | null;
   createdAt: string;
   updatedAt: string;
   // Joined fields
@@ -446,7 +448,7 @@ export interface Project {
 export interface CreateProjectInput {
   name: string;
   description?: string;
-  clientId?: number | null;
+  clientId?: string | null;
   isTemplate?: boolean;
   status?: ProjectStatus;
   startDate?: string | null;
@@ -454,8 +456,8 @@ export interface CreateProjectInput {
 }
 
 export interface ProjectGroup {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   color: string | null;
   sortOrder: number;
@@ -463,15 +465,15 @@ export interface ProjectGroup {
 }
 
 export interface ProjectTemplateRole {
-  id: number;
-  projectId: number;
+  id: string;
+  projectId: string;
   name: string;
   sortOrder: number;
   createdAt: string;
 }
 
 export interface DateCascadePreview {
-  ticketId: number;
+  ticketId: string;
   ticketNumber: string;
   ticketTitle: string;
   field: "startDate" | "dueDate";
@@ -481,9 +483,9 @@ export interface DateCascadePreview {
 }
 
 export interface ProjectMember {
-  id: number;
-  projectId: number;
-  teamMemberId: number;
+  id: string;
+  projectId: string;
+  teamMemberId: string;
   addedAt: string;
   // Joined fields
   memberName?: string;
@@ -495,12 +497,12 @@ export interface ProjectMember {
 export type CommitmentStatus = "active" | "met" | "missed";
 
 export interface TicketCommitment {
-  id: number;
-  ticketId: number;
-  teamMemberId: number;
+  id: string;
+  ticketId: string;
+  teamMemberId: string;
   committedDate: string;
   committedAt: string;
-  committedById: number | null;
+  committedById: string | null;
   status: CommitmentStatus;
   resolvedAt: string | null;
   notes: string;
@@ -510,7 +512,7 @@ export interface TicketCommitment {
 }
 
 export interface ReliabilityScore {
-  teamMemberId: number;
+  teamMemberId: string;
   memberName: string;
   totalCommitments: number;
   commitmentsMet: number;
@@ -519,9 +521,9 @@ export interface ReliabilityScore {
 }
 
 export interface TicketDependency {
-  id: number;
-  ticketId: number;
-  dependsOnTicketId: number;
+  id: string;
+  ticketId: string;
+  dependsOnTicketId: string;
   // Joined fields
   dependsOnTicketNumber?: string;
   dependsOnTicketTitle?: string;
@@ -535,7 +537,7 @@ export interface ApprovalLink {
 }
 
 export interface Approval {
-  id: number;
+  id: string;
   clientSlug: string;
   title: string;
   description: string | null;
@@ -648,21 +650,21 @@ export interface TrackingEvent {
   sessionId: string;
   deviceType: "mobile" | "desktop" | "tablet";
   referrer?: string;
-  visitorId?: number;
+  visitorId?: string;
   deviceId?: string;
 }
 
 // Visitor identification
 export interface Visitor {
-  id: number;
+  id: string;
   clientSlug: string;
   visitorName: string;
   createdAt: string;
 }
 
 export interface VisitorDevice {
-  id: number;
-  visitorId: number;
+  id: string;
+  visitorId: string;
   deviceId: string;
   deviceType: string;
   userAgent: string;
@@ -671,7 +673,7 @@ export interface VisitorDevice {
 }
 
 export interface VisitorIdentification {
-  visitorId: number;
+  visitorId: string;
   visitorName: string;
   deviceId: string;
 }
@@ -713,19 +715,19 @@ export interface ClientEngagement {
 export type RecurrenceRule = "weekly" | "biweekly" | "monthly" | "quarterly";
 
 export interface RecurringTicketTemplate {
-  id: number;
+  id: string;
   title: string;
   description: string;
   descriptionFormat: "plain" | "tiptap";
-  clientId: number;
-  projectId: number | null;
+  clientId: string;
+  projectId: string | null;
   priority: TicketPriority;
   ticketGroup: string;
   recurrenceRule: RecurrenceRule;
   recurrenceDay: number;
   nextCreateAt: string;
   active: boolean;
-  createdById: number | null;
+  createdById: string | null;
   createdAt: string;
   updatedAt: string;
   // Joined fields
@@ -736,9 +738,9 @@ export interface RecurringTicketTemplate {
 }
 
 export interface RecurringTemplateAssignee {
-  id: number;
-  templateId: number;
-  teamMemberId: number;
+  id: string;
+  templateId: string;
+  teamMemberId: string;
   memberName?: string;
   memberEmail?: string;
   memberColor?: string;
@@ -750,8 +752,8 @@ export interface RecurringTemplateAssignee {
 export type AnnouncementType = "general" | "birthday" | "anniversary" | "time_off";
 
 export interface Announcement {
-  id: number;
-  authorId: number;
+  id: string;
+  authorId: string;
   authorName: string;
   authorPic: string;
   title: string;
@@ -761,11 +763,11 @@ export interface Announcement {
   announcementType: AnnouncementType;
   imageUrl: string;
   createdAt: string;
-  reactions: Array<{ emoji: string; memberName: string; memberId: number }>;
+  reactions: Array<{ emoji: string; memberName: string; memberId: string }>;
 }
 
 export interface WeeklyQuote {
-  id: number;
+  id: string;
   quote: string;
   author: string;
   weekStart: string;
@@ -788,7 +790,7 @@ export interface BulletinAnniversary {
 }
 
 export interface BulletinProject {
-  id: number;
+  id: string;
   clientName: string;
   projectName: string;
   status: ProjectStatus;
@@ -817,13 +819,13 @@ export type ServiceBoardStatus = "needs_attention" | "in_progress" | "report_rea
 export type ServiceBoardCategory = "seo" | "google_ads" | "retainer";
 
 export interface ServiceBoardEntry {
-  id: number;
-  clientId: number;
-  clientPackageId: number;
+  id: string;
+  clientId: string;
+  clientPackageId: string;
   category: ServiceBoardCategory;
   month: string; // ISO date for first of month
   status: ServiceBoardStatus;
-  specialistId: number | null;
+  specialistId: string | null;
   monthlyEmailSentAt: string | null;
   quarterlyEmailSentAt: string | null;
   notes: string;
@@ -847,7 +849,7 @@ export interface ServiceBoardEntry {
 }
 
 export interface ServiceHoursSummary {
-  clientId: number;
+  clientId: string;
   category: ServiceBoardCategory;
   month: string;
   loggedHours: number;
@@ -855,7 +857,7 @@ export interface ServiceHoursSummary {
   percentUsed: number;
   status: "ok" | "warning" | "exceeded";
   byTicket: Array<{
-    ticketId: number;
+    ticketId: string;
     ticketNumber: string;
     ticketTitle: string;
     hours: number;
@@ -866,13 +868,13 @@ export interface CreateRecurringTemplateInput {
   title: string;
   description?: string;
   descriptionFormat?: "plain" | "tiptap";
-  clientId: number;
-  projectId?: number | null;
+  clientId: string;
+  projectId?: string | null;
   priority?: TicketPriority;
   ticketGroup?: string;
   recurrenceRule: RecurrenceRule;
   recurrenceDay: number;
   nextCreateAt: string;
   active?: boolean;
-  assigneeIds?: number[];
+  assigneeIds?: string[];
 }

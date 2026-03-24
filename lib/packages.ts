@@ -1,110 +1,75 @@
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "./convex-server";
+import { api } from "@/convex/_generated/api";
 import { Package, CreatePackageInput, PackageCategory, BillingFrequency } from "@/types";
 
-function rowToPackage(row: Record<string, unknown>): Package {
+function docToPackage(doc: any): Package {
   return {
-    id: row.id as number,
-    name: row.name as string,
-    description: (row.description as string) || "",
-    defaultPrice: parseFloat((row.default_price as string) || "0"),
-    category: ((row.category as string) || "other") as PackageCategory,
-    billingFrequency: ((row.billing_frequency as string) || "monthly") as BillingFrequency,
-    hoursIncluded: row.hours_included ? parseFloat(row.hours_included as string) : null,
-    includedServices: (row.included_services as string[]) || [],
-    setupFee: parseFloat((row.setup_fee as string) || "0"),
-    active: row.active as boolean,
-    createdAt: (row.created_at as Date)?.toISOString(),
-    updatedAt: (row.updated_at as Date)?.toISOString(),
+    id: doc._id,
+    name: doc.name ?? "",
+    description: doc.description ?? "",
+    defaultPrice: doc.defaultPrice ?? 0,
+    category: (doc.category ?? "other") as PackageCategory,
+    billingFrequency: (doc.billingFrequency ?? "monthly") as BillingFrequency,
+    hoursIncluded: doc.hoursIncluded ?? null,
+    includedServices: doc.includedServices ?? [],
+    setupFee: doc.setupFee ?? 0,
+    active: doc.active ?? true,
+    createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : undefined,
+    updatedAt: undefined,
   };
 }
 
 export async function getAllPackages(): Promise<Package[]> {
-  const { rows } = await sql`
-    SELECT * FROM packages ORDER BY active DESC, name
-  `;
-  return rows.map(rowToPackage);
+  const convex = getConvexClient();
+  const docs = await convex.query(api.packages.list, {});
+  return docs.map(docToPackage);
 }
 
 export async function getActivePackages(): Promise<Package[]> {
-  const { rows } = await sql`
-    SELECT * FROM packages WHERE active = true ORDER BY name
-  `;
-  return rows.map(rowToPackage);
+  const convex = getConvexClient();
+  const docs = await convex.query(api.packages.list, { activeOnly: true });
+  return docs.map(docToPackage);
 }
 
-export async function getPackageById(id: number): Promise<Package | null> {
-  const { rows } = await sql`
-    SELECT * FROM packages WHERE id = ${id} LIMIT 1
-  `;
-  if (rows.length === 0) return null;
-  return rowToPackage(rows[0]);
-}
-
-function toArrayLiteral(arr: string[]): string {
-  return `{${arr.map((s) => `"${s.replace(/"/g, '\\"')}"`).join(",")}}`;
+export async function getPackageById(id: string): Promise<Package | null> {
+  const convex = getConvexClient();
+  const doc = await convex.query(api.packages.getById, { id: id as any });
+  if (!doc) return null;
+  return docToPackage(doc);
 }
 
 export async function createPackage(data: CreatePackageInput): Promise<Package> {
-  const servicesLiteral = toArrayLiteral(data.includedServices || []);
-  const { rows } = await sql`
-    INSERT INTO packages (name, description, default_price, category, billing_frequency, hours_included, included_services, setup_fee, active)
-    VALUES (
-      ${data.name},
-      ${data.description || ""},
-      ${data.defaultPrice},
-      ${data.category || "other"},
-      ${data.billingFrequency || "monthly"},
-      ${data.hoursIncluded ?? null},
-      ${servicesLiteral}::text[],
-      ${data.setupFee ?? 0},
-      ${data.active ?? true}
-    )
-    RETURNING *
-  `;
-  return rowToPackage(rows[0]);
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.packages.create, {
+    name: data.name,
+    description: data.description,
+    defaultPrice: data.defaultPrice,
+    category: data.category,
+    billingFrequency: data.billingFrequency,
+    hoursIncluded: data.hoursIncluded ?? undefined,
+    includedServices: data.includedServices,
+    setupFee: data.setupFee,
+    active: data.active,
+  });
+  return docToPackage(doc);
 }
 
 export async function updatePackage(
-  id: number,
+  id: string,
   data: Partial<CreatePackageInput>
 ): Promise<Package | null> {
-  const existing = await sql`SELECT * FROM packages WHERE id = ${id}`;
-  if (existing.rows.length === 0) return null;
-
-  const current = existing.rows[0];
-  const name = data.name ?? current.name;
-  const description = data.description ?? current.description;
-  const defaultPrice = data.defaultPrice ?? current.default_price;
-  const category = data.category ?? current.category ?? "other";
-  const billingFrequency = data.billingFrequency ?? current.billing_frequency ?? "monthly";
-  const hoursIncluded = data.hoursIncluded !== undefined ? data.hoursIncluded : current.hours_included;
-  const includedServices = data.includedServices ?? current.included_services ?? [];
-  const servicesLiteral = toArrayLiteral(includedServices as string[]);
-  const setupFee = data.setupFee !== undefined ? data.setupFee : current.setup_fee;
-  const active = data.active ?? current.active;
-
-  const { rows } = await sql`
-    UPDATE packages SET
-      name = ${name},
-      description = ${description},
-      default_price = ${defaultPrice},
-      category = ${category},
-      billing_frequency = ${billingFrequency},
-      hours_included = ${hoursIncluded ?? null},
-      included_services = ${servicesLiteral}::text[],
-      setup_fee = ${setupFee ?? 0},
-      active = ${active},
-      updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING *
-  `;
-  if (rows.length === 0) return null;
-  return rowToPackage(rows[0]);
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.packages.update, {
+    id: id as any,
+    ...data,
+    hoursIncluded: data.hoursIncluded ?? undefined,
+  } as any);
+  if (!doc) return null;
+  return docToPackage(doc);
 }
 
-export async function deletePackage(id: number): Promise<boolean> {
-  const { rowCount } = await sql`
-    UPDATE packages SET active = false, updated_at = NOW() WHERE id = ${id}
-  `;
-  return (rowCount ?? 0) > 0;
+export async function deletePackage(id: string): Promise<boolean> {
+  const convex = getConvexClient();
+  await convex.mutation(api.packages.softDelete, { id: id as any });
+  return true;
 }

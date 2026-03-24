@@ -1,19 +1,27 @@
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 import { autoResolveMissedCommitments, autoResolveMetCommitments } from "@/lib/commitments";
 import { sendSlackDM, logSlackMessage } from "@/lib/slack";
 
 export async function GET() {
   try {
+    const convex = getConvexClient();
+
     // 1. Auto-resolve: mark missed and met commitments first
     const missed = await autoResolveMissedCommitments();
     const met = await autoResolveMetCommitments();
 
-    // 2. Get all active team members (not just those with Slack)
-    const { rows: members } = await sql`
-      SELECT id, name FROM team_members WHERE active = true
-      ORDER BY (LOWER(email) = 'bryce@choquer.agency') DESC, name
-    `;
+    // 2. Get all active team members
+    const allMembers = await convex.query(api.teamMembers.list);
+    const members = allMembers
+      .filter((m: any) => m.active)
+      .sort((a: any, b: any) => {
+        const aIsOwner = (a.email || "").toLowerCase() === "bryce@choquer.agency" ? 0 : 1;
+        const bIsOwner = (b.email || "").toLowerCase() === "bryce@choquer.agency" ? 0 : 1;
+        if (aIsOwner !== bIsOwner) return aIsOwner - bIsOwner;
+        return (a.name || "").localeCompare(b.name || "");
+      });
 
     // 3. For each member, calculate last week's commitment stats
     const memberSummaries: Array<{
@@ -26,41 +34,55 @@ export async function GET() {
       missedItems: Array<{ ticketNumber: string; title: string }>;
     }> = [];
 
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
     for (const member of members) {
-      const memberId = member.id as number;
+      const memberId = member._id;
       const memberName = member.name as string;
 
-      // Commitments resolved in the last 7 days
-      const { rows: resolved } = await sql`
-        SELECT tc.status, t.ticket_number, t.title
-        FROM ticket_commitments tc
-        JOIN tickets t ON t.id = tc.ticket_id
-        WHERE tc.team_member_id = ${memberId}
-          AND tc.resolved_at > NOW() - INTERVAL '7 days'
-      `;
+      // Get commitments for this member via tickets they're assigned to
+      const assignedTickets = await convex.query(api.ticketAssignees.listByMember, {
+        teamMemberId: memberId as any,
+      });
 
-      // Active commitments (still pending)
-      const { rows: active } = await sql`
-        SELECT COUNT(*) AS count
-        FROM ticket_commitments tc
-        WHERE tc.team_member_id = ${memberId}
-          AND tc.status = 'active'
-      `;
+      const resolved: Array<{ status: string; ticketNumber: string; title: string }> = [];
+      let activeCount = 0;
+
+      for (const assignment of assignedTickets) {
+        const commitments = await convex.query(api.commitments.listByTicket, {
+          ticketId: assignment.ticketId as any,
+        });
+
+        for (const c of commitments) {
+          if ((c as any).teamMemberId !== memberId) continue;
+
+          if (c.status === "active") {
+            activeCount++;
+          } else if (c.resolvedAt && c.resolvedAt > sevenDaysAgo) {
+            // Get ticket details
+            const tickets = await convex.query(api.tickets.list);
+            const ticket = tickets.find((t: any) => t._id === assignment.ticketId);
+            resolved.push({
+              status: c.status,
+              ticketNumber: ticket?.ticketNumber || "",
+              title: ticket?.title || "",
+            });
+          }
+        }
+      }
 
       const metCount = resolved.filter((r) => r.status === "met").length;
       const missedCount = resolved.filter((r) => r.status === "missed").length;
-      const activeCount = Number(active[0]?.count || 0);
       const total = metCount + missedCount;
       const reliability = total > 0 ? Math.round((metCount / total) * 100) : -1;
 
       const missedItems = resolved
         .filter((r) => r.status === "missed")
         .map((r) => ({
-          ticketNumber: r.ticket_number as string,
-          title: r.title as string,
+          ticketNumber: r.ticketNumber,
+          title: r.title,
         }));
 
-      // Only include members who had commitments
       if (total > 0 || activeCount > 0) {
         memberSummaries.push({
           name: memberName,
@@ -119,20 +141,19 @@ export async function GET() {
     const message = lines.join("\n");
 
     // 5. Send to owner (Bryce)
-    const { rows: owners } = await sql`
-      SELECT id, slack_user_id FROM team_members
-      WHERE role_level = 'owner' AND active = true AND slack_user_id != ''
-      LIMIT 1
-    `;
+    const owners = allMembers.filter(
+      (m: any) => m.roleLevel === "owner" && m.active && m.slackUserId
+    );
 
     let sent = false;
     if (owners.length > 0) {
-      const ownerId = owners[0].id as number;
-      const ownerSlackId = owners[0].slack_user_id as string;
+      const owner = owners[0];
+      const ownerId = owner._id;
+      const ownerSlackId = owner.slackUserId as string;
 
       const result = await sendSlackDM(ownerSlackId, message);
       if (result.ok) {
-        await logSlackMessage(ownerId, "weekly_summary", message, result.ts);
+        await logSlackMessage(ownerId as any, "weekly_summary", message, result.ts);
         sent = true;
       } else {
         console.error("[weekly-summary] Failed to send to owner:", result.error);

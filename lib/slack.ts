@@ -96,14 +96,18 @@ export async function addSlackReaction(
  * Log a sent Slack message to the database for audit.
  */
 export async function logSlackMessage(
-  teamMemberId: number,
+  teamMemberId: string,
   messageType: string,
   messageText: string,
   slackTs?: string
 ): Promise<void> {
-  const { sql } = await import("@vercel/postgres");
-  await sql`
-    INSERT INTO slack_messages (team_member_id, message_type, message_text, slack_ts)
-    VALUES (${teamMemberId}, ${messageType}, ${messageText}, ${slackTs || ""})
-  `;
+  const { getConvexClient } = await import("./convex-server");
+  const { api } = await import("@/convex/_generated/api");
+  const convex = getConvexClient();
+  await convex.mutation(api.slackMessages.create, {
+    teamMemberId: teamMemberId as any,
+    messageType,
+    messageText,
+    slackTs,
+  });
 }

@@ -1,25 +1,21 @@
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
 
 // Public endpoint: returns only active team member names + profile pics for login screen
 export async function GET() {
   try {
-    const { rows } = await sql`
-      SELECT id, name, email, profile_pic_url
-      FROM team_members
-      WHERE active = true
-      ORDER BY (LOWER(email) = 'bryce@choquer.agency') DESC, created_at ASC
-    `;
+    const convex = getConvexClient();
+    const docs = await convex.query(api.teamMembers.list, { activeOnly: true });
     return NextResponse.json(
-      rows.map((r) => ({
-        id: r.id,
-        name: r.name,
-        email: r.email,
-        profilePicUrl: r.profile_pic_url || "",
+      docs.map((d: any) => ({
+        id: d._id,
+        name: d.name,
+        email: d.email,
+        profilePicUrl: d.profilePicUrl || "",
       }))
     );
-  } catch (err) {
-    console.error("profiles error:", err);
+  } catch {
     return NextResponse.json([], { status: 200 });
   }
 }

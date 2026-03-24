@@ -3,7 +3,8 @@
  * Classifies incoming owner messages and dispatches to the appropriate handler.
  */
 
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "../convex-server";
+import { api } from "@/convex/_generated/api";
 import { classifyIntent } from "./classify";
 import { getConversation } from "./conversation";
 import { applyVoiceCorrections } from "./voice-corrections";
@@ -36,13 +37,14 @@ const handlers: Record<string, IntentHandler> = {
  * Get team member and client names for intent classification.
  */
 async function getContextNames(): Promise<{ teamMemberNames: string[]; clientNames: string[] }> {
-  const [teamResult, clientResult] = await Promise.all([
-    sql`SELECT name FROM team_members WHERE active = true`,
-    sql`SELECT name FROM clients WHERE active = true`,
+  const convex = getConvexClient();
+  const [teamMembers, clients] = await Promise.all([
+    convex.query(api.teamMembers.list, { activeOnly: true }),
+    convex.query(api.clients.list, {}),
   ]);
   return {
-    teamMemberNames: teamResult.rows.map((r) => r.name as string),
-    clientNames: clientResult.rows.map((r) => r.name as string),
+    teamMemberNames: teamMembers.map((r: any) => r.name as string),
+    clientNames: clients.map((r: any) => r.name as string),
   };
 }
 

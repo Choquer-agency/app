@@ -3,31 +3,32 @@
  * Tracks multi-turn conversation state for the Slack assistant.
  */
 
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "../convex-server";
+import { api } from "@/convex/_generated/api";
 import { ConversationState, SlackIntent } from "./types";
 
-function rowToConversation(row: Record<string, unknown>): ConversationState {
+function docToConversation(doc: any): ConversationState {
   return {
-    id: row.id as number,
-    threadTs: row.thread_ts as string,
-    channelId: row.channel_id as string,
-    intent: row.intent as SlackIntent,
-    state: row.state as string,
-    data: (row.data as Record<string, unknown>) || {},
-    ownerId: row.owner_id as number,
-    createdAt: (row.created_at as Date)?.toISOString(),
-    updatedAt: (row.updated_at as Date)?.toISOString(),
-    expiresAt: (row.expires_at as Date)?.toISOString(),
+    id: doc._id,
+    threadTs: doc.threadTs,
+    channelId: doc.channelId,
+    intent: doc.intent as SlackIntent,
+    state: doc.state,
+    data: doc.data || {},
+    ownerId: doc.ownerId,
+    createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : "",
+    updatedAt: doc.updatedAt || "",
+    expiresAt: doc.expiresAt || "",
   };
 }
 
 export async function getConversation(threadTs: string): Promise<ConversationState | null> {
-  const { rows } = await sql`
-    SELECT * FROM slack_conversations
-    WHERE thread_ts = ${threadTs} AND expires_at > NOW()
-  `;
-  if (rows.length === 0) return null;
-  return rowToConversation(rows[0]);
+  const convex = getConvexClient();
+  const doc = await convex.query(api.slackConversations.getByThreadTs, { threadTs });
+  if (!doc) return null;
+  // Check expiry client-side
+  if (doc.expiresAt && new Date(doc.expiresAt) < new Date()) return null;
+  return docToConversation(doc);
 }
 
 export async function createConversation(data: {
@@ -38,45 +39,32 @@ export async function createConversation(data: {
   data: Record<string, unknown>;
   ownerId: number;
 }): Promise<ConversationState> {
-  const jsonData = JSON.stringify(data.data);
-  const { rows } = await sql`
-    INSERT INTO slack_conversations (thread_ts, channel_id, intent, state, data, owner_id)
-    VALUES (${data.threadTs}, ${data.channelId}, ${data.intent}, ${data.state}, ${jsonData}::jsonb, ${data.ownerId})
-    RETURNING *
-  `;
-  return rowToConversation(rows[0]);
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.slackConversations.create, {
+    threadTs: data.threadTs,
+    channelId: data.channelId,
+    intent: data.intent,
+    state: data.state,
+    data: data.data,
+    ownerId: data.ownerId as any,
+  });
+  return docToConversation(doc);
 }
 
 export async function updateConversation(
   threadTs: string,
   updates: { state?: string; data?: Record<string, unknown> }
 ): Promise<void> {
-  if (updates.state && updates.data) {
-    const jsonData = JSON.stringify(updates.data);
-    await sql`
-      UPDATE slack_conversations
-      SET state = ${updates.state}, data = ${jsonData}::jsonb, updated_at = NOW()
-      WHERE thread_ts = ${threadTs}
-    `;
-  } else if (updates.state) {
-    await sql`
-      UPDATE slack_conversations
-      SET state = ${updates.state}, updated_at = NOW()
-      WHERE thread_ts = ${threadTs}
-    `;
-  } else if (updates.data) {
-    const jsonData = JSON.stringify(updates.data);
-    await sql`
-      UPDATE slack_conversations
-      SET data = ${jsonData}::jsonb, updated_at = NOW()
-      WHERE thread_ts = ${threadTs}
-    `;
-  }
+  const convex = getConvexClient();
+  await convex.mutation(api.slackConversations.updateByThreadTs, {
+    threadTs,
+    ...(updates.state !== undefined ? { state: updates.state } : {}),
+    ...(updates.data !== undefined ? { data: updates.data } : {}),
+  } as any);
 }
 
 export async function cleanExpiredConversations(): Promise<number> {
-  const { rowCount } = await sql`
-    DELETE FROM slack_conversations WHERE expires_at < NOW()
-  `;
-  return rowCount ?? 0;
+  const convex = getConvexClient();
+  const result = await convex.mutation(api.slackConversations.cleanExpired, {});
+  return result ?? 0;
 }

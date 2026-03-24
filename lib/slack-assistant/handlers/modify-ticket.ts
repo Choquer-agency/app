@@ -3,7 +3,8 @@
  * Updates an existing ticket by CHQ number.
  */
 
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "../../convex-server";
+import { api } from "@/convex/_generated/api";
 import { IntentHandler, HandlerContext, ModifyTicketData } from "../types";
 import { createConversation, updateConversation } from "../conversation";
 import { replyInThread, addSlackReaction } from "@/lib/slack";
@@ -74,13 +75,13 @@ export class ModifyTicketHandler implements IntentHandler {
     }
 
     const { ticketId, ticketNumber, changes } = conversation.data as {
-      ticketId: number;
+      ticketId: string;
       ticketNumber: string;
       title: string;
       changes: Array<{ field: string; newValue: string }>;
     };
 
-    const actor = { id: owner.id, name: "Slack Assistant" };
+    const actor = { id: owner.id as any, name: "Slack Assistant" };
     const updateData: Record<string, unknown> = {};
 
     for (const change of changes) {
@@ -99,13 +100,13 @@ export class ModifyTicketHandler implements IntentHandler {
           break;
         case "assignee": {
           // Resolve assignee name to ID and add
-          const { rows } = await sql`
-            SELECT id FROM team_members
-            WHERE active = true AND LOWER(name) LIKE ${`%${change.newValue.toLowerCase()}%`}
-            LIMIT 1
-          `;
-          if (rows.length > 0) {
-            const newAssigneeId = rows[0].id as number;
+          const convex = getConvexClient();
+          const teamDocs = await convex.query(api.teamMembers.list, { activeOnly: true }) as any[];
+          const match = teamDocs.find(
+            (t: any) => (t.name as string).toLowerCase().includes(change.newValue.toLowerCase())
+          );
+          if (match) {
+            const newAssigneeId = match._id as string;
             await addAssignee(ticketId, newAssigneeId, actor);
           }
           break;

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { RoleLevel, validateRoleLevel } from "./permissions";
 
 export interface AdminSession {
-  teamMemberId: number;
+  teamMemberId: string;
   name: string;
   email: string;
   roleLevel: RoleLevel;
@@ -11,7 +11,7 @@ export interface AdminSession {
 export const COOKIE_NAME = "insightpulse_admin";
 
 interface CookiePayload {
-  tid: number;
+  tid: string;
   name: string;
   email: string;
   rl: string;

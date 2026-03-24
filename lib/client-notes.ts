@@ -1,57 +1,52 @@
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "./convex-server";
+import { api } from "@/convex/_generated/api";
 import { ClientNote } from "@/types";
 
-function rowToNote(row: Record<string, unknown>): ClientNote {
+function docToNote(doc: any): ClientNote {
   return {
-    id: row.id as number,
-    clientId: row.client_id as number,
-    author: (row.author as string) || "Admin",
-    noteType: (row.note_type as ClientNote["noteType"]) || "note",
-    content: (row.content as string) || "",
-    metadata: (row.metadata as Record<string, unknown>) || {},
-    createdAt: (row.created_at as Date)?.toISOString(),
+    id: doc._id,
+    clientId: doc.clientId,
+    author: doc.author ?? "Admin",
+    noteType: doc.noteType ?? "note",
+    content: doc.content ?? "",
+    metadata: doc.metadata ?? {},
+    createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : "",
   };
 }
 
 export async function getClientNotes(
-  clientId: number,
+  clientId: string,
   limit = 50,
   offset = 0
 ): Promise<ClientNote[]> {
-  const { rows } = await sql`
-    SELECT * FROM client_notes
-    WHERE client_id = ${clientId}
-    ORDER BY created_at DESC
-    LIMIT ${limit} OFFSET ${offset}
-  `;
-  return rows.map(rowToNote);
+  const convex = getConvexClient();
+  const docs = await convex.query(api.clientNotes.listByClient, {
+    clientId: clientId as any,
+    limit,
+  });
+  return docs.map(docToNote);
 }
 
 export async function addNote(data: {
-  clientId: number;
+  clientId: string;
   author?: string;
   noteType?: ClientNote["noteType"];
   content: string;
   metadata?: Record<string, unknown>;
 }): Promise<ClientNote> {
-  const meta = JSON.stringify(data.metadata || {});
-  const { rows } = await sql`
-    INSERT INTO client_notes (client_id, author, note_type, content, metadata)
-    VALUES (
-      ${data.clientId},
-      ${data.author || "Admin"},
-      ${data.noteType || "note"},
-      ${data.content},
-      ${meta}::jsonb
-    )
-    RETURNING *
-  `;
-  return rowToNote(rows[0]);
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.clientNotes.create, {
+    clientId: data.clientId as any,
+    author: data.author,
+    noteType: data.noteType,
+    content: data.content,
+    metadata: data.metadata,
+  });
+  return docToNote(doc);
 }
 
-export async function deleteNote(id: number): Promise<boolean> {
-  const { rowCount } = await sql`
-    DELETE FROM client_notes WHERE id = ${id}
-  `;
-  return (rowCount ?? 0) > 0;
+export async function deleteNote(id: string): Promise<boolean> {
+  const convex = getConvexClient();
+  await convex.mutation(api.clientNotes.remove, { id: id as any });
+  return true;
 }

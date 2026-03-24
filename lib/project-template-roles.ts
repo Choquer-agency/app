@@ -1,71 +1,73 @@
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "./convex-server";
+import { api } from "@/convex/_generated/api";
 import { ProjectTemplateRole } from "@/types";
 
-function rowToRole(row: Record<string, unknown>): ProjectTemplateRole {
+function docToRole(doc: any): ProjectTemplateRole {
   return {
-    id: row.id as number,
-    projectId: row.project_id as number,
-    name: row.name as string,
-    sortOrder: (row.sort_order as number) || 0,
-    createdAt: (row.created_at as Date)?.toISOString(),
+    id: doc._id,
+    projectId: doc.projectId,
+    name: doc.name ?? "",
+    sortOrder: doc.sortOrder ?? 0,
+    createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : undefined,
   };
 }
 
-export async function getTemplateRoles(projectId: number): Promise<ProjectTemplateRole[]> {
-  const { rows } = await sql`
-    SELECT * FROM project_template_roles
-    WHERE project_id = ${projectId}
-    ORDER BY sort_order ASC, id ASC
-  `;
-  return rows.map(rowToRole);
+export async function getTemplateRoles(projectId: string): Promise<ProjectTemplateRole[]> {
+  const convex = getConvexClient();
+  const docs = await convex.query(api.projectTemplateRoles.listByProject, { projectId: projectId as any });
+  // Sort by sortOrder then by creation time
+  const sorted = [...docs].sort((a: any, b: any) => {
+    const orderDiff = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    if (orderDiff !== 0) return orderDiff;
+    return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+  });
+  return sorted.map(docToRole);
 }
 
 export async function createTemplateRole(
-  projectId: number,
+  projectId: string,
   name: string,
   sortOrder?: number
 ): Promise<ProjectTemplateRole> {
-  const order = sortOrder ?? 0;
-  const { rows } = await sql`
-    INSERT INTO project_template_roles (project_id, name, sort_order)
-    VALUES (${projectId}, ${name}, ${order})
-    RETURNING *
-  `;
-  return rowToRole(rows[0]);
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.projectTemplateRoles.create, {
+    projectId: projectId as any,
+    name,
+    sortOrder: sortOrder ?? 0,
+  });
+  return docToRole(doc);
 }
 
 export async function updateTemplateRole(
-  id: number,
+  id: string,
   data: { name?: string; sortOrder?: number }
 ): Promise<ProjectTemplateRole | null> {
-  const { rows: current } = await sql`SELECT * FROM project_template_roles WHERE id = ${id}`;
-  if (current.length === 0) return null;
-
-  const name = data.name ?? current[0].name;
-  const sortOrder = data.sortOrder ?? current[0].sort_order;
-
-  const { rows } = await sql`
-    UPDATE project_template_roles
-    SET name = ${name}, sort_order = ${sortOrder}
-    WHERE id = ${id}
-    RETURNING *
-  `;
-  return rowToRole(rows[0]);
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.projectTemplateRoles.update, {
+    id: id as any,
+    name: data.name,
+    sortOrder: data.sortOrder,
+  } as any);
+  if (!doc) return null;
+  return docToRole(doc);
 }
 
-export async function deleteTemplateRole(id: number): Promise<boolean> {
-  const { rowCount } = await sql`DELETE FROM project_template_roles WHERE id = ${id}`;
-  return (rowCount ?? 0) > 0;
+export async function deleteTemplateRole(id: string): Promise<boolean> {
+  const convex = getConvexClient();
+  await convex.mutation(api.projectTemplateRoles.remove, { id: id as any });
+  return true;
 }
 
 export async function reorderTemplateRoles(
-  projectId: number,
-  orderedIds: number[]
+  projectId: string,
+  orderedIds: string[]
 ): Promise<void> {
+  const convex = getConvexClient();
+  // Reorder by updating each role's sortOrder individually
   for (let i = 0; i < orderedIds.length; i++) {
-    await sql`
-      UPDATE project_template_roles SET sort_order = ${i}
-      WHERE id = ${orderedIds[i]} AND project_id = ${projectId}
-    `;
+    await convex.mutation(api.projectTemplateRoles.update, {
+      id: orderedIds[i] as any,
+      sortOrder: i,
+    } as any);
   }
 }

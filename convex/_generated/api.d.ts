@@ -8,12 +8,36 @@
  * @module
  */
 
+import type * as activityLog from "../activityLog.js";
+import type * as approvals from "../approvals.js";
+import type * as bulletin from "../bulletin.js";
 import type * as clientNotes from "../clientNotes.js";
 import type * as clientPackages from "../clientPackages.js";
 import type * as clients from "../clients.js";
+import type * as commitments from "../commitments.js";
+import type * as enrichedContent from "../enrichedContent.js";
+import type * as meetingNotes from "../meetingNotes.js";
 import type * as migration from "../migration.js";
+import type * as monthlySnapshots from "../monthlySnapshots.js";
+import type * as notifications from "../notifications.js";
 import type * as packages from "../packages.js";
+import type * as projectGroups from "../projectGroups.js";
+import type * as projectMembers from "../projectMembers.js";
+import type * as projectTemplateRoles from "../projectTemplateRoles.js";
+import type * as projects from "../projects.js";
+import type * as recurringTickets from "../recurringTickets.js";
+import type * as savedViews from "../savedViews.js";
+import type * as serviceBoardEntries from "../serviceBoardEntries.js";
+import type * as slackMessages from "../slackMessages.js";
 import type * as teamMembers from "../teamMembers.js";
+import type * as ticketActivity from "../ticketActivity.js";
+import type * as ticketAssignees from "../ticketAssignees.js";
+import type * as ticketAttachments from "../ticketAttachments.js";
+import type * as ticketComments from "../ticketComments.js";
+import type * as ticketDependencies from "../ticketDependencies.js";
+import type * as tickets from "../tickets.js";
+import type * as timeEntries from "../timeEntries.js";
+import type * as visitors from "../visitors.js";
 
 import type {
   ApiFromModules,
@@ -22,12 +46,36 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  activityLog: typeof activityLog;
+  approvals: typeof approvals;
+  bulletin: typeof bulletin;
   clientNotes: typeof clientNotes;
   clientPackages: typeof clientPackages;
   clients: typeof clients;
+  commitments: typeof commitments;
+  enrichedContent: typeof enrichedContent;
+  meetingNotes: typeof meetingNotes;
   migration: typeof migration;
+  monthlySnapshots: typeof monthlySnapshots;
+  notifications: typeof notifications;
   packages: typeof packages;
+  projectGroups: typeof projectGroups;
+  projectMembers: typeof projectMembers;
+  projectTemplateRoles: typeof projectTemplateRoles;
+  projects: typeof projects;
+  recurringTickets: typeof recurringTickets;
+  savedViews: typeof savedViews;
+  serviceBoardEntries: typeof serviceBoardEntries;
+  slackMessages: typeof slackMessages;
   teamMembers: typeof teamMembers;
+  ticketActivity: typeof ticketActivity;
+  ticketAssignees: typeof ticketAssignees;
+  ticketAttachments: typeof ticketAttachments;
+  ticketComments: typeof ticketComments;
+  ticketDependencies: typeof ticketDependencies;
+  tickets: typeof tickets;
+  timeEntries: typeof timeEntries;
+  visitors: typeof visitors;
 }>;
 
 /**

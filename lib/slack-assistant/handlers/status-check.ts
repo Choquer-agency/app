@@ -3,7 +3,8 @@
  * Queries tickets/workload and responds with formatted info.
  */
 
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "../../convex-server";
+import { api } from "@/convex/_generated/api";
 import { IntentHandler, HandlerContext, StatusCheckData } from "../types";
 import { replyInThread, addSlackReaction } from "@/lib/slack";
 import { getTicketByNumber, getTickets } from "@/lib/tickets";
@@ -62,18 +63,18 @@ export class StatusCheckHandler implements IntentHandler {
   private async handleMemberWorkload(ctx: HandlerContext, memberName: string): Promise<void> {
     const { channelId, messageTs } = ctx;
 
-    const { rows: memberRows } = await sql`
-      SELECT id, name FROM team_members
-      WHERE active = true AND LOWER(name) LIKE ${`%${memberName.toLowerCase()}%`}
-      LIMIT 1
-    `;
+    const convex = getConvexClient();
+    const teamDocs = await convex.query(api.teamMembers.list, { activeOnly: true }) as any[];
+    const memberDoc = teamDocs.find(
+      (t: any) => (t.name as string).toLowerCase().includes(memberName.toLowerCase())
+    );
 
-    if (memberRows.length === 0) {
+    if (!memberDoc) {
       await replyInThread(channelId, messageTs, `Couldn't find a team member matching "${memberName}".`);
       return;
     }
 
-    const member = memberRows[0] as { id: number; name: string };
+    const member = { id: memberDoc._id as string, name: memberDoc.name as string };
     const tickets = await getTickets({ assigneeId: member.id, archived: false });
 
     if (tickets.length === 0) {
@@ -116,18 +117,18 @@ export class StatusCheckHandler implements IntentHandler {
   private async handleClientTickets(ctx: HandlerContext, clientName: string): Promise<void> {
     const { channelId, messageTs } = ctx;
 
-    const { rows: clientRows } = await sql`
-      SELECT id, name FROM clients
-      WHERE active = true AND LOWER(name) LIKE ${`%${clientName.toLowerCase()}%`}
-      LIMIT 1
-    `;
+    const convex = getConvexClient();
+    const clientDocs = await convex.query(api.clients.list, {}) as any[];
+    const clientDoc = clientDocs.find(
+      (c: any) => (c.name as string).toLowerCase().includes(clientName.toLowerCase())
+    );
 
-    if (clientRows.length === 0) {
+    if (!clientDoc) {
       await replyInThread(channelId, messageTs, `Couldn't find a client matching "${clientName}".`);
       return;
     }
 
-    const client = clientRows[0] as { id: number; name: string };
+    const client = { id: clientDoc._id as string, name: clientDoc.name as string };
     const tickets = await getTickets({ clientId: client.id, archived: false });
     const open = tickets.filter((t) => t.status !== "closed");
 

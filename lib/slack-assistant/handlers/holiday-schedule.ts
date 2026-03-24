@@ -3,7 +3,8 @@
  * Modifies existing calendar events (move dates, rename, etc.).
  */
 
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "../../convex-server";
+import { api } from "@/convex/_generated/api";
 import { IntentHandler, HandlerContext, HolidayScheduleData } from "../types";
 import { createConversation, updateConversation } from "../conversation";
 import { replyInThread, addSlackReaction } from "@/lib/slack";
@@ -23,40 +24,36 @@ export class HolidayScheduleHandler implements IntentHandler {
     const { channelId, messageTs, owner, classification } = ctx;
     const data = classification?.data as HolidayScheduleData | undefined;
 
+    const convex = getConvexClient();
+
     // Try to find the calendar event to modify
-    let matchingEvents: Array<{ id: number; title: string; event_date: string; event_type: string }> = [];
+    let matchingEvents: Array<{ id: string; title: string; eventDate: string; eventType: string }> = [];
 
     if (data?.title) {
-      const { rows } = await sql`
-        SELECT id, title, event_date::text as event_date, event_type
-        FROM calendar_events
-        WHERE LOWER(title) LIKE ${`%${data.title.toLowerCase()}%`}
-        ORDER BY event_date DESC
-        LIMIT 5
-      `;
-      matchingEvents = rows as typeof matchingEvents;
+      const allEvents = await convex.query(api.calendarEvents.list, {}) as any[];
+      matchingEvents = allEvents
+        .filter((e: any) => (e.title as string).toLowerCase().includes(data.title!.toLowerCase()))
+        .slice(0, 5)
+        .map((e: any) => ({ id: e._id, title: e.title, eventDate: e.eventDate, eventType: e.eventType }));
     }
 
     if (matchingEvents.length === 0 && data?.originalDate) {
-      const { rows } = await sql`
-        SELECT id, title, event_date::text as event_date, event_type
-        FROM calendar_events
-        WHERE event_date = ${data.originalDate}
-        LIMIT 5
-      `;
-      matchingEvents = rows as typeof matchingEvents;
+      const allEvents = await convex.query(api.calendarEvents.list, {}) as any[];
+      matchingEvents = allEvents
+        .filter((e: any) => e.eventDate === data.originalDate)
+        .slice(0, 5)
+        .map((e: any) => ({ id: e._id, title: e.title, eventDate: e.eventDate, eventType: e.eventType }));
     }
 
     if (matchingEvents.length === 0) {
       // List upcoming events so user can specify
-      const { rows } = await sql`
-        SELECT id, title, event_date::text as event_date, event_type
-        FROM calendar_events
-        WHERE event_date >= CURRENT_DATE
-        ORDER BY event_date ASC
-        LIMIT 10
-      `;
-      const eventList = rows.map((e, i) => `${i + 1}. ${e.title} — ${e.event_date}`).join("\n");
+      const today = new Date().toISOString().split("T")[0];
+      const allEvents = await convex.query(api.calendarEvents.list, {}) as any[];
+      const upcoming = allEvents
+        .filter((e: any) => e.eventDate >= today)
+        .sort((a: any, b: any) => a.eventDate.localeCompare(b.eventDate))
+        .slice(0, 10);
+      const eventList = upcoming.map((e: any, i: number) => `${i + 1}. ${e.title} — ${e.eventDate}`).join("\n");
       await replyInThread(
         channelId,
         messageTs,
@@ -74,29 +71,29 @@ export class HolidayScheduleHandler implements IntentHandler {
           channelId,
           intent: "holiday_schedule",
           state: "awaiting_approval",
-          data: { eventId: event.id, eventTitle: event.title, oldDate: event.event_date, newDate: data.newDate },
+          data: { eventId: event.id, eventTitle: event.title, oldDate: event.eventDate, newDate: data.newDate },
           ownerId: owner.id,
         });
 
         await replyInThread(
           channelId,
           messageTs,
-          `I'll move *${event.title}* from ${event.event_date} to *${data.newDate}*.\n\nReply *approve* to confirm.`
+          `I'll move *${event.title}* from ${event.eventDate} to *${data.newDate}*.\n\nReply *approve* to confirm.`
         );
       } else {
-        await replyInThread(channelId, messageTs, `Found *${event.title}* on ${event.event_date}. What date should I move it to?`);
+        await replyInThread(channelId, messageTs, `Found *${event.title}* on ${event.eventDate}. What date should I move it to?`);
         await createConversation({
           threadTs: messageTs,
           channelId,
           intent: "holiday_schedule",
           state: "awaiting_new_date",
-          data: { eventId: event.id, eventTitle: event.title, oldDate: event.event_date },
+          data: { eventId: event.id, eventTitle: event.title, oldDate: event.eventDate },
           ownerId: owner.id,
         });
       }
     } else {
       // Multiple matches — ask which one
-      const eventList = matchingEvents.map((e, i) => `${i + 1}. ${e.title} — ${e.event_date}`).join("\n");
+      const eventList = matchingEvents.map((e, i) => `${i + 1}. ${e.title} — ${e.eventDate}`).join("\n");
       await replyInThread(
         channelId,
         messageTs,
@@ -110,7 +107,7 @@ export class HolidayScheduleHandler implements IntentHandler {
     if (!conversation) return;
 
     const text = messageText.toLowerCase().trim();
-    const data = conversation.data as { eventId: number; eventTitle: string; oldDate: string; newDate?: string };
+    const data = conversation.data as { eventId: string; eventTitle: string; oldDate: string; newDate?: string };
 
     if (conversation.state === "awaiting_new_date") {
       // Try to resolve the date
@@ -137,7 +134,11 @@ export class HolidayScheduleHandler implements IntentHandler {
         return;
       }
 
-      await sql`UPDATE calendar_events SET event_date = ${data.newDate} WHERE id = ${data.eventId}`;
+      const convex = getConvexClient();
+      await convex.mutation(api.calendarEvents.update, {
+        id: data.eventId as any,
+        eventDate: data.newDate,
+      });
       await updateConversation(conversation.threadTs, { state: "done" });
       await replyInThread(channelId, conversation.threadTs, `Moved *${data.eventTitle}* to ${data.newDate}`);
       await addSlackReaction(channelId, conversation.threadTs, "white_check_mark");

@@ -3,7 +3,8 @@
  * Parses natural language into calendar events using Claude AI.
  */
 
-import { sql } from "@vercel/postgres";
+import { getConvexClient } from "../../convex-server";
+import { api } from "@/convex/_generated/api";
 import { IntentHandler, HandlerContext, CalendarEventData } from "../types";
 import { addSlackReaction, replyInThread } from "@/lib/slack";
 
@@ -35,10 +36,12 @@ export class CalendarEventHandler implements IntentHandler {
       type = parsed.type;
     }
 
-    await sql`
-      INSERT INTO calendar_events (title, event_date, event_type)
-      VALUES (${title}, ${date}, ${type || "custom"})
-    `;
+    const convex = getConvexClient();
+    await convex.mutation(api.calendarEvents.create, {
+      title: title!,
+      eventDate: date!,
+      eventType: type || "custom",
+    });
 
     await addSlackReaction(channelId, messageTs, "calendar");
   }
