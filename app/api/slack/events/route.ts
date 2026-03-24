@@ -39,22 +39,25 @@ async function getOwner(): Promise<{ id: number; slackUserId: string } | null> {
   return { id: rows[0].id as number, slackUserId: rows[0].slack_user_id as string };
 }
 
-// Allow up to 60s for Claude API calls (Vercel Hobby default is 10s)
-export const maxDuration = 60;
-
 // Track processed event IDs to handle Slack retries
 const processedEvents = new Set<string>();
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
+  console.log("[slack] Received event, body length:", rawBody.length);
 
   if (process.env.SLACK_SIGNING_SECRET) {
     if (!verifySlackSignature(request, rawBody)) {
+      console.log("[slack] Signature verification FAILED");
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
+    console.log("[slack] Signature verified OK");
+  } else {
+    console.log("[slack] No SLACK_SIGNING_SECRET set, skipping verification");
   }
 
   const payload = JSON.parse(rawBody);
+  console.log("[slack] Event type:", payload.type, "event:", payload.event?.type);
 
   // URL verification challenge
   if (payload.type === "url_verification") {
@@ -67,11 +70,11 @@ export async function POST(request: NextRequest) {
 
     // Deduplicate retries
     if (eventId && processedEvents.has(eventId)) {
+      console.log("[slack] Duplicate event, skipping:", eventId);
       return NextResponse.json({ ok: true });
     }
     if (eventId) {
       processedEvents.add(eventId);
-      // Clean up old entries to prevent memory leak
       if (processedEvents.size > 200) {
         const entries = Array.from(processedEvents);
         entries.slice(0, 100).forEach((e) => processedEvents.delete(e));
@@ -80,15 +83,20 @@ export async function POST(request: NextRequest) {
 
     // DM messages from owner → route through intent classifier
     if (event.type === "message" && event.channel_type === "im" && !event.bot_id && !event.subtype) {
+      console.log("[slack] DM from user:", event.user, "text:", (event.text || "").slice(0, 50));
       try {
         const owner = await getOwner();
+        console.log("[slack] Owner lookup:", owner ? `id=${owner.id} slack=${owner.slackUserId}` : "NOT FOUND");
         if (!owner || event.user !== owner.slackUserId) {
+          console.log("[slack] Not the owner, ignoring. event.user:", event.user);
           return NextResponse.json({ ok: true });
         }
 
+        console.log("[slack] Calling handleOwnerMessage...");
         await handleOwnerMessage(event, owner);
+        console.log("[slack] handleOwnerMessage completed");
       } catch (err) {
-        console.error("Slack assistant error:", err);
+        console.error("[slack] Slack assistant error:", err);
       }
 
       return NextResponse.json({ ok: true });
@@ -137,4 +145,28 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+// Debug endpoint — GET /api/slack/events?test=announcement
+export async function GET(request: NextRequest) {
+  const test = request.nextUrl.searchParams.get("test");
+
+  // Check environment
+  const env = {
+    SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN ? "set (" + process.env.SLACK_BOT_TOKEN.slice(0, 10) + "...)" : "NOT SET",
+    SLACK_USER_TOKEN: process.env.SLACK_USER_TOKEN ? "set" : "NOT SET",
+    SLACK_SIGNING_SECRET: process.env.SLACK_SIGNING_SECRET ? "set" : "NOT SET",
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? "set" : "NOT SET",
+  };
+
+  const owner = await getOwner();
+
+  if (test === "send" && owner) {
+    // Try sending a test DM
+    const { sendSlackDM } = await import("@/lib/slack");
+    const result = await sendSlackDM(owner.slackUserId, "Slack assistant test — if you see this, the bot can send messages!");
+    return NextResponse.json({ env, owner, testSend: result });
+  }
+
+  return NextResponse.json({ env, owner, hint: "Add ?test=send to send a test DM" });
 }
