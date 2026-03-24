@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { DateRange, KPIData, TimeSeriesPoint, TopPage, KeywordRanking } from "@/types";
 import type { SERankingStats } from "@/lib/serankings";
+import { friendlyDate } from "@/lib/date-format";
 import DateRangeSelector from "./DateRangeSelector";
 import KPICards from "./KPICards";
 import TrafficCharts from "./TrafficCharts";
@@ -68,7 +69,7 @@ export default function MetricsSection({
         <div>
           <h2 className="text-base font-semibold">Performance Snapshot</h2>
           <p className="text-[10px] text-muted mt-0.5">
-            Data as of {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            Data as of {friendlyDate(new Date().toISOString().slice(0, 10))}
           </p>
         </div>
         <DateRangeSelector value={range} onChange={handleRangeChange} />

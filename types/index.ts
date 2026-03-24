@@ -28,7 +28,7 @@ export interface ClientConfig {
   city: string;
   provinceState: string;
   postalCode: string;
-  clientStatus: "new" | "active" | "offboarding";
+  clientStatus: "new" | "active" | "offboarding" | "inactive";
   offboardingDate: string | null;
   industry: string;
   tags: string[];
@@ -65,7 +65,7 @@ export interface CreateClientInput {
   city?: string;
   provinceState?: string;
   postalCode?: string;
-  clientStatus?: "new" | "active" | "offboarding";
+  clientStatus?: "new" | "active" | "offboarding" | "inactive";
   offboardingDate?: string;
   industry?: string;
   tags?: string[];
@@ -157,9 +157,375 @@ export interface TeamMember {
   startDate: string | null;
   birthday: string | null;
   active: boolean;
-  roleLevel: "admin" | "member";
+  roleLevel: import("@/lib/permissions").RoleLevel;
   lastLogin: string | null;
+  slackUserId: string;
+  availableHoursPerWeek: number;
+  hourlyRate: number | null;
+  salary: number | null;
+  payType: "hourly" | "salary";
+  tags: string[];
   createdAt?: string;
+}
+
+// === Task Management Types ===
+
+export type TicketStatus =
+  | "needs_attention"
+  | "stuck"
+  | "in_progress"
+  | "qa_ready"
+  | "client_review"
+  | "approved_go_live"
+  | "closed";
+
+export type TicketPriority = "low" | "normal" | "high" | "urgent";
+
+export interface Ticket {
+  id: number;
+  ticketNumber: string;
+  title: string;
+  description: string;
+  descriptionFormat: "plain" | "tiptap";
+  clientId: number | null;
+  projectId: number | null;
+  parentTicketId: number | null;
+  status: TicketStatus;
+  priority: TicketPriority;
+  ticketGroup: string;
+  groupId: number | null;
+  templateRoleId: number | null;
+  startDate: string | null;
+  dueDate: string | null;
+  dueTime: string | null;
+  sortOrder: number;
+  createdById: number | null;
+  archived: boolean;
+  isPersonal: boolean;
+  isMeeting: boolean;
+  isEmail: boolean;
+  assignAllRoles: boolean;
+  dayOffsetStart: number | null;
+  dayOffsetDue: number | null;
+  serviceCategory: ServiceBoardCategory | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Joined fields (populated on detail queries)
+  clientName?: string;
+  createdByName?: string;
+  projectName?: string;
+  assignees?: TicketAssignee[];
+  subTicketCount?: number;
+  commentCount?: number;
+  groupName?: string;
+  templateRoleName?: string;
+}
+
+export interface TicketAssignee {
+  id: number;
+  ticketId: number;
+  teamMemberId: number;
+  assignedAt: string;
+  // Joined from team_members
+  memberName?: string;
+  memberEmail?: string;
+  memberColor?: string;
+  memberProfilePicUrl?: string;
+}
+
+export interface CreateTicketInput {
+  title: string;
+  description?: string;
+  descriptionFormat?: "plain" | "tiptap";
+  clientId?: number | null;
+  projectId?: number | null;
+  parentTicketId?: number | null;
+  status?: TicketStatus;
+  priority?: TicketPriority;
+  ticketGroup?: string;
+  startDate?: string | null;
+  dueDate?: string | null;
+  dueTime?: string | null;
+  sortOrder?: number;
+  assigneeIds?: number[];
+  isPersonal?: boolean;
+  isMeeting?: boolean;
+  isEmail?: boolean;
+  assignAllRoles?: boolean;
+  dayOffsetStart?: number | null;
+  dayOffsetDue?: number | null;
+  groupId?: number | null;
+  templateRoleId?: number | null;
+  serviceCategory?: ServiceBoardCategory | null;
+}
+
+export interface TicketFilters {
+  clientId?: number;
+  projectId?: number;
+  status?: TicketStatus | TicketStatus[];
+  priority?: TicketPriority | TicketPriority[];
+  assigneeId?: number;
+  createdById?: number;
+  parentTicketId?: number | null;
+  archived?: boolean;
+  isPersonal?: boolean;
+  startDateActive?: boolean; // true = only show tickets where start_date <= today or start_date is null
+  serviceCategory?: ServiceBoardCategory | null; // filter by service category; null = exclude service tickets
+  search?: string;
+  groupBy?: "status" | "priority" | "assignee" | "client" | "group";
+  limit?: number;
+  offset?: number;
+}
+
+export interface SavedView {
+  id: number;
+  teamMemberId: number;
+  name: string;
+  filters: TicketFilters;
+  isDefault: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSavedViewInput {
+  name: string;
+  filters: TicketFilters;
+  isDefault?: boolean;
+}
+
+// Ticket activity log entry
+export interface TicketActivity {
+  id: number;
+  ticketId: number;
+  actorId: number | null;
+  actorName: string;
+  actionType: string;
+  fieldName: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+// === Comment Types ===
+
+export interface TicketComment {
+  id: number;
+  ticketId: number;
+  authorType: "team" | "client";
+  authorId: number | null;
+  authorName: string;
+  authorEmail: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// === Attachment Types ===
+
+export interface TicketAttachment {
+  id: number;
+  ticketId: number;
+  uploadedById: number | null;
+  uploadedByName: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  fileType: string;
+  createdAt: string;
+}
+
+// === Time Tracking Types ===
+
+export interface TimeEntry {
+  id: number;
+  ticketId: number;
+  teamMemberId: number;
+  startTime: string;
+  endTime: string | null;
+  durationSeconds: number | null;
+  isManual: boolean;
+  note: string;
+  createdAt: string;
+  // Joined fields
+  memberName?: string;
+  memberColor?: string;
+  memberProfilePicUrl?: string;
+  ticketNumber?: string;
+  ticketTitle?: string;
+  clientId?: number | null;
+  clientName?: string | null;
+}
+
+export interface RunningTimer {
+  entryId: number;
+  ticketId: number;
+  ticketNumber: string;
+  ticketTitle: string;
+  startTime: string;
+  clientName: string | null;
+}
+
+export interface ClientHoursSummary {
+  clientId: number;
+  clientName: string;
+  month: string;
+  loggedHours: number;
+  includedHours: number;
+  percentUsed: number;
+  status: "ok" | "warning" | "exceeded";
+  byTicket: Array<{
+    ticketId: number;
+    ticketNumber: string;
+    ticketTitle: string;
+    hours: number;
+  }>;
+}
+
+export interface TeamTimeReportEntry {
+  teamMemberId: number;
+  memberName: string;
+  memberColor: string;
+  totalSeconds: number;
+  byClient: Array<{
+    clientId: number | null;
+    clientName: string | null;
+    seconds: number;
+  }>;
+}
+
+// === Notification Types ===
+
+export type NotificationType =
+  | "assigned"
+  | "status_change"
+  | "comment"
+  | "due_soon"
+  | "overdue"
+  | "hour_cap_warning"
+  | "hour_cap_exceeded"
+  | "runaway_timer";
+
+export interface Notification {
+  id: number;
+  recipientId: number;
+  ticketId: number | null;
+  type: NotificationType;
+  title: string;
+  body: string;
+  link: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+// === Project Types ===
+
+export type ProjectStatus = "active" | "completed" | "on_hold";
+
+export interface Project {
+  id: number;
+  name: string;
+  description: string;
+  clientId: number | null;
+  isTemplate: boolean;
+  status: ProjectStatus;
+  archived: boolean;
+  startDate: string | null;
+  dueDate: string | null;
+  createdById: number | null;
+  createdAt: string;
+  updatedAt: string;
+  // Joined fields
+  clientName?: string;
+  ticketCount?: number;
+  completedTicketCount?: number;
+}
+
+export interface CreateProjectInput {
+  name: string;
+  description?: string;
+  clientId?: number | null;
+  isTemplate?: boolean;
+  status?: ProjectStatus;
+  startDate?: string | null;
+  dueDate?: string | null;
+}
+
+export interface ProjectGroup {
+  id: number;
+  projectId: number;
+  name: string;
+  color: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface ProjectTemplateRole {
+  id: number;
+  projectId: number;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface DateCascadePreview {
+  ticketId: number;
+  ticketNumber: string;
+  ticketTitle: string;
+  field: "startDate" | "dueDate";
+  oldDate: string;
+  newDate: string;
+  weekendAdjusted: boolean;
+}
+
+export interface ProjectMember {
+  id: number;
+  projectId: number;
+  teamMemberId: number;
+  addedAt: string;
+  // Joined fields
+  memberName?: string;
+  memberEmail?: string;
+  memberColor?: string;
+  memberProfilePicUrl?: string;
+}
+
+export type CommitmentStatus = "active" | "met" | "missed";
+
+export interface TicketCommitment {
+  id: number;
+  ticketId: number;
+  teamMemberId: number;
+  committedDate: string;
+  committedAt: string;
+  committedById: number | null;
+  status: CommitmentStatus;
+  resolvedAt: string | null;
+  notes: string;
+  // Joined
+  memberName?: string;
+  committedByName?: string;
+}
+
+export interface ReliabilityScore {
+  teamMemberId: number;
+  memberName: string;
+  totalCommitments: number;
+  commitmentsMet: number;
+  commitmentsMissed: number;
+  score: number; // 0-100
+}
+
+export interface TicketDependency {
+  id: number;
+  ticketId: number;
+  dependsOnTicketId: number;
+  // Joined fields
+  dependsOnTicketNumber?: string;
+  dependsOnTicketTitle?: string;
+  dependsOnTicketStatus?: TicketStatus;
 }
 
 // Client approval requests
@@ -340,4 +706,173 @@ export interface ClientEngagement {
   avgTimeOnPage: number; // seconds
   ctaClicks: number;
   isChurnRisk: boolean;
+}
+
+// === Recurring Ticket Template Types ===
+
+export type RecurrenceRule = "weekly" | "biweekly" | "monthly" | "quarterly";
+
+export interface RecurringTicketTemplate {
+  id: number;
+  title: string;
+  description: string;
+  descriptionFormat: "plain" | "tiptap";
+  clientId: number;
+  projectId: number | null;
+  priority: TicketPriority;
+  ticketGroup: string;
+  recurrenceRule: RecurrenceRule;
+  recurrenceDay: number;
+  nextCreateAt: string;
+  active: boolean;
+  createdById: number | null;
+  createdAt: string;
+  updatedAt: string;
+  // Joined fields
+  clientName?: string;
+  projectName?: string;
+  createdByName?: string;
+  assignees?: RecurringTemplateAssignee[];
+}
+
+export interface RecurringTemplateAssignee {
+  id: number;
+  templateId: number;
+  teamMemberId: number;
+  memberName?: string;
+  memberEmail?: string;
+  memberColor?: string;
+  memberProfilePicUrl?: string;
+}
+
+// === Bulletin Types ===
+
+export type AnnouncementType = "general" | "birthday" | "anniversary" | "time_off";
+
+export interface Announcement {
+  id: number;
+  authorId: number;
+  authorName: string;
+  authorPic: string;
+  title: string;
+  content: string;
+  pinned: boolean;
+  source: string;
+  announcementType: AnnouncementType;
+  imageUrl: string;
+  createdAt: string;
+  reactions: Array<{ emoji: string; memberName: string; memberId: number }>;
+}
+
+export interface WeeklyQuote {
+  id: number;
+  quote: string;
+  author: string;
+  weekStart: string;
+  selected: boolean;
+}
+
+export interface BulletinBirthday {
+  name: string;
+  profilePicUrl: string;
+  daysUntil: number;
+  display: string;
+}
+
+export interface BulletinAnniversary {
+  name: string;
+  profilePicUrl: string;
+  daysUntil: number;
+  years: number;
+  display: string;
+}
+
+export interface BulletinProject {
+  id: number;
+  clientName: string;
+  projectName: string;
+  status: ProjectStatus;
+  ticketCount: number;
+  completedTicketCount: number;
+}
+
+export interface CalendarEntry {
+  date: string;
+  title: string;
+  type: string;
+}
+
+export interface BulletinData {
+  personalNote: string;
+  weeklyQuote: { quote: string; author: string } | null;
+  announcements: Announcement[];
+  projects: BulletinProject[];
+  calendar: CalendarEntry[];
+}
+
+// === Service Board Types ===
+
+export type ServiceBoardStatus = "needs_attention" | "in_progress" | "report_ready" | "email_sent";
+
+export type ServiceBoardCategory = "seo" | "google_ads" | "retainer";
+
+export interface ServiceBoardEntry {
+  id: number;
+  clientId: number;
+  clientPackageId: number;
+  category: ServiceBoardCategory;
+  month: string; // ISO date for first of month
+  status: ServiceBoardStatus;
+  specialistId: number | null;
+  monthlyEmailSentAt: string | null;
+  quarterlyEmailSentAt: string | null;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+  // Joined fields
+  clientName?: string;
+  clientSlug?: string;
+  clientNotionPageUrl?: string;
+  packageName?: string;
+  includedHours?: number;
+  specialistName?: string;
+  specialistColor?: string;
+  specialistProfilePicUrl?: string;
+  generatedEmail?: string;
+  commentCount?: number;
+  // Computed
+  loggedHours?: number;
+  percentUsed?: number;
+  hourStatus?: "ok" | "warning" | "exceeded";
+}
+
+export interface ServiceHoursSummary {
+  clientId: number;
+  category: ServiceBoardCategory;
+  month: string;
+  loggedHours: number;
+  includedHours: number;
+  percentUsed: number;
+  status: "ok" | "warning" | "exceeded";
+  byTicket: Array<{
+    ticketId: number;
+    ticketNumber: string;
+    ticketTitle: string;
+    hours: number;
+  }>;
+}
+
+export interface CreateRecurringTemplateInput {
+  title: string;
+  description?: string;
+  descriptionFormat?: "plain" | "tiptap";
+  clientId: number;
+  projectId?: number | null;
+  priority?: TicketPriority;
+  ticketGroup?: string;
+  recurrenceRule: RecurrenceRule;
+  recurrenceDay: number;
+  nextCreateAt: string;
+  active?: boolean;
+  assigneeIds?: number[];
 }

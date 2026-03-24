@@ -5,11 +5,18 @@ import { ClientConfig, TeamMember, ClientPackage } from "@/types";
 import ClientPackagesPanel from "./ClientPackagesPanel";
 import ClientNotesTimeline from "./ClientNotesTimeline";
 import ClientDetailsForm from "./ClientDetailsForm";
+import RecurringTicketManager from "./RecurringTicketManager";
+import TicketListView from "./TicketListView";
+import ClientHoursSummary from "./ClientHoursSummary";
+import { friendlyDate } from "@/lib/date-format";
 
 const TABS = [
   { id: "packages", label: "Packages & Billing" },
+  { id: "tickets", label: "Tickets" },
+  { id: "hours", label: "Hours" },
   { id: "overview", label: "Overview" },
   { id: "notes", label: "Activity Log" },
+  { id: "recurring", label: "Recurring" },
   { id: "edit", label: "Edit" },
 ];
 
@@ -118,10 +125,7 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
             <p className="text-xs text-[var(--muted)] mb-1">Last Contact</p>
             <p className="text-sm font-medium text-[var(--foreground)] mt-1">
               {client.lastContactDate
-                ? new Date(client.lastContactDate).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })
+                ? friendlyDate(client.lastContactDate)
                 : "--"}
             </p>
           </div>
@@ -208,6 +212,22 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
 
         {activeTab === "notes" && (
           <ClientNotesTimeline clientId={client.id} />
+        )}
+
+        {activeTab === "tickets" && (
+          <TicketListView clientId={client.id} />
+        )}
+
+        {activeTab === "hours" && (
+          <ClientHoursSummary clientId={client.id} />
+        )}
+
+        {activeTab === "recurring" && (
+          <RecurringTicketManager
+            clientId={client.id}
+            clientName={client.name}
+            teamMembers={teamMembers}
+          />
         )}
 
         {activeTab === "edit" && (

@@ -1,5 +1,6 @@
 "use client";
 
+import { friendlyDate } from "@/lib/date-format";
 import MetricTooltip from "./MetricTooltip";
 import {
   AreaChart,
@@ -28,7 +29,7 @@ interface TrafficChartsProps {
 }
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return friendlyDate(d);
 }
 
 function fmtNumber(n: number): string {
@@ -107,7 +108,7 @@ export default function TrafficCharts({
               />
               <Tooltip
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E5E5", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
-                labelFormatter={(label) => new Date(label).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                labelFormatter={(label) => friendlyDate(label)}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 formatter={(value: any) => fmtNumber(Number(value))}
               />

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllClients, createClient } from "@/lib/clients";
+import { getAllClients, getPastClients, createClient } from "@/lib/clients";
 import { CreateClientInput } from "@/types";
 import { getSession } from "@/lib/admin-auth";
 
@@ -9,7 +9,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const clients = await getAllClients();
+    const url = new URL(request.url);
+    const past = url.searchParams.get("past") === "true";
+    const clients = past ? await getPastClients() : await getAllClients();
     return NextResponse.json(clients);
   } catch (error) {
     console.error("Failed to fetch clients:", error);

@@ -3,15 +3,21 @@
 import { useState, useEffect, useCallback } from "react";
 import { TeamMember } from "@/types";
 import CopyField from "./CopyField";
+import { hasPermission, ROLE_LEVELS, ROLE_LABELS, type RoleLevel } from "@/lib/permissions";
+import { friendlyDate, friendlyMonth } from "@/lib/date-format";
 
 function TeamMemberFormModal({
   member,
   onClose,
   onSaved,
+  canEditWages,
+  canManageRoles,
 }: {
   member?: TeamMember | null;
   onClose: () => void;
   onSaved: () => void;
+  canEditWages: boolean;
+  canManageRoles: boolean;
 }) {
   const isEditing = !!member;
 
@@ -27,6 +33,15 @@ function TeamMemberFormModal({
   const [profilePicUrl, setProfilePicUrl] = useState(member?.profilePicUrl || "");
   const [startDate, setStartDate] = useState(member?.startDate || "");
   const [birthday, setBirthday] = useState(member?.birthday || "");
+  const [availableHoursPerWeek, setAvailableHoursPerWeek] = useState<number | "">(
+    member?.availableHoursPerWeek ?? 40
+  );
+  const [hourlyRate, setHourlyRate] = useState<number | "">(member?.hourlyRate ?? "");
+  const [salary, setSalary] = useState<number | "">(member?.salary ?? "");
+  const [payType, setPayType] = useState<"hourly" | "salary">(member?.payType ?? "hourly");
+  const [memberRoleLevel, setMemberRoleLevel] = useState<RoleLevel>((member?.roleLevel as RoleLevel) ?? "employee");
+  const [slackUserId, setSlackUserId] = useState(member?.slackUserId || "");
+  const [tags, setTags] = useState<string[]>(member?.tags || []);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -80,7 +95,7 @@ function TeamMemberFormModal({
     setSubmitting(true);
     setError("");
 
-    const body = {
+    const body: Record<string, unknown> = {
       ...(isEditing ? { id: member!.id } : {}),
       name: name.trim(),
       email: email.trim(),
@@ -89,7 +104,20 @@ function TeamMemberFormModal({
       profilePicUrl,
       startDate: startDate || "",
       birthday: birthday || "",
+      availableHoursPerWeek: availableHoursPerWeek === "" ? 40 : availableHoursPerWeek,
+      slackUserId: slackUserId.trim() || "",
+      tags,
     };
+
+    if (canEditWages) {
+      body.hourlyRate = hourlyRate === "" ? null : hourlyRate;
+      body.salary = salary === "" ? null : salary;
+      body.payType = payType;
+    }
+
+    if (canManageRoles) {
+      body.roleLevel = memberRoleLevel;
+    }
 
     try {
       const res = await fetch("/api/admin/team", {
@@ -112,8 +140,8 @@ function TeamMemberFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-lg max-w-md w-full mx-4 max-h-[calc(100vh-100px)] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm py-[50px]">
+      <div className="bg-white rounded-2xl shadow-lg max-w-md w-full mx-4 max-h-full flex flex-col overflow-hidden">
         <h2 className="text-lg font-semibold px-8 pt-8 pb-4 shrink-0">
           {isEditing ? "Edit Team Member" : "Add Team Member"}
         </h2>
@@ -187,6 +215,124 @@ function TeamMemberFormModal({
               <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} className={inputClass} />
             </div>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Available Hours / Week</label>
+            <input
+              type="number"
+              min={0}
+              max={80}
+              value={availableHoursPerWeek}
+              onChange={(e) => setAvailableHoursPerWeek(e.target.value === "" ? "" : Number(e.target.value))}
+              placeholder="40"
+              className={inputClass}
+            />
+            <p className="text-xs text-[var(--muted)] mt-1">Used for utilization reports</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Slack User ID</label>
+            <input
+              type="text"
+              value={slackUserId}
+              onChange={(e) => setSlackUserId(e.target.value)}
+              placeholder="U12345ABCDE"
+              className={inputClass}
+            />
+            <p className="text-xs text-[var(--muted)] mt-1">For automated check-ins. Find in Slack: Profile → ⋯ → Copy member ID</p>
+          </div>
+
+          {/* Board Tags */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Board Tags</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {["SEO", "Google Ads"].map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() =>
+                    setTags((prev) =>
+                      prev.includes(tag)
+                        ? prev.filter((t) => t !== tag)
+                        : [...prev, tag]
+                    )
+                  }
+                  className={`px-3 py-1 text-xs font-medium rounded-full border transition ${
+                    tags.includes(tag)
+                      ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                      : "bg-white text-[var(--muted)] border-[var(--border)] hover:border-gray-400"
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-[var(--muted)]">Controls which service boards this member can see</p>
+          </div>
+
+          {/* Compensation — only visible to authorized roles */}
+          {canEditWages && (
+            <>
+              <div className="border-t border-[var(--border)] pt-4 mt-2">
+                <p className="text-sm font-medium text-[var(--foreground)] mb-3">Compensation</p>
+                <div className="flex items-center gap-3 mb-3">
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input type="radio" name="payType" value="hourly" checked={payType === "hourly"} onChange={() => setPayType("hourly")} className="accent-[var(--accent)]" />
+                    Hourly
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input type="radio" name="payType" value="salary" checked={payType === "salary"} onChange={() => setPayType("salary")} className="accent-[var(--accent)]" />
+                    Salary
+                  </label>
+                </div>
+                {payType === "hourly" ? (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Hourly Rate ($)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={hourlyRate}
+                      onChange={(e) => setHourlyRate(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="0.00"
+                      className={inputClass}
+                    />
+                    <p className="text-xs text-[var(--muted)] mt-1">Used for profitability calculations</p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Annual Salary ($)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={salary}
+                      onChange={(e) => setSalary(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="0.00"
+                      className={inputClass}
+                    />
+                    <p className="text-xs text-[var(--muted)] mt-1">Converted to hourly rate using available hours/week</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Role Level — only visible to owner */}
+          {canManageRoles && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Access Level</label>
+              <select
+                value={memberRoleLevel}
+                onChange={(e) => setMemberRoleLevel(e.target.value as RoleLevel)}
+                className={inputClass}
+              >
+                {ROLE_LEVELS.map((rl) => (
+                  <option key={rl} value={rl}>{ROLE_LABELS[rl]}</option>
+                ))}
+              </select>
+              <p className="text-xs text-[var(--muted)] mt-1">Controls what this team member can see and do</p>
+            </div>
+          )}
 
           {error && (
             <p className="text-sm text-[#b91c1c] bg-red-50 rounded-lg px-3 py-2">{error}</p>
@@ -206,13 +352,17 @@ function TeamMemberFormModal({
   );
 }
 
-export default function TeamList() {
+export default function TeamList({ roleLevel }: { roleLevel?: RoleLevel }) {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [needsMigration, setNeedsMigration] = useState(false);
   const [migrating, setMigrating] = useState(false);
+
+  const canViewWages = roleLevel ? hasPermission(roleLevel, "team:view_wages") : false;
+  const canEditWages = roleLevel ? hasPermission(roleLevel, "team:edit_wages") : false;
+  const canManageRoles = roleLevel ? hasPermission(roleLevel, "team:manage_roles") : false;
 
   const fetchMembers = useCallback(async () => {
     try {
@@ -380,11 +530,35 @@ export default function TeamList() {
                 {(member.startDate || member.birthday) && (
                   <div className="flex gap-3 text-xs text-[var(--muted)] pt-1">
                     {member.startDate && (
-                      <span>Started {new Date(member.startDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+                      <span>Started {friendlyMonth(member.startDate)}</span>
                     )}
                     {member.birthday && (
-                      <span>Birthday {new Date(member.birthday + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                      <span>Birthday {friendlyDate(member.birthday)}</span>
                     )}
+                  </div>
+                )}
+                {canViewWages && (member.hourlyRate || member.salary) && (
+                  <div className="flex gap-3 text-xs text-[var(--muted)] pt-1">
+                    {member.payType === "salary" && member.salary != null && (
+                      <span>Salary: ${member.salary.toLocaleString()}/yr</span>
+                    )}
+                    {member.hourlyRate != null && (
+                      <span>Rate: ${member.hourlyRate.toFixed(2)}/hr</span>
+                    )}
+                  </div>
+                )}
+                {canManageRoles && member.roleLevel && (
+                  <span className="inline-block mt-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-[var(--muted)]">
+                    {ROLE_LABELS[member.roleLevel as RoleLevel] ?? member.roleLevel}
+                  </span>
+                )}
+                {member.tags && member.tags.length > 0 && (
+                  <div className="flex gap-1 mt-1 flex-wrap">
+                    {member.tags.map((tag) => (
+                      <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                        {tag}
+                      </span>
+                    ))}
                   </div>
                 )}
               </div>
@@ -424,6 +598,8 @@ export default function TeamList() {
           member={editingMember}
           onClose={() => { setShowModal(false); setEditingMember(null); }}
           onSaved={handleSaved}
+          canEditWages={canEditWages}
+          canManageRoles={canManageRoles}
         />
       )}
     </>

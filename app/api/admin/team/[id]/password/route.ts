@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getSession } from "@/lib/admin-auth";
 import { setPasswordHash } from "@/lib/team-members";
+import { hasPermission } from "@/lib/permissions";
 
 /**
- * Admin-only: set or reset a team member's password.
+ * Owner-only: set or reset a team member's password.
  * PUT { password }
  */
 export async function PUT(
@@ -16,9 +17,9 @@ export async function PUT(
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  if (session.roleLevel !== "admin") {
+  if (!hasPermission(session.roleLevel, "team:manage_passwords")) {
     return NextResponse.json(
-      { error: "Only admins can set passwords" },
+      { error: "Insufficient permissions" },
       { status: 403 }
     );
   }

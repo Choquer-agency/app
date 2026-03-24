@@ -1,7 +1,5 @@
-import TeamList from "@/components/TeamList";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default function TeamPage() {
-  return <TeamList />;
+export default function TeamRedirect() {
+  redirect("/admin/settings/team");
 }

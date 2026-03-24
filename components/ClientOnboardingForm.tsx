@@ -163,10 +163,6 @@ export default function ClientOnboardingForm({ onSaved, onCancel }: ClientOnboar
     form.contactName.trim() &&
     form.contactEmail.trim() &&
     form.contactPhone.trim() &&
-    form.addressLine1.trim() &&
-    form.city.trim() &&
-    form.provinceState.trim() &&
-    form.postalCode.trim() &&
     form.accountSpecialist &&
     form.notionPageUrl.trim() &&
     form.ga4PropertyId.trim() &&
@@ -353,8 +349,8 @@ export default function ClientOnboardingForm({ onSaved, onCancel }: ClientOnboar
 
       <FormSection title="Address" isOpen={openSections.address} onToggle={() => toggleSection("address")}>
         <div>
-          <label className={labelClass}>Address Line 1 *</label>
-          <input type="text" value={form.addressLine1} onChange={(e) => update("addressLine1", e.target.value)} required className={inputClass} />
+          <label className={labelClass}>Address Line 1</label>
+          <input type="text" value={form.addressLine1} onChange={(e) => update("addressLine1", e.target.value)} className={inputClass} />
         </div>
         <div>
           <label className={labelClass}>Address Line 2</label>
@@ -362,16 +358,16 @@ export default function ClientOnboardingForm({ onSaved, onCancel }: ClientOnboar
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className={labelClass}>City *</label>
-            <input type="text" value={form.city} onChange={(e) => update("city", e.target.value)} required className={inputClass} />
+            <label className={labelClass}>City</label>
+            <input type="text" value={form.city} onChange={(e) => update("city", e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Province/State *</label>
-            <input type="text" value={form.provinceState} onChange={(e) => update("provinceState", e.target.value)} required className={inputClass} />
+            <label className={labelClass}>Province/State</label>
+            <input type="text" value={form.provinceState} onChange={(e) => update("provinceState", e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Postal Code *</label>
-            <input type="text" value={form.postalCode} onChange={(e) => update("postalCode", e.target.value)} required className={inputClass} />
+            <label className={labelClass}>Postal Code</label>
+            <input type="text" value={form.postalCode} onChange={(e) => update("postalCode", e.target.value)} className={inputClass} />
           </div>
         </div>
       </FormSection>

@@ -1,17 +1,21 @@
 import Image from "next/image";
-import { ClientConfig } from "@/types";
-import StickyNav from "./StickyNav";
+import { ClientConfig, ClientPackage } from "@/types";
+import PackageTabNav from "./client-portal/PackageTabNav";
 
 interface HeaderProps {
   client: ClientConfig;
   pendingApprovals?: number;
+  packages?: ClientPackage[];
+  hasTickets?: boolean;
 }
 
-export default function Header({ client, pendingApprovals = 0 }: HeaderProps) {
+export default function Header({ client, pendingApprovals = 0, packages, hasTickets = false }: HeaderProps) {
+  const showTabs = packages && packages.length > 0;
+
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#F0F0F0]">
+      {/* Main row: logo + client name + package tabs + actions */}
       <div className="flex items-center justify-center px-6 py-2.5">
-        {/* Everything in one centered row: name → nav → actions */}
         <div className="flex items-center gap-5 shrink-0">
           <div className="flex flex-col gap-0 leading-none shrink-0">
             <Image
@@ -26,7 +30,13 @@ export default function Header({ client, pendingApprovals = 0 }: HeaderProps) {
             </h1>
           </div>
 
-          <StickyNav />
+          {showTabs ? (
+            <PackageTabNav
+              packages={packages}
+              hasTickets={hasTickets}
+              slug={client.slug}
+            />
+          ) : null}
 
           <div className="flex items-center gap-3 ml-5 shrink-0">
             {pendingApprovals > 0 && (

@@ -16,7 +16,7 @@ Replacing ClickUp with a built-in task management system. The full build is brok
 **Ticket numbering:** Global `CHQ-001` sequential IDs.
 
 **Statuses (in order):**
-1. `choquer_needs_attention` — Choquer Needs Attention
+1. `needs_attention` — Choquer Needs Attention
 2. `stuck` — Stuck (red flag)
 3. `in_progress` — In Progress
 4. `qa_ready` — QA Ready
@@ -1018,21 +1018,222 @@ CREATE TABLE IF NOT EXISTS recurring_ticket_templates (
 
 ---
 
-# Summary: Phase Order & Dependencies
+# PHASE 13: Reporting & Analytics
+
+**What:** Dashboards for team utilization, client profitability, ticket velocity, and individual performance metrics.
+
+**Why:** Agency needs data for capacity planning, pricing decisions, and performance reviews. Currently no visibility into where hours go or how fast tickets move through the pipeline.
+
+### Reports
+
+**Team Utilization**
+- Hours logged per team member per week/month
+- Utilization rate = logged hours / available hours (configurable per member, default 40h/week)
+- Bar chart: each member's logged hours, color-coded by client
+- Time period selector: this week, last week, this month, last month, custom range
+
+**Client Profitability**
+- Hours logged vs. hours included in package per client
+- Overage tracking: how many hours over/under each month
+- Table: client name, package hours, logged hours, overage, overage cost
+- Trend chart: monthly hours over last 6 months per client
+
+**Ticket Velocity**
+- Average time from creation → close, grouped by: client, project, team member
+- Ticket throughput: tickets closed per week/month
+- Status duration breakdown: avg time spent in each status (bottleneck detection)
+- Line chart: tickets closed per week over last 12 weeks
+
+**Performance Dashboard (for reviews/raises)**
+- Per team member: tickets closed, avg resolution time, hours logged
+- Comparison across team members (anonymizable for non-admin view)
+- Useful for quarterly reviews and raise justification
+
+### Database
+
+No new tables. All reports are computed from existing data:
+- `time_entries` → hours per member, per client, per period
+- `tickets` → created_at, closed_at, status changes from `ticket_activity`
+- `client_packages` → hours_included for profitability calc
+
+### Files to Create
+
+**`app/admin/reports/page.tsx`** — Server component, renders ReportsDashboard
+
+**`components/ReportsDashboard.tsx`**
+- Tab layout: Utilization | Profitability | Velocity | Performance
+- Date range picker with presets (this week, this month, last month, this quarter, custom)
+- Each tab renders its own report component
+
+**`components/TeamUtilizationChart.tsx`**
+- Horizontal bar chart per team member
+- Stacked by client (colored segments)
+- Total hours + utilization % labels
+
+**`components/ClientProfitabilityReport.tsx`**
+- Table with sortable columns: client, package, included hours, logged hours, overage
+- Monthly trend sparklines
+- Color: green (under), yellow (80-99%), red (over)
+
+**`components/TicketVelocityChart.tsx`**
+- Line chart: tickets closed over time
+- Filter by client/project
+- Status duration breakdown bars
+
+**`components/PerformanceReport.tsx`**
+- Per-member stats cards
+- Comparison view
+
+**API Routes:**
+- `app/api/admin/reports/utilization/route.ts` — GET with `?period=week|month&start=&end=`
+- `app/api/admin/reports/profitability/route.ts` — GET with `?month=2026-03`
+- `app/api/admin/reports/velocity/route.ts` — GET with `?start=&end=&clientId=&projectId=`
+- `app/api/admin/reports/performance/route.ts` — GET with `?start=&end=`
+
+**`components/AdminNav.tsx`** (modify) — add "Reports" to nav
+
+### Charts Library
+
+Use lightweight charting — options:
+1. **CSS-only bars** for simple horizontal bars (no dependency)
+2. **Recharts** (`npm install recharts`) for line/area charts if needed
+3. Keep it minimal — charts should communicate, not impress
+
+### Verification
+- [ ] Navigate to /admin/reports → see dashboard with tabs
+- [ ] Utilization: see each team member's hours this month
+- [ ] Profitability: see each client's hours vs. package
+- [ ] Velocity: see tickets closed per week trend
+- [ ] Performance: see per-member stats
+- [ ] Date range picker works, reports refresh
+- [ ] Admin-only access (members can see their own stats only)
+
+---
+
+# PHASE 14: Global Search (Cmd+K) + Keyboard Shortcuts
+
+**What:** Command palette for quick navigation + keyboard shortcuts for power users.
+
+**Why:** As ticket count grows, fast search becomes critical. Cmd+K is expected in modern tools. Keyboard shortcuts reduce mouse dependency for the team.
+
+### Database Migration
+
+File: `db/migrations/016_search_index.sql`
+```sql
+-- Full-text search vector column
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS search_vector tsvector;
+
+-- Populate existing rows
+UPDATE tickets SET search_vector =
+  setweight(to_tsvector('english', coalesce(ticket_number, '')), 'A') ||
+  setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+  setweight(to_tsvector('english', coalesce(description, '')), 'B');
+
+-- GIN index for fast full-text search
+CREATE INDEX IF NOT EXISTS idx_tickets_search ON tickets USING GIN(search_vector);
+
+-- Trigger to keep search_vector updated
+CREATE OR REPLACE FUNCTION tickets_search_update() RETURNS trigger AS $$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('english', coalesce(NEW.ticket_number, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(NEW.title, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(NEW.description, '')), 'B');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER tickets_search_trigger
+  BEFORE INSERT OR UPDATE OF ticket_number, title, description ON tickets
+  FOR EACH ROW EXECUTE FUNCTION tickets_search_update();
+```
+
+### Command Palette (Cmd+K)
+
+**`components/CommandPalette.tsx`**
+- Modal overlay triggered by Cmd+K (Mac) / Ctrl+K (Windows)
+- Search input at top with debounced (200ms) query
+- Results grouped by type: Tickets, Projects (Phase 10), Clients, Team Members
+- Each result: icon + title + subtitle (ticket number, client name, etc.)
+- Arrow keys to navigate, Enter to select, Escape to close
+- Recent searches stored in localStorage
+
+**Search behavior:**
+- Empty query → show recent items + quick actions (New Ticket, Go to Reports)
+- Typing → search across all entity types simultaneously
+- Ticket search uses PostgreSQL full-text (`search_vector @@ plainto_tsquery()`)
+- Client/member search uses ILIKE on name fields
+- Results ranked: exact ticket number match first, then title matches, then description matches
+
+### Keyboard Shortcuts
+
+**`components/KeyboardShortcutProvider.tsx`**
+- Context provider wrapping the admin layout
+- Listens for keyboard events, dispatches actions
+- Shortcuts only active when no input/textarea/editor is focused
+
+**Shortcuts:**
+| Key | Action | Context |
+|-----|--------|---------|
+| `Cmd+K` | Open command palette | Global |
+| `N` | New ticket | List view |
+| `J` | Move selection down | List view |
+| `K` | Move selection up | List view |
+| `Enter` | Open selected ticket | List view |
+| `Escape` | Close modal/palette | Global |
+| `/` | Focus search input | List view |
+| `?` | Show shortcut help | Global |
+
+**`components/ShortcutHelpModal.tsx`**
+- Shows all available shortcuts in a clean grid
+- Triggered by `?` key
+
+### API Routes
+
+**`app/api/admin/search/route.ts`**
+- GET `?q=homepage+redesign&types=tickets,clients,members`
+- Returns unified results: `{ tickets: [...], clients: [...], members: [...] }`
+- Tickets: full-text search on search_vector + ILIKE fallback for ticket numbers
+- Clients: ILIKE on business_name
+- Team Members: ILIKE on name
+
+### Files to Modify
+
+**`app/admin/layout.tsx`** — wrap content in KeyboardShortcutProvider
+**`components/AdminNav.tsx`** — add search icon/shortcut hint ("Cmd+K")
+**`components/TicketListView.tsx`** — wire J/K/Enter shortcuts for row navigation
+
+### Verification
+- [ ] Cmd+K opens command palette
+- [ ] Type "CHQ-042" → finds that ticket instantly
+- [ ] Type "homepage" → finds tickets with "homepage" in title or description
+- [ ] Type client name → shows matching client
+- [ ] Arrow keys navigate results, Enter opens selected
+- [ ] Escape closes palette
+- [ ] `N` key on list view → opens create ticket modal
+- [ ] `J`/`K` on list view → highlights next/previous ticket
+- [ ] `Enter` on highlighted ticket → opens detail modal
+- [ ] `/` focuses the filter search input
+- [ ] `?` shows shortcut help modal
+- [ ] Shortcuts don't fire when typing in an input field
+
+---
+
+# Summary: Phase Order & Dependencies (Updated)
 
 ```
-Phase 1:  Team Auth           ← foundation, do first
-Phase 2:  Tickets DB + API    ← depends on Phase 1 (created_by_id)
-Phase 3:  Activity Log        ← depends on Phase 2
-Phase 4:  Ticket List View UI ← depends on Phase 2
-Phase 5:  Detail Modal        ← depends on Phase 3 + 4
-Phase 6:  Create Ticket       ← depends on Phase 5
-Phase 7:  Time Tracking       ← depends on Phase 6
-Phase 8:  Rich Text + Comments← depends on Phase 5
-Phase 9:  Notifications       ← depends on Phase 3 (activity) + Phase 7 (time) + Phase 8 (comments)
-Phase 10: Projects + Templates← depends on Phase 6
-Phase 11: Recurring Tickets   ← depends on Phase 6
-Phase 12: Home + Client View  ← depends on all above
+Phase 1:  Team Auth            ← foundation, do first
+Phase 2:  Tickets DB + API     ← depends on Phase 1 (created_by_id)
+Phase 3:  Activity Log         ← depends on Phase 2
+Phase 4:  Ticket List View UI  ← depends on Phase 2
+Phase 5:  Detail Modal         ← depends on Phase 3 + 4
+Phase 6:  Create Ticket        ← depends on Phase 5
+Phase 7:  Time Tracking        ← depends on Phase 6
+Phase 8:  Rich Text + Comments ← depends on Phase 5
+Phase 9:  Notifications        ← depends on Phase 3 + 7 + 8
+Phase 10: Projects + Templates ← depends on Phase 6
+Phase 11: Recurring Tickets    ← depends on Phase 6
+Phase 12: Home + Client View   ← depends on all above
+Phase 13: Reporting & Analytics← depends on Phase 7 (time data) + Phase 12
+Phase 14: Global Search + Cmd+K← depends on Phase 2 (tickets), can do after Phase 4
 ```
-
-Phases 8, 10, 11 can run in parallel after Phase 6 is done. Phase 9 should come after 7+8 since it hooks into their events.

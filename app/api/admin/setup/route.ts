@@ -61,9 +61,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Hash password and set as admin
+  // Hash password and set as owner
   const hash = await bcrypt.hash(password, 12);
-  await setPasswordAndRole(member.id, hash, "admin");
+  await setPasswordAndRole(member.id, hash, "owner");
 
   return NextResponse.json({
     ok: true,

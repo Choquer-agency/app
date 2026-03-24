@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
+import { RoleLevel, validateRoleLevel } from "./permissions";
 
 export interface AdminSession {
   teamMemberId: number;
   name: string;
   email: string;
-  roleLevel: "admin" | "member";
+  roleLevel: RoleLevel;
 }
 
 export const COOKIE_NAME = "insightpulse_admin";
@@ -38,7 +39,7 @@ function decodeCookie(cookieValue: string): AdminSession | null {
       teamMemberId: parsed.tid,
       name: parsed.name,
       email: parsed.email,
-      roleLevel: parsed.rl === "admin" ? "admin" : "member",
+      roleLevel: validateRoleLevel(parsed.rl),
     };
   } catch {
     return null;

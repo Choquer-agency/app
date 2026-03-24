@@ -1,5 +1,5 @@
-import PackageList from "@/components/PackageList";
+import { redirect } from "next/navigation";
 
-export default function PackagesPage() {
-  return <PackageList />;
+export default function PackagesRedirect() {
+  redirect("/admin/settings/packages");
 }

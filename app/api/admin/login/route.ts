@@ -5,6 +5,7 @@ import {
   getTeamMemberByEmailForAuth,
   updateLastLogin,
 } from "@/lib/team-members";
+import { validateRoleLevel } from "@/lib/permissions";
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
 
@@ -52,8 +53,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Create session cookie with team member identity
-  const roleLevel =
-    (member.role_level as "admin" | "member") === "admin" ? "admin" : "member";
+  const roleLevel = validateRoleLevel(member.role_level);
 
   const cookieValue = encodeCookie({
     teamMemberId: member.id,
