@@ -28,9 +28,9 @@ export default function AdminLogin() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl border border-gray-200 w-full max-w-sm">
-        <h1 className="text-xl font-bold mb-1">InsightPulse Admin</h1>
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-gray-50">
+      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl border border-gray-200 w-full max-w-sm text-center">
+        <img src="/choquer-logo.svg" alt="Choquer Agency" className="h-5.5 mx-auto mb-4" />
         <p className="text-sm text-muted mb-6">Sign in with your team email.</p>
         <input
           type="email"
@@ -55,6 +55,7 @@ export default function AdminLogin() {
           Sign In
         </button>
       </form>
+      <p className="mt-4 text-xs text-orange-500 text-center" style={{ maxWidth: "calc(24rem * 0.8)" }}>Looking for your client dashboard? Check your email from Choquer Agency for the correct link.</p>
     </div>
   );
 }
