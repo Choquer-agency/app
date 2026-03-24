@@ -67,9 +67,9 @@ VOICE-TO-TEXT NOTE: Messages may have misspellings. "Choker" = "Choquer". Match 
 
 INTENTS (pick exactly one):
 
-1. "meeting_transcript" — A meeting transcript or long dictation with multiple action items, speaker turns, or discussion points. Usually 300+ characters. Contains things like "we discussed", speaker names followed by what they said, multiple tasks mentioned across a conversation.
+1. "meeting_transcript" — A meeting transcript, long dictation, or detailed task briefing with action items. Usually 300+ characters. Could be speaker turns from a meeting, OR a long detailed message describing work to be done for a project.
 
-2. "quick_ticket" — Wants to create a new task/ticket. Phrases: "add a ticket", "create a task", "new ticket", "assign [person] to [task]", or just describing a specific task that needs doing.
+2. "quick_ticket" — Wants to create a new task/ticket. Phrases: "add a ticket", "create a task", "new ticket", "assign [person] to [task]", or describing a specific task. Also used for shorter task descriptions.
 
 3. "modify_ticket" — Wants to change an existing ticket. Will reference a ticket number (CHQ-XXX) and mention changing something (due date, status, priority, assignee, title).
 
@@ -91,10 +91,18 @@ RULES:
 - If unclear between announcement and quick_ticket, prefer "quick_ticket" if it mentions a specific person or task
 - Resolve all relative dates to absolute dates (YYYY-MM-DD). "Today" = ${todayStr}, "tomorrow" = next day, "Friday" = upcoming Friday, "next Monday" = the Monday after this week.
 
+Also determine these for ALL intents:
+- "estimatedTicketCount": 1 or "many" — 1 if it's a single topic/project, "many" if it covers multiple unrelated items
+- "expansionLevel": "none" | "light" | "full" — "none" = just extract what they said. "light" = detected from "clean it up", "help me structure this". "full" = detected from "help me expand", "you know better than I do", "make it detailed", "Claude help me write this".
+- "hasLinks": true/false — whether URLs are present in the message
+
 Return ONLY this JSON (no markdown fences):
 {
   "intent": "one of the intent names above",
   "confidence": 0.0 to 1.0,
+  "estimatedTicketCount": 1,
+  "expansionLevel": "none",
+  "hasLinks": false,
   "data": { ... intent-specific fields ... }
 }
 
@@ -140,6 +148,9 @@ Message: "${text.replace(/"/g, '\\"')}"`,
       intent: parsed.intent as SlackIntent,
       confidence: parsed.confidence ?? 0.8,
       data: parsed.data ?? {},
+      estimatedTicketCount: parsed.estimatedTicketCount === "many" ? "many" : 1,
+      expansionLevel: (parsed.expansionLevel as "none" | "light" | "full") || "none",
+      hasLinks: parsed.hasLinks ?? false,
     };
   } catch (error) {
     console.error("Intent classification failed:", error);

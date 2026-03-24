@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import { getSession } from "@/lib/admin-auth";
-import { extractActionItems, ExtractedItem } from "@/lib/meeting-extraction";
+import { extractActionItems, ExtractedItem, toLegacyItems, LegacyExtractedItem } from "@/lib/meeting-extraction";
 import { getTeamMembers } from "@/lib/team-members";
 import { getAllClients } from "@/lib/clients";
 
-export interface ExtractedItemWithMatches extends ExtractedItem {
+export interface ExtractedItemWithMatches extends LegacyExtractedItem {
   resolvedAssigneeId: number | null;
   resolvedClientId: number | null;
   duplicates: Array<{
@@ -49,13 +49,17 @@ export async function POST(request: NextRequest) {
     // Find the meeting-with member name
     const meetingWith = teamMembers.find((m) => m.id === teamMemberId)?.name || "team member";
 
-    // Extract action items via Claude
-    const { items, summary } = await extractActionItems(
+    // Extract action items via Claude (web UI mode — transcript, no expansion)
+    const { items: rawItems, summary } = await extractActionItems(
       transcriptText,
       teamMemberNames,
       clientNames,
-      meetingWith
+      meetingWith,
+      { inputType: "transcript", expansionLevel: "none", source: "web" }
     );
+
+    // Convert to legacy format for backward compat with frontend
+    const items = toLegacyItems(rawItems);
 
     // Resolve names to IDs and find duplicates
     const enrichedItems: ExtractedItemWithMatches[] = await Promise.all(

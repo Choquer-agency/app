@@ -1,38 +1,39 @@
 /**
- * Meeting transcript handler.
- * Extracts action items from pasted transcripts, shows them for review,
- * then creates tickets on approval.
+ * Meeting transcript / task briefing handler.
+ * Extracts action items, shows for review, creates tickets on approval.
+ * Adapts to input type: transcripts → many tickets, direct tasks → fewer tickets.
  */
 
 import { sql } from "@vercel/postgres";
 import { IntentHandler, HandlerContext } from "../types";
 import { createConversation, updateConversation } from "../conversation";
 import { replyInThread, addSlackReaction } from "@/lib/slack";
-import { extractActionItems, ExtractedItem } from "@/lib/meeting-extraction";
+import { extractActionItems, ExtractedItem, ExtractionOptions } from "@/lib/meeting-extraction";
 import { createTicket } from "@/lib/tickets";
 import { addCommitment } from "@/lib/commitments";
 
+interface ResolvedItem extends ExtractedItem {
+  assigneeIds: number[];
+  clientId: number | null;
+}
+
 interface TranscriptConversationData {
-  items: Array<ExtractedItem & { assigneeId: number | null; clientId: number | null }>;
+  items: ResolvedItem[];
   summary: string;
   meetingNoteId: number | null;
 }
 
 export class MeetingTranscriptHandler implements IntentHandler {
   async handle(ctx: HandlerContext): Promise<void> {
-    const { conversation } = ctx;
-
-    if (conversation) {
-      // Continuation — handle approval, edits, or rejection
+    if (ctx.conversation) {
       await this.handleContinuation(ctx);
     } else {
-      // New transcript — extract and present for review
       await this.handleNew(ctx);
     }
   }
 
   private async handleNew(ctx: HandlerContext): Promise<void> {
-    const { messageText, channelId, messageTs, owner } = ctx;
+    const { messageText, channelId, messageTs, owner, classification } = ctx;
 
     // Get team member and client names for extraction
     const [teamResult, clientResult] = await Promise.all([
@@ -42,10 +43,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
     const teamMembers = teamResult.rows as Array<{ id: number; name: string }>;
     const clients = clientResult.rows as Array<{ id: number; name: string }>;
 
-    const teamMemberNames = teamMembers.map((t) => t.name);
-    const clientNames = clients.map((c) => c.name);
-
-    // Save the transcript as a meeting note
+    // Save as meeting note
     const { rows: noteRows } = await sql`
       INSERT INTO meeting_notes (team_member_id, created_by_id, transcript, source, meeting_date)
       VALUES (${owner.id}, ${owner.id}, ${messageText}, 'slack', ${new Date().toISOString().split("T")[0]})
@@ -53,38 +51,71 @@ export class MeetingTranscriptHandler implements IntentHandler {
     `;
     const meetingNoteId = noteRows[0]?.id as number | null;
 
-    // Extract action items using existing Claude extraction
+    // Determine extraction options from classification
+    const estimatedCount = classification?.estimatedTicketCount;
+    const expansionLevel = classification?.expansionLevel || "none";
+    const inputType = estimatedCount === 1 ? "direct_task" as const
+      : expansionLevel !== "none" ? "task_with_expansion" as const
+      : "transcript" as const;
+
+    const extractionOptions: ExtractionOptions = {
+      inputType,
+      expansionLevel,
+      source: "slack",
+    };
+
+    // Extract with retry on failure
     let extraction: { items: ExtractedItem[]; summary: string };
     try {
-      extraction = await extractActionItems(messageText, teamMemberNames, clientNames, "team");
-    } catch (err) {
-      console.error("Meeting extraction failed:", err);
-      await replyInThread(channelId, messageTs, "I had trouble extracting action items from that transcript. Could you try pasting it again?");
-      return;
+      extraction = await extractActionItems(
+        messageText,
+        teamMembers.map((t) => t.name),
+        clients.map((c) => c.name),
+        "team",
+        extractionOptions
+      );
+    } catch {
+      // Retry once
+      try {
+        extraction = await extractActionItems(
+          messageText,
+          teamMembers.map((t) => t.name),
+          clients.map((c) => c.name),
+          "team",
+          extractionOptions
+        );
+      } catch {
+        await replyInThread(
+          channelId,
+          messageTs,
+          `I had trouble parsing that. Here's what I received — you can try rephrasing or paste it again:\n\n\`\`\`${messageText.slice(0, 500)}${messageText.length > 500 ? "..." : ""}\`\`\``
+        );
+        return;
+      }
     }
 
     if (extraction.items.length === 0) {
-      await replyInThread(channelId, messageTs, "I didn't find any action items in that transcript. If you meant this as something else, let me know!");
+      await replyInThread(channelId, messageTs, "I didn't find any action items. If you meant this as something else, let me know!");
       await addSlackReaction(channelId, messageTs, "eyes");
       return;
     }
 
     // Resolve names to IDs
-    const resolvedItems = extraction.items.map((item) => {
-      const assigneeMatch = teamMembers.find(
-        (t) => t.name.toLowerCase() === item.assigneeName.toLowerCase()
-      );
+    const resolvedItems: ResolvedItem[] = extraction.items.map((item) => {
+      const assigneeIds = item.assigneeNames
+        .map((name) => teamMembers.find((t) => t.name.toLowerCase() === name.toLowerCase())?.id)
+        .filter(Boolean) as number[];
       const clientMatch = clients.find(
         (c) => c.name.toLowerCase() === item.clientName.toLowerCase()
       );
       return {
         ...item,
-        assigneeId: assigneeMatch?.id ?? null,
+        assigneeIds,
         clientId: clientMatch?.id ?? null,
       };
     });
 
-    // Create conversation state
+    // Store conversation
     const conversationData: TranscriptConversationData = {
       items: resolvedItems,
       summary: extraction.summary,
@@ -101,36 +132,55 @@ export class MeetingTranscriptHandler implements IntentHandler {
     });
 
     // Format and send for review
-    const itemsList = resolvedItems
-      .map((item, i) => {
-        const assignee = item.assigneeName || "Unassigned";
-        const client = item.clientName || "Internal";
-        const due = item.dueDate || "No due date";
-        const priority = item.priority !== "normal" ? ` [${item.priority}]` : "";
-        return `${i + 1}. *${item.task}*${priority}\n   ${assignee} | ${client} | ${due}`;
-      })
-      .join("\n");
-
-    const message = `I extracted *${resolvedItems.length} action item${resolvedItems.length !== 1 ? "s" : ""}* from the transcript:\n\n${itemsList}\n\n_${extraction.summary}_\n\nReply *approve* to create these tickets, or tell me what to change (e.g., "remove 3", "change 2's due date to Friday", "change 1's assignee to John").`;
-
-    await replyInThread(channelId, messageTs, message);
+    await this.showItems(channelId, messageTs, resolvedItems, extraction.summary);
     await addSlackReaction(channelId, messageTs, "memo");
   }
 
+  private async showItems(
+    channelId: string,
+    threadTs: string,
+    items: ResolvedItem[],
+    summary: string
+  ): Promise<void> {
+    if (items.length === 0) {
+      await replyInThread(channelId, threadTs, "All items removed. Nothing to create.");
+      return;
+    }
+
+    const itemsList = items
+      .map((item, i) => {
+        const assignees = item.assigneeNames.join(", ") || "Unassigned";
+        const client = item.clientName || "Internal";
+        const due = item.dueDate || "No due date";
+        const priority = item.priority !== "normal" ? ` [${item.priority}]` : "";
+        const links = item.links.length > 0 ? `\n   Links: ${item.links.length}` : "";
+        return `${i + 1}. *${item.task}*${priority}\n   ${assignees} | ${client} | ${due}${links}`;
+      })
+      .join("\n");
+
+    const count = items.length;
+    const noun = count === 1 ? "ticket" : "tickets";
+    await replyInThread(
+      channelId,
+      threadTs,
+      `I'll create *${count} ${noun}*:\n\n${itemsList}\n\n_${summary}_\n\nReply *approve* to create, or tell me what to change (e.g., "remove 3", "change 2's due date to Friday", "combine into 1 ticket").`
+    );
+  }
+
   private async handleContinuation(ctx: HandlerContext): Promise<void> {
-    const { messageText, channelId, conversation, owner } = ctx;
+    const { messageText, channelId, conversation } = ctx;
     if (!conversation) return;
 
     const data = conversation.data as unknown as TranscriptConversationData;
     const text = messageText.toLowerCase().trim();
 
-    // Check for approval
+    // Approval
     if (["approve", "approved", "looks good", "lgtm", "yes", "go ahead", "push it", "create them", "do it"].includes(text)) {
       await this.createTickets(ctx, data);
       return;
     }
 
-    // Check for consolidation: "make this 1 ticket", "combine all into one", "just 1 ticket"
+    // Consolidation
     const consolidateMatch = text.match(/(?:make|combine|merge|just|into)\s*(?:this|them|all|it)?\s*(?:into|as|just)?\s*(?:one|1)\s*(?:ticket|task)?/i) ||
       text.match(/^(?:one|1)\s*ticket/i);
     if (consolidateMatch) {
@@ -138,41 +188,38 @@ export class MeetingTranscriptHandler implements IntentHandler {
       return;
     }
 
-    // Check for removal: "remove 3" or "delete 2"
+    // Removal
     const removeMatch = text.match(/^(?:remove|delete)\s+(\d+)/);
     if (removeMatch) {
       const idx = parseInt(removeMatch[1]) - 1;
       if (idx >= 0 && idx < data.items.length) {
         data.items.splice(idx, 1);
         await updateConversation(conversation.threadTs, { data: data as unknown as Record<string, unknown> });
-        await this.showUpdatedItems(channelId, conversation.threadTs, data);
+        await this.showItems(channelId, conversation.threadTs, data.items, data.summary);
       } else {
         await replyInThread(channelId, conversation.threadTs, `Item ${idx + 1} doesn't exist. There are ${data.items.length} items.`);
       }
       return;
     }
 
-    // Check for edits: "change 2's due date to friday" or "change 1 assignee to John"
+    // Edits
     const changeMatch = text.match(/^change\s+(\d+)(?:'s)?\s+(.*)/);
     if (changeMatch) {
       const idx = parseInt(changeMatch[1]) - 1;
-      const changeText = changeMatch[2];
-
       if (idx >= 0 && idx < data.items.length) {
-        await this.applyEdit(data, idx, changeText, ctx);
+        await this.applyEdit(data, idx, changeMatch[2]);
         await updateConversation(conversation.threadTs, { data: data as unknown as Record<string, unknown> });
-        await this.showUpdatedItems(channelId, conversation.threadTs, data);
+        await this.showItems(channelId, conversation.threadTs, data.items, data.summary);
       } else {
         await replyInThread(channelId, conversation.threadTs, `Item ${idx + 1} doesn't exist. There are ${data.items.length} items.`);
       }
       return;
     }
 
-    // If we can't parse the edit, ask for clarification
     await replyInThread(
       channelId,
       conversation.threadTs,
-      `I didn't understand that. You can:\n• *approve* — create all tickets\n• *combine into 1 ticket* — merge all items into a single ticket\n• *remove [number]* — remove an item\n• *change [number]'s [field] to [value]* — edit an item\n\nFields: title, assignee, client, due date, priority`
+      `I didn't understand that. You can:\n• *approve* — create tickets\n• *combine into 1 ticket* — merge all items\n• *remove [number]* — remove an item\n• *change [number]'s [field] to [value]* — edit an item`
     );
   }
 
@@ -180,67 +227,58 @@ export class MeetingTranscriptHandler implements IntentHandler {
     const { channelId, conversation } = ctx;
     if (!conversation || data.items.length === 0) return;
 
-    // Collect all unique assignees
-    const assigneeIds = [...new Set(data.items.map((i) => i.assigneeId).filter(Boolean))] as number[];
-    const assigneeNames = [...new Set(data.items.map((i) => i.assigneeName).filter(Boolean))];
+    const allAssigneeIds = [...new Set(data.items.flatMap((i) => i.assigneeIds))];
+    const allAssigneeNames = [...new Set(data.items.flatMap((i) => i.assigneeNames).filter(Boolean))];
+    const allClientNames = [...new Set(data.items.map((i) => i.clientName).filter((n) => n && n !== "Internal"))];
+    const allLinks = [...new Set(data.items.flatMap((i) => i.links))];
 
-    // Collect all unique clients
-    const clientIds = [...new Set(data.items.map((i) => i.clientId).filter(Boolean))] as number[];
-    const clientNames = [...new Set(data.items.map((i) => i.clientName).filter((n) => n && n !== "Internal"))];
-
-    // Use highest priority from all items
     const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
     const highestPriority = data.items.reduce((best, item) => {
       return (priorityOrder[item.priority] || 0) > (priorityOrder[best] || 0) ? item.priority : best;
     }, "normal" as "low" | "normal" | "high" | "urgent");
 
-    // Use earliest due date
     const dueDates = data.items.map((i) => i.dueDate).filter(Boolean) as string[];
     const earliestDue = dueDates.length > 0 ? dueDates.sort()[0] : null;
 
-    // Generate a short title using Claude
     const shortTitle = await this.generateShortTitle(data.items, data.summary);
 
-    // Build well-structured description with hierarchy
-    const descriptionParts: string[] = [];
+    // Build structured description from all items
+    const descParts: string[] = [];
     if (data.summary) {
-      descriptionParts.push(data.summary);
-      descriptionParts.push("");
+      descParts.push(data.summary, "");
     }
-    descriptionParts.push("Action Items:");
+    descParts.push("## Action Items", "");
     data.items.forEach((item, i) => {
-      descriptionParts.push(`${i + 1}. ${item.task}`);
-      if (item.description) {
-        descriptionParts.push(`   ${item.description}`);
-      }
-      descriptionParts.push("");
+      descParts.push(`### ${i + 1}. ${item.task}`);
+      if (item.description) descParts.push(item.description);
+      descParts.push("");
     });
-    const description = descriptionParts.join("\n");
+    if (allLinks.length > 0) {
+      descParts.push("## Resources", "");
+      allLinks.forEach((link) => descParts.push(`- ${link}`));
+    }
 
-    // Create a single consolidated item
-    const consolidated = {
+    const originalCount = data.items.length;
+
+    const consolidated: ResolvedItem = {
       task: shortTitle,
-      description,
-      assigneeName: assigneeNames[0] || data.items[0].assigneeName,
-      clientName: clientNames[0] || data.items[0].clientName,
+      description: descParts.join("\n"),
+      assigneeNames: allAssigneeNames,
+      assigneeIds: allAssigneeIds,
+      clientName: allClientNames[0] || "Internal",
+      clientId: data.items.find((i) => i.clientId)?.clientId ?? null,
       dueDate: earliestDue,
       priority: highestPriority,
-      contextFromTranscript: "",
-      assigneeId: assigneeIds[0] || null,
-      clientId: clientIds[0] || null,
+      sourceContext: null,
+      links: allLinks,
     };
 
-    // Replace all items with the single consolidated one
     data.items = [consolidated];
-    // Store extra assignee IDs for multi-assign
-    (data as unknown as Record<string, unknown>).extraAssigneeIds = assigneeIds.slice(1);
-
     await updateConversation(conversation.threadTs, { data: data as unknown as Record<string, unknown> });
 
-    const assigneeDisplay = assigneeNames.join(", ") || "Unassigned";
-    const clientDisplay = clientNames.join(", ") || "Internal";
+    const assigneeDisplay = allAssigneeNames.join(", ") || "Unassigned";
+    const clientDisplay = allClientNames.join(", ") || "Internal";
 
-    const originalCount = descriptionParts.filter((l) => /^\d+\./.test(l)).length;
     await replyInThread(
       channelId,
       conversation.threadTs,
@@ -248,18 +286,11 @@ export class MeetingTranscriptHandler implements IntentHandler {
     );
   }
 
-  private async applyEdit(
-    data: TranscriptConversationData,
-    idx: number,
-    changeText: string,
-    ctx: HandlerContext
-  ): Promise<void> {
+  private async applyEdit(data: TranscriptConversationData, idx: number, changeText: string): Promise<void> {
     const item = data.items[idx];
 
-    // Parse what they want to change
     const dueDateMatch = changeText.match(/(?:due\s*date|due)\s+(?:to\s+)?(.+)/i);
     if (dueDateMatch) {
-      // Use Claude to resolve the date
       const resolved = await this.resolveDate(dueDateMatch[1].trim());
       if (resolved) item.dueDate = resolved;
       return;
@@ -270,17 +301,14 @@ export class MeetingTranscriptHandler implements IntentHandler {
       const name = assigneeMatch[1].trim();
       const { rows } = await sql`SELECT id, name FROM team_members WHERE active = true AND LOWER(name) LIKE ${`%${name.toLowerCase()}%`} LIMIT 1`;
       if (rows.length > 0) {
-        item.assigneeName = rows[0].name as string;
-        item.assigneeId = rows[0].id as number;
+        item.assigneeNames = [rows[0].name as string];
+        item.assigneeIds = [rows[0].id as number];
       }
       return;
     }
 
     const titleMatch = changeText.match(/(?:title)\s+(?:to\s+)?(.+)/i);
-    if (titleMatch) {
-      item.task = titleMatch[1].trim();
-      return;
-    }
+    if (titleMatch) { item.task = titleMatch[1].trim(); return; }
 
     const priorityMatch = changeText.match(/(?:priority)\s+(?:to\s+)?(.+)/i);
     if (priorityMatch) {
@@ -303,10 +331,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
     }
   }
 
-  private async generateShortTitle(
-    items: Array<{ task: string }>,
-    summary: string
-  ): Promise<string> {
+  private async generateShortTitle(items: Array<{ task: string }>, summary: string): Promise<string> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return items[0]?.task || "Consolidated ticket";
 
@@ -314,24 +339,16 @@ export class MeetingTranscriptHandler implements IntentHandler {
       const taskList = items.map((i) => i.task).join(", ");
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json",
-        },
+        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 50,
-          messages: [{
-            role: "user",
-            content: `Generate a short ticket title (5-8 words max, imperative form) that summarizes these tasks:\n\nTasks: ${taskList}\nContext: ${summary}\n\nReturn ONLY the title, nothing else. Examples of good titles: "Revamp AARC West website per CEO feedback", "Fix homepage layout and update copy", "Redesign client dashboard analytics page"`,
-          }],
+          messages: [{ role: "user", content: `Generate a short ticket title (5-8 words max, imperative form) that summarizes these tasks:\n\nTasks: ${taskList}\nContext: ${summary}\n\nReturn ONLY the title, nothing else.` }],
         }),
       });
       if (!res.ok) return items[0]?.task || "Consolidated ticket";
       const data = await res.json();
-      const title = data.content?.[0]?.text?.trim();
-      return title || items[0]?.task || "Consolidated ticket";
+      return data.content?.[0]?.text?.trim() || items[0]?.task || "Consolidated ticket";
     } catch {
       return items[0]?.task || "Consolidated ticket";
     }
@@ -340,60 +357,24 @@ export class MeetingTranscriptHandler implements IntentHandler {
   private async resolveDate(dateText: string): Promise<string | null> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return null;
-
     const today = new Date().toISOString().split("T")[0];
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json",
-        },
+        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 50,
-          messages: [{
-            role: "user",
-            content: `Today is ${today}. Convert this to a date: "${dateText}". Return ONLY the date in YYYY-MM-DD format, nothing else.`,
-          }],
+          messages: [{ role: "user", content: `Today is ${today}. Convert this to a date: "${dateText}". If the day has already passed this week, use next week. Return ONLY YYYY-MM-DD.` }],
         }),
       });
       if (!res.ok) return null;
       const data = await res.json();
       const content = data.content?.[0]?.text?.trim();
-      if (content && /^\d{4}-\d{2}-\d{2}$/.test(content)) return content;
-      return null;
+      return content && /^\d{4}-\d{2}-\d{2}$/.test(content) ? content : null;
     } catch {
       return null;
     }
-  }
-
-  private async showUpdatedItems(
-    channelId: string,
-    threadTs: string,
-    data: TranscriptConversationData
-  ): Promise<void> {
-    if (data.items.length === 0) {
-      await replyInThread(channelId, threadTs, "All items removed. Nothing to create.");
-      return;
-    }
-
-    const itemsList = data.items
-      .map((item, i) => {
-        const assignee = item.assigneeName || "Unassigned";
-        const client = item.clientName || "Internal";
-        const due = item.dueDate || "No due date";
-        const priority = item.priority !== "normal" ? ` [${item.priority}]` : "";
-        return `${i + 1}. *${item.task}*${priority}\n   ${assignee} | ${client} | ${due}`;
-      })
-      .join("\n");
-
-    await replyInThread(
-      channelId,
-      threadTs,
-      `Updated — *${data.items.length} item${data.items.length !== 1 ? "s" : ""}*:\n\n${itemsList}\n\nReply *approve* to create these tickets, or keep editing.`
-    );
   }
 
   private async createTickets(ctx: HandlerContext, data: TranscriptConversationData): Promise<void> {
@@ -401,22 +382,11 @@ export class MeetingTranscriptHandler implements IntentHandler {
     if (!conversation) return;
 
     await updateConversation(conversation.threadTs, { state: "creating_tickets" });
-
     const actor = { id: owner.id, name: "Slack Assistant" };
     const created: Array<{ ticketNumber: string; title: string }> = [];
 
     for (const item of data.items) {
       try {
-        // Collect all assignee IDs (main + extras from consolidation)
-        const assigneeIds: number[] = [];
-        if (item.assigneeId) assigneeIds.push(item.assigneeId);
-        const extraIds = (data as unknown as Record<string, unknown>).extraAssigneeIds as number[] | undefined;
-        if (extraIds) {
-          for (const id of extraIds) {
-            if (!assigneeIds.includes(id)) assigneeIds.push(id);
-          }
-        }
-
         const ticket = await createTicket(
           {
             title: item.task,
@@ -424,7 +394,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
             clientId: item.clientId ?? null,
             dueDate: item.dueDate ?? null,
             priority: item.priority || "normal",
-            assigneeIds,
+            assigneeIds: item.assigneeIds,
           },
           owner.id,
           actor
@@ -432,13 +402,13 @@ export class MeetingTranscriptHandler implements IntentHandler {
 
         // Create commitments for all assignees
         if (item.dueDate) {
-          for (const assigneeId of assigneeIds) {
+          for (const assigneeId of item.assigneeIds) {
             await addCommitment({
               ticketId: ticket.id,
               teamMemberId: assigneeId,
               committedDate: item.dueDate,
               committedById: owner.id,
-              notes: "Created from Slack meeting transcript",
+              notes: "Created from Slack",
             });
           }
         }
@@ -461,11 +431,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
     await updateConversation(conversation.threadTs, { state: "done" });
 
     const ticketList = created.map((t) => `• *${t.ticketNumber}*: ${t.title}`).join("\n");
-    await replyInThread(
-      channelId,
-      conversation.threadTs,
-      `Created *${created.length} ticket${created.length !== 1 ? "s" : ""}*:\n\n${ticketList}`
-    );
+    await replyInThread(channelId, conversation.threadTs, `Created *${created.length} ticket${created.length !== 1 ? "s" : ""}*:\n\n${ticketList}`);
     await addSlackReaction(channelId, conversation.threadTs, "white_check_mark");
   }
 }

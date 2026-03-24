@@ -13,10 +13,15 @@ export type SlackIntent =
   | "quote_selection"
   | "unknown";
 
+export type ExpansionLevel = "none" | "light" | "full";
+
 export interface ClassificationResult {
   intent: SlackIntent;
   confidence: number;
   data: Record<string, unknown>;
+  estimatedTicketCount?: 1 | "many";
+  expansionLevel?: ExpansionLevel;
+  hasLinks?: boolean;
 }
 
 // Per-intent data shapes
@@ -31,6 +36,7 @@ export interface QuickTicketData {
   dueDate: string | null;
   priority: "low" | "normal" | "high" | "urgent";
   description: string | null;
+  expansionLevel?: ExpansionLevel;
 }
 
 export interface ModifyTicketData {
