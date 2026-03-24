@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
-import { after } from "next/server";
 import crypto from "crypto";
 import { handleOwnerMessage } from "@/lib/slack-assistant";
 import { handleQuoteSelection } from "@/lib/slack-assistant/handlers/quote-selection";
@@ -8,8 +7,10 @@ import { getConversation } from "@/lib/slack-assistant/conversation";
 
 /**
  * Slack Events API endpoint.
- * Thin dispatcher — verifies signature, returns 200 OK immediately,
- * then processes via after() for async handling.
+ * Verifies signature, processes the message synchronously, returns 200 OK.
+ * Slack tolerates up to 3s before retrying — most intents complete well within that,
+ * and for longer ones (transcript extraction), Slack's retry is harmless since we
+ * deduplicate by checking conversation state.
  */
 
 function verifySlackSignature(request: NextRequest, body: string): boolean {
@@ -38,6 +39,12 @@ async function getOwner(): Promise<{ id: number; slackUserId: string } | null> {
   return { id: rows[0].id as number, slackUserId: rows[0].slack_user_id as string };
 }
 
+// Allow up to 60s for Claude API calls (Vercel Hobby default is 10s)
+export const maxDuration = 60;
+
+// Track processed event IDs to handle Slack retries
+const processedEvents = new Set<string>();
+
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
 
@@ -56,62 +63,74 @@ export async function POST(request: NextRequest) {
 
   if (payload.type === "event_callback") {
     const event = payload.event;
+    const eventId = payload.event_id;
+
+    // Deduplicate retries
+    if (eventId && processedEvents.has(eventId)) {
+      return NextResponse.json({ ok: true });
+    }
+    if (eventId) {
+      processedEvents.add(eventId);
+      // Clean up old entries to prevent memory leak
+      if (processedEvents.size > 200) {
+        const entries = Array.from(processedEvents);
+        entries.slice(0, 100).forEach((e) => processedEvents.delete(e));
+      }
+    }
 
     // DM messages from owner → route through intent classifier
     if (event.type === "message" && event.channel_type === "im" && !event.bot_id && !event.subtype) {
-      // Return 200 immediately, process async
-      after(async () => {
-        try {
-          const owner = await getOwner();
-          if (!owner || event.user !== owner.slackUserId) return;
-
-          await handleOwnerMessage(event, owner);
-        } catch (err) {
-          console.error("Slack assistant error:", err);
+      try {
+        const owner = await getOwner();
+        if (!owner || event.user !== owner.slackUserId) {
+          return NextResponse.json({ ok: true });
         }
-      });
+
+        await handleOwnerMessage(event, owner);
+      } catch (err) {
+        console.error("Slack assistant error:", err);
+      }
 
       return NextResponse.json({ ok: true });
     }
 
     // Emoji reactions — quote selection or conversation approval
     if (event.type === "reaction_added" && event.item?.type === "message") {
-      after(async () => {
-        try {
-          const owner = await getOwner();
-          if (!owner || event.user !== owner.slackUserId) return;
-
-          // Check if this reaction is on a conversation thread (approval flow)
-          const itemTs = event.item.ts;
-          const conversation = await getConversation(itemTs);
-          if (conversation) {
-            // Thumbsup/checkmark reactions count as approval
-            const approvalEmojis = ["+1", "thumbsup", "white_check_mark", "heavy_check_mark"];
-            if (approvalEmojis.includes(event.reaction)) {
-              await handleOwnerMessage({
-                text: "approve",
-                channel: event.item.channel,
-                ts: event.event_ts || itemTs,
-                thread_ts: conversation.threadTs,
-                user: event.user,
-              }, owner);
-            }
-            return;
-          }
-
-          // Otherwise, check for quote selection via emoji
-          const emojiToNumber: Record<string, number> = {
-            one: 1, two: 2, three: 3, four: 4, five: 5,
-            six: 6, seven: 7, eight: 8, nine: 9, keycap_ten: 10,
-          };
-          const quoteNumber = emojiToNumber[event.reaction];
-          if (quoteNumber) {
-            await handleQuoteSelection(quoteNumber, owner);
-          }
-        } catch (err) {
-          console.error("Slack reaction handler error:", err);
+      try {
+        const owner = await getOwner();
+        if (!owner || event.user !== owner.slackUserId) {
+          return NextResponse.json({ ok: true });
         }
-      });
+
+        // Check if this reaction is on a conversation thread (approval flow)
+        const itemTs = event.item.ts;
+        const conversation = await getConversation(itemTs);
+        if (conversation) {
+          const approvalEmojis = ["+1", "thumbsup", "white_check_mark", "heavy_check_mark"];
+          if (approvalEmojis.includes(event.reaction)) {
+            await handleOwnerMessage({
+              text: "approve",
+              channel: event.item.channel,
+              ts: event.event_ts || itemTs,
+              thread_ts: conversation.threadTs,
+              user: event.user,
+            }, owner);
+          }
+          return NextResponse.json({ ok: true });
+        }
+
+        // Otherwise, check for quote selection via emoji
+        const emojiToNumber: Record<string, number> = {
+          one: 1, two: 2, three: 3, four: 4, five: 5,
+          six: 6, seven: 7, eight: 8, nine: 9, keycap_ten: 10,
+        };
+        const quoteNumber = emojiToNumber[event.reaction];
+        if (quoteNumber) {
+          await handleQuoteSelection(quoteNumber, owner);
+        }
+      } catch (err) {
+        console.error("Slack reaction handler error:", err);
+      }
 
       return NextResponse.json({ ok: true });
     }
