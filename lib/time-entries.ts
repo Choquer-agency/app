@@ -288,8 +288,47 @@ export async function getServiceHoursForClient(
   category: ServiceBoardCategory,
   month: string
 ): Promise<{ totalHours: number; byTicket: Array<{ ticketId: string; ticketNumber: string; ticketTitle: string; hours: number }> }> {
-  // Requires cross-table queries — simplified return
-  return { totalHours: 0, byTicket: [] };
+  const convex = getConvexClient();
+  const monthStart = new Date(month);
+  const monthEnd = new Date(monthStart);
+  monthEnd.setMonth(monthEnd.getMonth() + 1);
+
+  const tickets = await convex.query(api.tickets.list, {
+    clientId: clientId as any,
+    archived: false,
+    limit: 500,
+  });
+
+  // Filter tickets by service category
+  const categoryTickets = (tickets as any[]).filter((t) => t.serviceCategory === category);
+
+  const byTicket: Array<{ ticketId: string; ticketNumber: string; ticketTitle: string; hours: number }> = [];
+  let totalSeconds = 0;
+
+  for (const ticket of categoryTickets) {
+    const entries = await convex.query(api.timeEntries.listByTicket, {
+      ticketId: ticket._id,
+    });
+
+    let ticketSeconds = 0;
+    for (const entry of entries as any[]) {
+      if (!entry.startTime) continue;
+      const start = new Date(entry.startTime);
+      const end = entry.endTime ? new Date(entry.endTime) : new Date();
+      if (start >= monthEnd || end <= monthStart) continue;
+      const clampedStart = start < monthStart ? monthStart : start;
+      const clampedEnd = end > monthEnd ? monthEnd : end;
+      ticketSeconds += (clampedEnd.getTime() - clampedStart.getTime()) / 1000;
+    }
+
+    if (ticketSeconds > 0) {
+      const hours = Math.round((ticketSeconds / 3600) * 100) / 100;
+      byTicket.push({ ticketId: ticket._id, ticketNumber: ticket.ticketNumber ?? "", ticketTitle: ticket.title ?? "", hours });
+      totalSeconds += ticketSeconds;
+    }
+  }
+
+  return { totalHours: Math.round((totalSeconds / 3600) * 100) / 100, byTicket };
 }
 
 export async function getServiceHourCap(
@@ -300,14 +339,26 @@ export async function getServiceHourCap(
 ): Promise<ServiceHoursSummary> {
   const { totalHours, byTicket } = await getServiceHoursForClient(clientId, category, month);
 
+  // Get the package to find included hours
+  const convex = getConvexClient();
+  let includedHours = 0;
+  try {
+    const cp = await convex.query(api.clientPackages.listByClient, { clientId: clientId as any });
+    const match = (cp as any[]).find((c) => c._id === clientPackageId);
+    includedHours = match?.customHours ?? match?.packageHoursIncluded ?? 0;
+  } catch {}
+
+  const percentUsed = includedHours > 0 ? Math.round((totalHours / includedHours) * 100) : 0;
+  const status = percentUsed >= 100 ? "exceeded" : percentUsed >= 80 ? "warning" : "ok";
+
   return {
     clientId: clientId as any,
     category,
     month,
     loggedHours: Math.round(totalHours * 100) / 100,
-    includedHours: 0,
-    percentUsed: 0,
-    status: "ok",
+    includedHours,
+    percentUsed,
+    status,
     byTicket,
   };
 }
@@ -325,7 +376,15 @@ export async function getTeamTimeReport(
 // === Runaway Timer Detection ===
 
 export async function checkRunawayTimers(): Promise<TimeEntry[]> {
-  // Would need a dedicated Convex query scanning running timers > 10 hours.
-  // Return empty for now.
-  return [];
+  const convex = getConvexClient();
+  const running = await convex.query(api.timeEntries.listRunning, {});
+  const now = Date.now();
+  const TEN_HOURS = 10 * 60 * 60 * 1000;
+
+  return (running as any[])
+    .filter((e) => {
+      const start = new Date(e.startTime).getTime();
+      return (now - start) > TEN_HOURS;
+    })
+    .map(docToTimeEntry);
 }

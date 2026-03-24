@@ -126,7 +126,49 @@ export const list = query({
     });
 
     // Apply offset + limit
-    return filtered.slice(offset, offset + limit);
+    const page = filtered.slice(offset, offset + limit);
+
+    // Enrich with client names and assignees
+    const clientCache = new Map<string, string>();
+    const enriched = await Promise.all(
+      page.map(async (t) => {
+        let clientName: string | undefined;
+        if (t.clientId) {
+          if (clientCache.has(t.clientId)) {
+            clientName = clientCache.get(t.clientId);
+          } else {
+            const client = await ctx.db.get(t.clientId);
+            clientName = client?.name;
+            if (clientName) clientCache.set(t.clientId, clientName);
+          }
+        }
+
+        // Fetch assignees
+        const assigneeDocs = await ctx.db
+          .query("ticketAssignees")
+          .withIndex("by_ticket", (q) => q.eq("ticketId", t._id))
+          .collect();
+        const assignees = await Promise.all(
+          assigneeDocs.map(async (a) => {
+            const member = await ctx.db.get(a.teamMemberId);
+            return {
+              _id: a._id,
+              _creationTime: a._creationTime,
+              ticketId: a.ticketId,
+              teamMemberId: a.teamMemberId,
+              memberName: member?.name,
+              memberEmail: member?.email,
+              memberColor: member?.color,
+              memberProfilePicUrl: member?.profilePicUrl,
+            };
+          })
+        );
+
+        return { ...t, clientName, assignees };
+      })
+    );
+
+    return enriched;
   },
 });
 

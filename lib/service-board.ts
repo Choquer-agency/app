@@ -49,16 +49,21 @@ export async function ensureServiceBoardEntries(
   month: string
 ): Promise<void> {
   const convex = getConvexClient();
-  // Get existing entries for this category/month
-  const existing = await convex.query(api.serviceBoardEntries.list, {
-    category,
-    month,
-  });
 
   // Get all active client packages for this category
-  // This would need a dedicated Convex query for client_packages by category.
-  // For now, rely on the existing entries being lazily created from the API layer.
-  // The Convex create mutation already handles ON CONFLICT / dedup.
+  const activePackages = await convex.query(api.clientPackages.listActiveByCategory, {
+    category,
+  });
+
+  // Create entries for each one (dedup handled by createIfNotExists)
+  for (const cp of activePackages as any[]) {
+    await convex.mutation(api.serviceBoardEntries.createIfNotExists, {
+      clientId: cp.clientId,
+      clientPackageId: cp._id,
+      category,
+      month,
+    });
+  }
 }
 
 /**
@@ -188,12 +193,40 @@ export async function getOrCreateServiceTicket(
   month: string,
   createdById: number | string
 ): Promise<{ ticketId: string; ticketNumber: string }> {
-  // This function creates tickets and requires cross-table logic.
-  // It would need dedicated Convex actions for full implementation.
-  // For now, throw to indicate it needs migration.
-  throw new Error(
-    "getOrCreateServiceTicket requires dedicated Convex action — not yet migrated"
+  const convex = getConvexClient();
+  const categoryLabel = category === "google_ads" ? "Google Ads" : category === "seo" ? "SEO" : "Retainer";
+  const monthLabel = new Date(month + "T12:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const title = `${categoryLabel} — ${monthLabel}`;
+
+  // Check for existing service ticket
+  const existing = await convex.query(api.tickets.list, {
+    clientId: clientId as any,
+    archived: false,
+    limit: 200,
+  });
+
+  const match = (existing as any[]).find(
+    (t) => t.serviceCategory === category && t.title === title
   );
+
+  if (match) {
+    return { ticketId: match._id, ticketNumber: match.ticketNumber };
+  }
+
+  // Create new service ticket
+  const { createTicket } = await import("./tickets");
+  const ticket = await createTicket(
+    {
+      title,
+      description: `Service tracking ticket for ${categoryLabel} work in ${monthLabel}`,
+      clientId: clientId as any,
+      serviceCategory: category,
+    },
+    createdById as any,
+    { id: createdById as any, name: "System" }
+  );
+
+  return { ticketId: ticket.id as string, ticketNumber: ticket.ticketNumber };
 }
 
 /**
