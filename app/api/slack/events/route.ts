@@ -43,6 +43,7 @@ async function getOwner(): Promise<{ id: number; slackUserId: string } | null> {
 const processedEvents = new Set<string>();
 
 export async function POST(request: NextRequest) {
+  try {
   const rawBody = await request.text();
   console.log("[slack] Received event, body length:", rawBody.length);
 
@@ -100,8 +101,9 @@ export async function POST(request: NextRequest) {
         console.log("[slack] Calling handleOwnerMessage...");
         await handleOwnerMessage(event, owner);
         console.log("[slack] handleOwnerMessage completed");
-      } catch (err) {
-        console.error("[slack] Slack assistant error:", err);
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error("[slack] Slack assistant error:", error.message, error.stack);
       }
 
       return NextResponse.json({ ok: true });
@@ -150,6 +152,12 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ ok: true });
+
+  } catch (topLevelError: unknown) {
+    const err = topLevelError instanceof Error ? topLevelError : new Error(String(topLevelError));
+    console.error("[slack] TOP-LEVEL ERROR:", err.message, err.stack);
+    return NextResponse.json({ ok: true, error: err.message }, { status: 200 });
+  }
 }
 
 // Debug endpoint — GET /api/slack/events?test=announcement
