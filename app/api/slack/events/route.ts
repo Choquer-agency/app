@@ -95,7 +95,10 @@ export async function POST(request: NextRequest) {
     }
 
     // DM messages from owner → route through intent classifier
-    if (event.type === "message" && event.channel_type === "im" && !event.bot_id && !event.subtype) {
+    // Allow thread replies (subtype "message_replied" or thread broadcasts) through for conversation continuations
+    const isThreadReply = !!event.thread_ts;
+    const blockedSubtype = event.subtype && !isThreadReply;
+    if (event.type === "message" && event.channel_type === "im" && !event.bot_id && !blockedSubtype) {
       console.log("[slack] DM from user:", event.user, "text:", (event.text || "").slice(0, 50));
       try {
         const owner = await getOwner();
