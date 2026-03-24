@@ -12,7 +12,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const groups = await getProjectGroups(Number(id));
+    const groups = await getProjectGroups(id);
     return NextResponse.json(groups);
   } catch (error) {
     console.error("Failed to fetch groups:", error);
@@ -34,8 +34,8 @@ export async function POST(
 
     // Check if this is a reorder request
     if (body.orderedIds) {
-      await reorderProjectGroups(Number(id), body.orderedIds);
-      const groups = await getProjectGroups(Number(id));
+      await reorderProjectGroups(id, body.orderedIds);
+      const groups = await getProjectGroups(id);
       return NextResponse.json(groups);
     }
 
@@ -44,7 +44,7 @@ export async function POST(
     }
 
     const group = await createProjectGroup(
-      Number(id),
+      id,
       body.name.trim(),
       body.color,
       body.sortOrder

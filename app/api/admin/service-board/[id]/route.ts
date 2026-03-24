@@ -13,7 +13,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const entry = await getServiceBoardEntryById(Number(id));
+    const entry = await getServiceBoardEntryById(id);
     if (!entry) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -36,7 +36,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const entry = await updateServiceBoardEntry(Number(id), {
+    const entry = await updateServiceBoardEntry(id, {
       status: body.status,
       specialistId: body.specialistId,
       notes: body.notes,

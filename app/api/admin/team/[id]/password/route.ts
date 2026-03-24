@@ -25,10 +25,7 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const teamMemberId = parseInt(id, 10);
-  if (isNaN(teamMemberId)) {
-    return NextResponse.json(
-      { error: "Invalid team member ID" },
+  const teamMemberId = id;
       { status: 400 }
     );
   }

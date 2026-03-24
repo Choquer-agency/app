@@ -16,7 +16,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const attachments = await getAttachments(Number(id));
+    const attachments = await getAttachments(id);
     return NextResponse.json(attachments);
   } catch (error) {
     console.error("Failed to fetch attachments:", error);
@@ -35,7 +35,7 @@ export async function POST(
 
   try {
     const { id } = await params;
-    const ticketId = Number(id);
+    const ticketId = id;
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 

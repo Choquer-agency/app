@@ -29,7 +29,7 @@ export async function POST(
     }
 
     const previews = await previewDateCascade(
-      Number(id),
+      id,
       body.ticketId,
       body.newDate,
       body.field

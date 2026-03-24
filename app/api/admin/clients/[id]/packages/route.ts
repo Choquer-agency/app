@@ -14,7 +14,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const packages = await getClientPackages(Number(id));
+    const packages = await getClientPackages(id);
     return NextResponse.json(packages);
   } catch (error) {
     console.error("Failed to fetch client packages:", error);
@@ -40,7 +40,7 @@ export async function POST(
     }
 
     const assignment = await assignPackage({
-      clientId: Number(id),
+      clientId: id,
       packageId: body.packageId,
       customPrice: body.customPrice ?? null,
       customHours: body.customHours ?? null,
@@ -52,7 +52,7 @@ export async function POST(
     });
 
     // Sync MRR on clients table
-    await syncClientMrr(Number(id));
+    await syncClientMrr(id);
 
     // Auto-log package assignment with full details
     const pkg = await getPackageById(body.packageId).catch(() => null);
@@ -68,7 +68,7 @@ export async function POST(
     if (body.signupDate) parts.push(`starts ${body.signupDate}`);
     if (body.contractEndDate) parts.push(`ends ${body.contractEndDate}`);
     await addNote({
-      clientId: Number(id),
+      clientId: id,
       author: session.name,
       noteType: "package_change",
       content: parts.join(", "),

@@ -12,7 +12,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const members = await getProjectMembers(Number(id));
+    const members = await getProjectMembers(id);
     return NextResponse.json(members);
   } catch (error) {
     console.error("Failed to fetch project members:", error);
@@ -34,8 +34,8 @@ export async function POST(
     if (!teamMemberId) {
       return NextResponse.json({ error: "teamMemberId is required" }, { status: 400 });
     }
-    await addProjectMember(Number(id), teamMemberId);
-    const members = await getProjectMembers(Number(id));
+    await addProjectMember(id, teamMemberId);
+    const members = await getProjectMembers(id);
     return NextResponse.json(members, { status: 201 });
   } catch (error) {
     console.error("Failed to add project member:", error);
@@ -57,8 +57,8 @@ export async function DELETE(
     if (!teamMemberId) {
       return NextResponse.json({ error: "teamMemberId is required" }, { status: 400 });
     }
-    await removeProjectMember(Number(id), teamMemberId);
-    const members = await getProjectMembers(Number(id));
+    await removeProjectMember(id, teamMemberId);
+    const members = await getProjectMembers(id);
     return NextResponse.json(members);
   } catch (error) {
     console.error("Failed to remove project member:", error);

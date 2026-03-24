@@ -12,10 +12,8 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const approvalId = parseInt(id, 10);
+  const approvalId = id;
 
-  if (isNaN(approvalId)) {
-    return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
   }
 
   await dismissApproval(approvalId);

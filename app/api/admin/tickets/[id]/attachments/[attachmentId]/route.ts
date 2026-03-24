@@ -12,7 +12,7 @@ export async function DELETE(
 
   try {
     const { id, attachmentId } = await params;
-    const deleted = await deleteAttachment(Number(attachmentId), Number(id));
+    const deleted = await deleteAttachment(attachmentId, id);
 
     if (!deleted) {
       return NextResponse.json({ error: "Attachment not found" }, { status: 404 });

@@ -26,7 +26,7 @@ export async function POST(
     }
 
     const project = await duplicateProject(
-      Number(id),
+      id,
       body.clientId,
       body.name.trim(),
       body.startDate,

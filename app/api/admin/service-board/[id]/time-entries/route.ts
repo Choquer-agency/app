@@ -15,7 +15,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const entry = await getServiceBoardEntryById(Number(id));
+    const entry = await getServiceBoardEntryById(id);
     if (!entry) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -44,7 +44,7 @@ export async function POST(
 
   try {
     const { id } = await params;
-    const entry = await getServiceBoardEntryById(Number(id));
+    const entry = await getServiceBoardEntryById(id);
     if (!entry) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

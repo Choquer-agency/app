@@ -15,7 +15,7 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const view = await updateSavedView(Number(id), session.teamMemberId, body);
+    const view = await updateSavedView(id, session.teamMemberId, body);
     if (!view) {
       return NextResponse.json({ error: "Saved view not found" }, { status: 404 });
     }
@@ -37,7 +37,7 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    const success = await deleteSavedView(Number(id), session.teamMemberId);
+    const success = await deleteSavedView(id, session.teamMemberId);
     if (!success) {
       return NextResponse.json({ error: "Saved view not found" }, { status: 404 });
     }

@@ -16,14 +16,14 @@ export async function POST(
     const body = await request.json().catch(() => ({}));
 
     // Determine if quarterly from request body or auto-detect from entry month
-    const entry = await getServiceBoardEntryById(Number(id));
+    const entry = await getServiceBoardEntryById(id);
     if (!entry) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     const isQuarterly = body.isQuarterly ?? isQuarterlyMonth(entry.month);
 
-    const updated = await markEmailSent(Number(id), isQuarterly);
+    const updated = await markEmailSent(id, isQuarterly);
     return NextResponse.json(updated);
   } catch (error) {
     console.error("Service board send-email error:", error);

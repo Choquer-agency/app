@@ -12,7 +12,7 @@ function extractMentionIds(description: string): number[] {
       if (node.type === "mention" && node.attrs) {
         const id = (node.attrs as Record<string, unknown>).id;
         if (typeof id === "number") ids.push(id);
-        else if (typeof id === "string" && !isNaN(Number(id))) ids.push(Number(id));
+        else if (typeof id === "string" && !isNaN(id)) ids.push(id);
       }
       if (Array.isArray(node.content)) {
         for (const child of node.content) walk(child as Record<string, unknown>);
@@ -35,7 +35,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const ticket = await getTicketById(Number(id));
+    const ticket = await getTicketById(id);
     if (!ticket) {
       return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
     }
@@ -63,11 +63,11 @@ export async function PUT(
     // Capture old mentions before update
     let oldMentionIds: number[] = [];
     if (body.description) {
-      const oldTicket = await getTicketById(Number(id));
+      const oldTicket = await getTicketById(id);
       if (oldTicket) oldMentionIds = extractMentionIds(oldTicket.description || "");
     }
 
-    const ticket = await updateTicket(Number(id), body, actor);
+    const ticket = await updateTicket(id, body, actor);
     if (!ticket) {
       return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
     }
@@ -77,7 +77,7 @@ export async function PUT(
       const newMentionIds = extractMentionIds(body.description);
       const freshMentions = newMentionIds.filter((mid) => !oldMentionIds.includes(mid));
       if (freshMentions.length > 0) {
-        notifyMention(Number(id), freshMentions, session.teamMemberId, session.name).catch(() => {});
+        notifyMention(id, freshMentions, session.teamMemberId, session.name).catch(() => {});
       }
     }
 
@@ -100,7 +100,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const actor = { id: session.teamMemberId, name: session.name };
-    const success = await archiveTicket(Number(id), actor);
+    const success = await archiveTicket(id, actor);
     if (!success) {
       return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
     }

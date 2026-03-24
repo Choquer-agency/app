@@ -16,7 +16,7 @@ export async function GET(
     const limit = Number(url.searchParams.get("limit") || "50");
     const offset = Number(url.searchParams.get("offset") || "0");
 
-    const notes = await getClientNotes(Number(id), limit, offset);
+    const notes = await getClientNotes(id, limit, offset);
     return NextResponse.json(notes);
   } catch (error) {
     console.error("Failed to fetch notes:", error);
@@ -42,7 +42,7 @@ export async function POST(
     }
 
     const note = await addNote({
-      clientId: Number(id),
+      clientId: id,
       author: session.name,
       noteType: body.noteType || "note",
       content: body.content.trim(),

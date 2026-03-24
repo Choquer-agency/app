@@ -15,14 +15,14 @@ export async function PUT(
   try {
     const { id, cpId } = await params;
     const body = await request.json();
-    const assignment = await updateAssignment(Number(cpId), body);
+    const assignment = await updateAssignment(cpId, body);
 
     if (!assignment) {
       return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
     }
 
     // Sync MRR on clients table
-    await syncClientMrr(Number(id));
+    await syncClientMrr(id);
 
     // Auto-log package update
     const pkgName = assignment.packageName || `Package #${assignment.packageId}`;
@@ -32,7 +32,7 @@ export async function PUT(
     if (body.active !== undefined) changes.push(body.active ? "reactivated" : "deactivated");
     if (changes.length > 0) {
       await addNote({
-        clientId: Number(id),
+        clientId: id,
         author: session.name,
         noteType: "package_change",
         content: `${pkgName} updated: ${changes.join(", ")}`,
@@ -58,24 +58,24 @@ export async function DELETE(
   try {
     const { id, cpId } = await params;
     // Fetch assignment details before removing for the log
-    const existing = (await getClientPackages(Number(id))).find(
-      (p) => p.id === Number(cpId)
+    const existing = (await getClientPackages(id)).find(
+      (p) => p.id === cpId
     );
     const pkgName = existing?.packageName || `Package #${cpId}`;
     const price = existing?.customPrice ?? existing?.packageDefaultPrice ?? 0;
 
-    const success = await removeAssignment(Number(cpId));
+    const success = await removeAssignment(cpId);
 
     if (!success) {
       return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
     }
 
     // Sync MRR on clients table
-    await syncClientMrr(Number(id));
+    await syncClientMrr(id);
 
     // Auto-log package removal
     await addNote({
-      clientId: Number(id),
+      clientId: id,
       author: session.name,
       noteType: "package_change",
       content: `${pkgName} removed ($${price.toLocaleString()}/mo)`,

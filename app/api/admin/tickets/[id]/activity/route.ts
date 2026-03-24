@@ -12,9 +12,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  const ticketId = parseInt(id, 10);
-  if (isNaN(ticketId)) {
-    return NextResponse.json({ error: "Invalid ticket ID" }, { status: 400 });
+  const ticketId = id;
   }
 
   const { searchParams } = new URL(request.url);

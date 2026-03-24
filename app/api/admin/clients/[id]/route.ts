@@ -14,8 +14,8 @@ export async function GET(
   try {
     const { id } = await params;
     // Sync MRR from packages before returning
-    await syncClientMrr(Number(id)).catch(() => {});
-    const client = await getClientById(Number(id));
+    await syncClientMrr(id).catch(() => {});
+    const client = await getClientById(id);
 
     if (!client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
@@ -52,13 +52,13 @@ export async function PUT(
     let client;
 
     try {
-      client = await updateClient(Number(id), body);
+      client = await updateClient(id, body);
     } catch (dbError) {
       // If columns are missing, run migrations and retry
       if (dbError instanceof Error && dbError.message.includes("column")) {
         const { runCrmMigration } = await import("@/lib/migrate");
         await runCrmMigration();
-        client = await updateClient(Number(id), body);
+        client = await updateClient(id, body);
       } else {
         throw dbError;
       }
@@ -88,7 +88,7 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    const success = await hardDeleteClient(Number(id));
+    const success = await hardDeleteClient(id);
 
     if (!success) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });

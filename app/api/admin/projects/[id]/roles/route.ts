@@ -12,7 +12,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const roles = await getTemplateRoles(Number(id));
+    const roles = await getTemplateRoles(id);
     return NextResponse.json(roles);
   } catch (error) {
     console.error("Failed to fetch roles:", error);
@@ -34,8 +34,8 @@ export async function POST(
 
     // Check if this is a reorder request
     if (body.orderedIds) {
-      await reorderTemplateRoles(Number(id), body.orderedIds);
-      const roles = await getTemplateRoles(Number(id));
+      await reorderTemplateRoles(id, body.orderedIds);
+      const roles = await getTemplateRoles(id);
       return NextResponse.json(roles);
     }
 
@@ -44,7 +44,7 @@ export async function POST(
     }
 
     const role = await createTemplateRole(
-      Number(id),
+      id,
       body.name.trim(),
       body.sortOrder
     );

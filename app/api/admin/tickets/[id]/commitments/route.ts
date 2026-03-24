@@ -12,7 +12,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const commitments = await getCommitmentsForTicket(Number(id));
+    const commitments = await getCommitmentsForTicket(id);
     return NextResponse.json(commitments);
   } catch (error) {
     console.error("Failed to fetch commitments:", error);
@@ -38,7 +38,7 @@ export async function POST(
     }
 
     const commitment = await addCommitment({
-      ticketId: Number(id),
+      ticketId: id,
       teamMemberId: body.teamMemberId,
       committedDate: body.committedDate,
       committedById: session.teamMemberId,

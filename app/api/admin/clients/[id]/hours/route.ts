@@ -12,9 +12,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  const clientId = parseInt(id, 10);
-  if (isNaN(clientId)) {
-    return NextResponse.json({ error: "Invalid client ID" }, { status: 400 });
+  const clientId = id;
   }
 
   const { searchParams } = new URL(request.url);

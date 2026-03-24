@@ -12,7 +12,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const assignees = await getTicketAssignees(Number(id));
+    const assignees = await getTicketAssignees(id);
     return NextResponse.json(assignees);
   } catch (error) {
     console.error("Failed to fetch assignees:", error);
@@ -38,7 +38,7 @@ export async function POST(
     }
 
     const actor = { id: session.teamMemberId, name: session.name };
-    const assignee = await addAssignee(Number(id), body.teamMemberId, actor);
+    const assignee = await addAssignee(id, body.teamMemberId, actor);
     if (!assignee) {
       return NextResponse.json({ error: "Already assigned" }, { status: 409 });
     }
@@ -67,7 +67,7 @@ export async function DELETE(
     }
 
     const actor = { id: session.teamMemberId, name: session.name };
-    const success = await removeAssignee(Number(id), body.teamMemberId, actor);
+    const success = await removeAssignee(id, body.teamMemberId, actor);
     if (!success) {
       return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
     }

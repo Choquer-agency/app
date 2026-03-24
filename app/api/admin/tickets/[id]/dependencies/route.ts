@@ -12,7 +12,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const deps = await getTicketDependencies(Number(id));
+    const deps = await getTicketDependencies(id);
     return NextResponse.json(deps);
   } catch (error) {
     console.error("Failed to fetch dependencies:", error);
@@ -34,7 +34,7 @@ export async function POST(
     if (!body.dependsOnTicketId) {
       return NextResponse.json({ error: "dependsOnTicketId is required" }, { status: 400 });
     }
-    await addTicketDependency(Number(id), body.dependsOnTicketId);
+    await addTicketDependency(id, body.dependsOnTicketId);
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {
     console.error("Failed to add dependency:", error);
@@ -56,7 +56,7 @@ export async function DELETE(
     if (!body.dependsOnTicketId) {
       return NextResponse.json({ error: "dependsOnTicketId is required" }, { status: 400 });
     }
-    await removeTicketDependency(Number(id), body.dependsOnTicketId);
+    await removeTicketDependency(id, body.dependsOnTicketId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to remove dependency:", error);

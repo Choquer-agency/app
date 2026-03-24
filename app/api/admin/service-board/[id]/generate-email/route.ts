@@ -13,8 +13,8 @@ export async function POST(
 
   try {
     const { id } = await params;
-    await generateMonthlyEmail(Number(id));
-    const updated = await getServiceBoardEntryById(Number(id));
+    await generateMonthlyEmail(id);
+    const updated = await getServiceBoardEntryById(id);
     if (!updated) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

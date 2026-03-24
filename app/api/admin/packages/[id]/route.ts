@@ -13,7 +13,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const pkg = await updatePackage(Number(id), body);
+    const pkg = await updatePackage(id, body);
 
     if (!pkg) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
@@ -36,7 +36,7 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    const success = await deletePackage(Number(id));
+    const success = await deletePackage(id);
 
     if (!success) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });

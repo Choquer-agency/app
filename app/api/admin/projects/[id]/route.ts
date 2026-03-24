@@ -12,7 +12,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const project = await getProjectById(Number(id));
+    const project = await getProjectById(id);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
@@ -35,7 +35,7 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const project = await updateProject(Number(id), {
+    const project = await updateProject(id, {
       name: body.name,
       description: body.description,
       clientId: body.clientId,
@@ -67,7 +67,7 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    const success = await deleteProject(Number(id));
+    const success = await deleteProject(id);
     if (!success) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }

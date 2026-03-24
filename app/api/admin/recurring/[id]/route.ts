@@ -16,7 +16,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const template = await getRecurringTemplateById(Number(id));
+    const template = await getRecurringTemplateById(id);
     if (!template) {
       return NextResponse.json({ error: "Template not found" }, { status: 404 });
     }
@@ -39,7 +39,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const template = await updateRecurringTemplate(Number(id), {
+    const template = await updateRecurringTemplate(id, {
       title: body.title,
       description: body.description,
       descriptionFormat: body.descriptionFormat,
@@ -75,7 +75,7 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    const success = await deleteRecurringTemplate(Number(id));
+    const success = await deleteRecurringTemplate(id);
     if (!success) {
       return NextResponse.json({ error: "Template not found" }, { status: 404 });
     }

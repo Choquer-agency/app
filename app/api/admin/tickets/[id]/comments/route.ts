@@ -12,7 +12,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const comments = await getComments(Number(id));
+    const comments = await getComments(id);
     return NextResponse.json(comments);
   } catch (error) {
     console.error("Failed to fetch comments:", error);
@@ -38,7 +38,7 @@ export async function POST(
     }
 
     const comment = await addComment(
-      Number(id),
+      id,
       session.teamMemberId,
       session.name,
       session.email,
