@@ -13,7 +13,6 @@ export async function PUT(
 
   const { entryId } = await params;
   const entryIdNum = entryId;
-  }
 
   const body = await request.json();
 
@@ -50,7 +49,6 @@ export async function DELETE(
 
   const { entryId } = await params;
   const entryIdNum = entryId;
-  }
 
   const deleted = await deleteTimeEntry(entryIdNum);
   if (!deleted) {

@@ -26,9 +26,6 @@ export async function PUT(
 
   const { id } = await params;
   const teamMemberId = id;
-      { status: 400 }
-    );
-  }
 
   const { password } = await request.json();
   if (!password || password.length < 8) {

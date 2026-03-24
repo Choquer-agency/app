@@ -164,10 +164,53 @@ export async function getMonthlyHoursForClient(
   clientId: number | string,
   month: string
 ): Promise<{ totalHours: number; byTicket: Array<{ ticketId: string; ticketNumber: string; ticketTitle: string; hours: number }> }> {
-  // This requires cross-table queries (tickets + time_entries).
-  // Convex doesn't have a dedicated query for this, so we compute in JS.
-  // For now, return empty — this will need a dedicated Convex query or action.
-  return { totalHours: 0, byTicket: [] };
+  const convex = getConvexClient();
+  const monthStart = new Date(month);
+  const monthEnd = new Date(monthStart);
+  monthEnd.setMonth(monthEnd.getMonth() + 1);
+
+  // Get all tickets for this client
+  const tickets = await convex.query(api.tickets.list, {
+    clientId: clientId as any,
+    archived: false,
+    limit: 500,
+  });
+
+  const byTicket: Array<{ ticketId: string; ticketNumber: string; ticketTitle: string; hours: number }> = [];
+  let totalSeconds = 0;
+
+  for (const ticket of tickets as any[]) {
+    const entries = await convex.query(api.timeEntries.listByTicket, {
+      ticketId: ticket._id,
+    });
+
+    let ticketSeconds = 0;
+    for (const entry of entries as any[]) {
+      if (!entry.startTime) continue;
+      const start = new Date(entry.startTime);
+      const end = entry.endTime ? new Date(entry.endTime) : new Date();
+      if (start >= monthEnd || end <= monthStart) continue;
+      const clampedStart = start < monthStart ? monthStart : start;
+      const clampedEnd = end > monthEnd ? monthEnd : end;
+      ticketSeconds += (clampedEnd.getTime() - clampedStart.getTime()) / 1000;
+    }
+
+    if (ticketSeconds > 0) {
+      const hours = Math.round((ticketSeconds / 3600) * 100) / 100;
+      byTicket.push({
+        ticketId: ticket._id,
+        ticketNumber: ticket.ticketNumber ?? "",
+        ticketTitle: ticket.title ?? "",
+        hours,
+      });
+      totalSeconds += ticketSeconds;
+    }
+  }
+
+  return {
+    totalHours: Math.round((totalSeconds / 3600) * 100) / 100,
+    byTicket,
+  };
 }
 
 export async function getMonthlyHoursForMember(
@@ -206,18 +249,34 @@ export async function getClientHourCap(
   clientId: number | string,
   month: string
 ): Promise<ClientHoursSummary> {
-  // This requires cross-table joins (client_packages, packages, time_entries, tickets).
-  // Simplified version — returns minimal data.
   const { totalHours, byTicket } = await getMonthlyHoursForClient(clientId, month);
+
+  // Get total included hours from all active packages
+  const convex = getConvexClient();
+  let includedHours = 0;
+  let clientName = "";
+  try {
+    const client = await convex.query(api.clients.getById, { id: clientId as any });
+    clientName = (client as any)?.name ?? "";
+    const packages = await convex.query(api.clientPackages.listByClient, { clientId: clientId as any });
+    for (const cp of packages as any[]) {
+      if (cp.active) {
+        includedHours += cp.customHours ?? cp.packageHoursIncluded ?? 0;
+      }
+    }
+  } catch {}
+
+  const percentUsed = includedHours > 0 ? Math.round((totalHours / includedHours) * 100) : 0;
+  const status = percentUsed >= 100 ? "exceeded" : percentUsed >= 80 ? "warning" : "ok";
 
   return {
     clientId: clientId as any,
-    clientName: "",
+    clientName,
     month,
     loggedHours: Math.round(totalHours * 100) / 100,
-    includedHours: 0,
-    percentUsed: 0,
-    status: "ok",
+    includedHours,
+    percentUsed,
+    status,
     byTicket,
   };
 }

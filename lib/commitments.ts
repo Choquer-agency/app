@@ -36,10 +36,12 @@ export async function getCommitmentsForMember(
   teamMemberId: number | string,
   status?: CommitmentStatus
 ): Promise<TicketCommitment[]> {
-  // The Convex commitments module only has listByTicket.
-  // For member-based queries, we'd need a dedicated Convex query.
-  // Return empty for now.
-  return [];
+  const convex = getConvexClient();
+  const docs = await convex.query(api.commitments.listByMember, {
+    teamMemberId: teamMemberId as any,
+    status: status ?? undefined,
+  });
+  return docs.map(docToCommitment);
 }
 
 export async function addCommitment(data: {
@@ -75,35 +77,90 @@ export async function resolveCommitment(
 // === Auto-resolution: run by cron ===
 
 export async function autoResolveMissedCommitments(): Promise<number> {
-  // Would need a dedicated Convex action to scan all active commitments.
-  // Not directly supported by current Convex functions.
-  return 0;
+  const convex = getConvexClient();
+  const active = await convex.query(api.commitments.listActive, {});
+  const today = new Date().toISOString().split("T")[0];
+  let count = 0;
+  for (const c of active as any[]) {
+    if (c.committedDate < today) {
+      // Check if ticket is still open
+      const ticket = await convex.query(api.tickets.getById, { id: c.ticketId });
+      if (ticket && (ticket as any).status !== "closed") {
+        await convex.mutation(api.commitments.update, {
+          id: c._id,
+          status: "missed",
+          resolvedAt: new Date().toISOString(),
+        });
+        count++;
+      }
+    }
+  }
+  return count;
 }
 
 export async function autoResolveMetCommitments(): Promise<number> {
-  // Would need a dedicated Convex action.
-  return 0;
+  const convex = getConvexClient();
+  const active = await convex.query(api.commitments.listActive, {});
+  let count = 0;
+  for (const c of active as any[]) {
+    const ticket = await convex.query(api.tickets.getById, { id: c.ticketId });
+    if (ticket && (ticket as any).status === "closed") {
+      await convex.mutation(api.commitments.update, {
+        id: c._id,
+        status: "met",
+        resolvedAt: new Date().toISOString(),
+      });
+      count++;
+    }
+  }
+  return count;
 }
 
 // === Reliability Score ===
 
 export async function getReliabilityScores(days: number = 90): Promise<ReliabilityScore[]> {
-  // Would need a dedicated Convex query aggregating commitments across members.
-  return [];
+  const convex = getConvexClient();
+  const members = await convex.query(api.teamMembers.list, { activeOnly: true });
+  const scores: ReliabilityScore[] = [];
+  for (const m of members as any[]) {
+    const score = await getReliabilityScoreForMember(m._id, days);
+    if (score.totalCommitments > 0) scores.push(score);
+  }
+  return scores;
 }
 
 export async function getReliabilityScoreForMember(
   teamMemberId: number | string,
   days: number = 90
 ): Promise<ReliabilityScore> {
-  // Not directly supported — would need a dedicated Convex query.
+  const convex = getConvexClient();
+  const commitments = await convex.query(api.commitments.listByMember, {
+    teamMemberId: teamMemberId as any,
+  });
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffStr = cutoff.toISOString().split("T")[0];
+
+  const recent = (commitments as any[]).filter((c) => c.committedDate >= cutoffStr);
+  const met = recent.filter((c) => c.status === "met").length;
+  const missed = recent.filter((c) => c.status === "missed").length;
+  const total = met + missed;
+
+  // Get member name
+  let memberName = "";
+  try {
+    const member = await convex.query(api.teamMembers.getById, { id: teamMemberId as any });
+    memberName = (member as any)?.name ?? "";
+  } catch {}
+
   return {
     teamMemberId: teamMemberId as any,
-    memberName: "",
-    totalCommitments: 0,
-    commitmentsMet: 0,
-    commitmentsMissed: 0,
-    score: 0,
+    memberName,
+    totalCommitments: total,
+    commitmentsMet: met,
+    commitmentsMissed: missed,
+    score: total > 0 ? Math.round((met / total) * 100) : 0,
   };
 }
 
@@ -132,15 +189,45 @@ export interface MeetingTicket {
 }
 
 export async function getMemberMeetingData(teamMemberId: number | string): Promise<MeetingMemberData> {
-  // This requires complex cross-table queries (tickets, assignees, commitments, clients).
-  // Would need dedicated Convex actions. Return empty structure for now.
+  const convex = getConvexClient();
   const reliability = await getReliabilityScoreForMember(teamMemberId);
+
+  // Get tickets assigned to this member
+  const ticketDocs = await convex.query(api.tickets.listByAssignee, {
+    teamMemberId: teamMemberId as any,
+    archived: false,
+  });
+
+  const today = new Date().toISOString().split("T")[0];
+  const weekEnd = new Date();
+  weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
+  const weekEndStr = weekEnd.toISOString().split("T")[0];
+
+  const toMeetingTicket = (t: any): MeetingTicket => ({
+    id: t._id,
+    ticketNumber: t.ticketNumber ?? "",
+    title: t.title ?? "",
+    status: t.status ?? "",
+    priority: t.priority ?? "normal",
+    dueDate: t.dueDate ?? null,
+    clientName: t.clientName ?? null,
+    lastCommitment: null,
+    commitmentCount: 0,
+    missedCommitmentCount: 0,
+  });
+
+  const open = (ticketDocs as any[]).filter((t) => t.status !== "closed");
+  const overdue = open.filter((t) => t.dueDate && t.dueDate < today).map(toMeetingTicket);
+  const dueThisWeek = open.filter((t) => t.dueDate && t.dueDate >= today && t.dueDate <= weekEndStr).map(toMeetingTicket);
+  const inProgress = open.filter((t) => t.status === "in_progress").map(toMeetingTicket);
+  const needsAttention = open.filter((t) => t.status === "needs_attention" || t.status === "stuck").map(toMeetingTicket);
+
   return {
-    overdue: [],
+    overdue,
     missedCommitments: [],
-    dueThisWeek: [],
-    inProgress: [],
-    needsAttention: [],
+    dueThisWeek,
+    inProgress,
+    needsAttention,
     reliability,
   };
 }

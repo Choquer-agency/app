@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { TeamMember } from "@/types";
 import CopyField from "./CopyField";
-import { hasPermission, ROLE_LEVELS, ROLE_LABELS, type RoleLevel } from "@/lib/permissions";
+import { hasPermission, hasMinRole, ROLE_LEVELS, ROLE_LABELS, type RoleLevel } from "@/lib/permissions";
 import { friendlyDate, friendlyMonth } from "@/lib/date-format";
 
 function TeamMemberFormModal({
@@ -352,7 +352,7 @@ function TeamMemberFormModal({
   );
 }
 
-export default function TeamList({ roleLevel }: { roleLevel?: RoleLevel }) {
+export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: RoleLevel; currentMemberId?: string | number }) {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -363,6 +363,8 @@ export default function TeamList({ roleLevel }: { roleLevel?: RoleLevel }) {
   const canViewWages = roleLevel ? hasPermission(roleLevel, "team:view_wages") : false;
   const canEditWages = roleLevel ? hasPermission(roleLevel, "team:edit_wages") : false;
   const canManageRoles = roleLevel ? hasPermission(roleLevel, "team:manage_roles") : false;
+  const canEditOthers = roleLevel ? hasMinRole(roleLevel, "c_suite") : false;
+  const canAddMembers = roleLevel ? hasMinRole(roleLevel, "c_suite") : false;
 
   const fetchMembers = useCallback(async () => {
     try {
@@ -432,6 +434,16 @@ export default function TeamList({ roleLevel }: { roleLevel?: RoleLevel }) {
     }
   }
 
+  async function handleDelete(member: TeamMember) {
+    if (!confirm(`Permanently delete ${member.name}? This cannot be undone.`)) return;
+    try {
+      await fetch(`/api/admin/team?id=${member.id}`, { method: "DELETE" });
+      fetchMembers();
+    } catch {
+      // Failed
+    }
+  }
+
   if (loading) {
     return <div className="text-center py-12 text-[var(--muted)] text-sm">Loading...</div>;
   }
@@ -455,12 +467,14 @@ export default function TeamList({ roleLevel }: { roleLevel?: RoleLevel }) {
           <h2 className="text-2xl font-bold text-[var(--foreground)]">Team</h2>
           <p className="text-sm text-[var(--muted)] mt-1">Manage your agency team members</p>
         </div>
-        <button
-          onClick={() => { setEditingMember(null); setShowModal(true); }}
-          className="px-4 py-2 text-sm font-medium text-white bg-[var(--accent)] rounded-lg hover:opacity-90 transition"
-        >
-          + Add Member
-        </button>
+        {canAddMembers && (
+          <button
+            onClick={() => { setEditingMember(null); setShowModal(true); }}
+            className="px-4 py-2 text-sm font-medium text-white bg-[var(--accent)] rounded-lg hover:opacity-90 transition"
+          >
+            + Add Member
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -552,6 +566,10 @@ export default function TeamList({ roleLevel }: { roleLevel?: RoleLevel }) {
                     {ROLE_LABELS[member.roleLevel as RoleLevel] ?? member.roleLevel}
                   </span>
                 )}
+                {/* Available hours — only visible to admins */}
+                {canEditOthers && member.availableHoursPerWeek != null && member.availableHoursPerWeek !== 40 && (
+                  <span className="text-xs text-[var(--muted)]">{member.availableHoursPerWeek}h/week</span>
+                )}
                 {member.tags && member.tags.length > 0 && (
                   <div className="flex gap-1 mt-1 flex-wrap">
                     {member.tags.map((tag) => (
@@ -563,30 +581,44 @@ export default function TeamList({ roleLevel }: { roleLevel?: RoleLevel }) {
                 )}
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-2 pt-1 border-t border-[var(--border)]">
-                <button
-                  onClick={() => { setEditingMember(member); setShowModal(true); }}
-                  className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
-                >
-                  Edit
-                </button>
-                {member.active ? (
+              {/* Actions — employees can only edit themselves */}
+              {(canEditOthers || String(member.id) === String(currentMemberId)) && (
+                <div className="flex gap-2 pt-1 border-t border-[var(--border)]">
                   <button
-                    onClick={() => handleDeactivate(member)}
-                    className="text-xs text-[#b91c1c] hover:text-red-700"
+                    onClick={() => { setEditingMember(member); setShowModal(true); }}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
                   >
-                    Deactivate
+                    Edit
                   </button>
-                ) : (
-                  <button
-                    onClick={() => handleReactivate(member)}
-                    className="text-xs text-[#0d7a55] hover:text-green-800"
-                  >
-                    Reactivate
-                  </button>
-                )}
-              </div>
+                  {/* Only admins can deactivate, and you can't deactivate yourself */}
+                  {canEditOthers && String(member.id) !== String(currentMemberId) && (
+                    member.active ? (
+                      <button
+                        onClick={() => handleDeactivate(member)}
+                        className="text-xs text-[#b91c1c] hover:text-red-700"
+                      >
+                        Deactivate
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleReactivate(member)}
+                        className="text-xs text-[#0d7a55] hover:text-green-800"
+                      >
+                        Reactivate
+                      </button>
+                    )
+                  )}
+                  {/* Owner can permanently delete (not themselves) */}
+                  {canManageRoles && String(member.id) !== String(currentMemberId) && (
+                    <button
+                      onClick={() => handleDelete(member)}
+                      className="text-xs text-[var(--muted)] hover:text-[#b91c1c] ml-auto"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             );
           })

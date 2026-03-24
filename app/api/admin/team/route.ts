@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllTeamMembers, addTeamMember, updateTeamMember } from "@/lib/team-members";
+import { getAllTeamMembers, addTeamMember, updateTeamMember, deleteTeamMember } from "@/lib/team-members";
 import { getSession } from "@/lib/admin-auth";
 import { hasPermission } from "@/lib/permissions";
 import { TeamMember } from "@/types";
@@ -106,5 +106,37 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error("Failed to update team member:", error);
     return NextResponse.json({ error: "Failed to update team member" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const session = getSession(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!hasPermission(session.roleLevel, "team:manage_roles")) {
+    return NextResponse.json({ error: "Only the owner can delete team members" }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "ID is required" }, { status: 400 });
+  }
+
+  // Can't delete yourself
+  if (String(id) === String(session.teamMemberId)) {
+    return NextResponse.json({ error: "Cannot delete yourself" }, { status: 400 });
+  }
+
+  try {
+    const success = await deleteTeamMember(id);
+    if (!success) {
+      return NextResponse.json({ error: "Team member not found" }, { status: 404 });
+    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Failed to delete team member:", error);
+    return NextResponse.json({ error: "Failed to delete team member" }, { status: 500 });
   }
 }

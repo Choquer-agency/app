@@ -1,18 +1,25 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { hasMinRole, type RoleLevel } from "@/lib/permissions";
 
 const TABS = [
-  { href: "/admin/settings/packages", label: "Packages" },
+  { href: "/admin/settings/packages", label: "Packages", minRole: "c_suite" as RoleLevel },
   { href: "/admin/settings/team", label: "Team" },
-  { href: "/admin/settings/templates", label: "Templates" },
+  { href: "/admin/settings/templates", label: "Templates", minRole: "c_suite" as RoleLevel },
   { href: "/admin/settings/calendar", label: "Calendar" },
-  { href: "/admin/settings/past-clients", label: "Past Clients" },
-  { href: "/admin/settings/activity", label: "Activity" },
+  { href: "/admin/settings/past-clients", label: "Past Clients", minRole: "c_suite" as RoleLevel },
+  { href: "/admin/settings/activity", label: "Activity", minRole: "c_suite" as RoleLevel },
 ];
 
-export default function SettingsSubNav() {
+export default function SettingsSubNav({ roleLevel }: { roleLevel?: RoleLevel | string }) {
   const pathname = usePathname();
+
+  const visibleTabs = TABS.filter((tab) => {
+    if (!tab.minRole) return true;
+    if (!roleLevel) return false;
+    return hasMinRole(roleLevel as RoleLevel, tab.minRole);
+  });
 
   const tabClass = (href: string) =>
     `whitespace-nowrap px-3 py-2 text-sm transition border-b-2 ${
@@ -25,7 +32,7 @@ export default function SettingsSubNav() {
     <div className="border-b border-[var(--border)] bg-white">
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center gap-1">
-          {TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <a key={tab.href} href={tab.href} className={tabClass(tab.href)}>
               {tab.label}
             </a>

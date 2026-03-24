@@ -162,3 +162,27 @@ export const remove = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+// List all time entries (for report aggregation)
+export const listAll = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("timeEntries")
+      .order("desc")
+      .take(args.limit ?? 5000);
+  },
+});
+
+// List running timers (for runaway detection)
+export const listRunning = query({
+  args: {},
+  handler: async (ctx) => {
+    // Get recent entries and filter for running (no endTime)
+    const recent = await ctx.db
+      .query("timeEntries")
+      .order("desc")
+      .take(500);
+    return recent.filter((e) => e.endTime === undefined);
+  },
+});

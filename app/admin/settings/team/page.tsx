@@ -9,5 +9,5 @@ export default async function TeamPage() {
   const cookieStore = await cookies();
   const session = getSessionFromCookies(cookieStore);
 
-  return <TeamList roleLevel={session?.roleLevel as RoleLevel} />;
+  return <TeamList roleLevel={session?.roleLevel as RoleLevel} currentMemberId={session?.teamMemberId} />;
 }

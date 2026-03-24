@@ -49,20 +49,7 @@ export async function PUT(
       body.active = true;
     }
 
-    let client;
-
-    try {
-      client = await updateClient(id, body);
-    } catch (dbError) {
-      // If columns are missing, run migrations and retry
-      if (dbError instanceof Error && dbError.message.includes("column")) {
-        const { runCrmMigration } = await import("@/lib/migrate");
-        await runCrmMigration();
-        client = await updateClient(id, body);
-      } else {
-        throw dbError;
-      }
-    }
+    const client = await updateClient(id, body);
 
     if (!client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });

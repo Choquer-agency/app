@@ -121,6 +121,13 @@ export const update = mutation({
   },
 });
 
+export const remove = mutation({
+  args: { id: v.id("teamMembers") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});
+
 export const updateLastLogin = internalMutation({
   args: { id: v.id("teamMembers") },
   handler: async (ctx, args) => {

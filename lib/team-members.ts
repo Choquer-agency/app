@@ -100,6 +100,16 @@ export async function updateTeamMember(
   return docToTeamMember(doc);
 }
 
+export async function deleteTeamMember(id: string): Promise<boolean> {
+  const convex = getConvexClient();
+  try {
+    await convex.mutation(api.teamMembers.remove, { id: id as any });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // --- Auth-specific queries ---
 
 interface TeamMemberAuthRow {

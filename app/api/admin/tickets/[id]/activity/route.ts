@@ -13,7 +13,6 @@ export async function GET(
 
   const { id } = await params;
   const ticketId = id;
-  }
 
   const { searchParams } = new URL(request.url);
   const limit = parseInt(searchParams.get("limit") || "50", 10);

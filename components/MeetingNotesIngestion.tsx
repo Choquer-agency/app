@@ -65,7 +65,9 @@ const PRIORITY_OPTIONS = [
   { value: "low", label: "Low", color: "text-gray-600" },
 ];
 
-export default function MeetingNotesIngestion() {
+export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { roleLevel?: string; teamMemberId?: string | number }) {
+  const isAdmin = roleLevel === "owner" || roleLevel === "c_suite";
+
   // Data
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -109,7 +111,15 @@ export default function MeetingNotesIngestion() {
       fetch("/api/admin/team").then((r) => r.ok ? r.json() : []),
       fetch("/api/admin/clients").then((r) => r.ok ? r.json() : []),
     ]).then(([members, clientList]) => {
-      setTeamMembers((members as TeamMember[]).filter((m) => m.active));
+      let activeMembers = (members as TeamMember[]).filter((m) => m.active);
+      // Employees only see themselves
+      if (!isAdmin && teamMemberId) {
+        activeMembers = activeMembers.filter((m) => String(m.id) === String(teamMemberId));
+        // Auto-select themselves
+        const selfId = activeMembers[0]?.id;
+        if (selfId) setSelectedMemberIds([Number(selfId)]);
+      }
+      setTeamMembers(activeMembers);
       setClients(
         (clientList as Array<{ id: number; name: string }>).map((c) => ({
           id: c.id,
@@ -117,7 +127,7 @@ export default function MeetingNotesIngestion() {
         }))
       );
     });
-  }, []);
+  }, [isAdmin, teamMemberId]);
 
   // Load past notes when members change
   useEffect(() => {

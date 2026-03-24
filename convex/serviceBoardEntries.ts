@@ -65,6 +65,36 @@ export const create = mutation({
   },
 });
 
+export const createIfNotExists = mutation({
+  args: {
+    clientId: v.id("clients"),
+    clientPackageId: v.id("clientPackages"),
+    category: v.string(),
+    month: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Check if entry already exists
+    const existing = await ctx.db
+      .query("serviceBoardEntries")
+      .withIndex("by_package_month", (q) =>
+        q.eq("clientPackageId", args.clientPackageId).eq("month", args.month)
+      )
+      .first();
+
+    if (existing) return existing;
+
+    const id = await ctx.db.insert("serviceBoardEntries", {
+      clientId: args.clientId,
+      clientPackageId: args.clientPackageId,
+      category: args.category,
+      month: args.month,
+      status: "not_started",
+      notes: "",
+    });
+    return await ctx.db.get(id);
+  },
+});
+
 export const update = mutation({
   args: {
     id: v.id("serviceBoardEntries"),

@@ -13,7 +13,6 @@ export async function GET(
 
   const { id } = await params;
   const clientId = id;
-  }
 
   const { searchParams } = new URL(request.url);
   // Default to first day of current month

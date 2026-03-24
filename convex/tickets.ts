@@ -584,3 +584,33 @@ export const removeAssignee = mutation({
     return true;
   },
 });
+
+// List tickets by assignee (for reports and meeting prep)
+export const listByAssignee = query({
+  args: {
+    teamMemberId: v.id("teamMembers"),
+    archived: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const assignees = await ctx.db
+      .query("ticketAssignees")
+      .withIndex("by_member", (q) => q.eq("teamMemberId", args.teamMemberId))
+      .collect();
+
+    const ticketIds = assignees.map((a) => a.ticketId);
+    const tickets = [];
+    for (const ticketId of ticketIds) {
+      const ticket = await ctx.db.get(ticketId);
+      if (ticket && (args.archived === undefined || ticket.archived === args.archived)) {
+        // Enrich with client name
+        const client = ticket.clientId ? await ctx.db.get(ticket.clientId) : null;
+        tickets.push({
+          ...ticket,
+          clientName: client?.name ?? null,
+        });
+      }
+    }
+    return tickets.slice(0, args.limit ?? 500);
+  },
+});

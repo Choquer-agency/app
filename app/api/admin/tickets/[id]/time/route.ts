@@ -18,7 +18,6 @@ export async function GET(
 
   const { id } = await params;
   const ticketId = id;
-  }
 
   const [entries, totalSeconds] = await Promise.all([
     getTimeEntriesForTicket(ticketId),
@@ -39,7 +38,6 @@ export async function POST(
 
   const { id } = await params;
   const ticketId = id;
-  }
 
   try {
     const body = await request.json();

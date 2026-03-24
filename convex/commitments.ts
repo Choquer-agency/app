@@ -64,3 +64,32 @@ export const remove = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+// List all active commitments (for auto-resolution cron)
+export const listActive = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("ticketCommitments")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+  },
+});
+
+// List commitments by member
+export const listByMember = query({
+  args: {
+    teamMemberId: v.id("teamMembers"),
+    status: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("ticketCommitments")
+      .withIndex("by_member", (q) => q.eq("teamMemberId", args.teamMemberId))
+      .collect();
+    if (args.status) {
+      return all.filter((c) => c.status === args.status);
+    }
+    return all;
+  },
+});

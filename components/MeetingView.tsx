@@ -20,7 +20,8 @@ interface MemberStats {
   overdueTickets: number;
 }
 
-export default function MeetingView() {
+export default function MeetingView({ roleLevel, teamMemberId }: { roleLevel?: string; teamMemberId?: string | number }) {
+  const isAdmin = roleLevel === "owner" || roleLevel === "c_suite";
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [memberStats, setMemberStats] = useState<Map<number, MemberStats>>(new Map());
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
@@ -34,7 +35,12 @@ export default function MeetingView() {
     fetch("/api/admin/team")
       .then((r) => r.ok ? r.json() : [])
       .then((d) => {
-        const active = (d as TeamMember[]).filter((m) => m.active);
+        let active = (d as TeamMember[]).filter((m) => m.active);
+        // Employees only see themselves
+        if (!isAdmin && teamMemberId) {
+          active = active.filter((m) => String(m.id) === String(teamMemberId));
+          if (active[0]) setSelectedMemberId(Number(active[0].id));
+        }
         setTeamMembers(active);
       })
       .catch(() => {});

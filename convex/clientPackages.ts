@@ -104,6 +104,33 @@ export const remove = mutation({
   },
 });
 
+// List all active packages (for service board filtering by category)
+export const listActiveByCategory = query({
+  args: { category: v.string() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db.query("clientPackages").collect();
+    const active = all.filter((cp) => cp.active);
+
+    // Enrich with package details and filter by category
+    const results = [];
+    for (const cp of active) {
+      const pkg = await ctx.db.get(cp.packageId);
+      if (pkg && pkg.category === args.category) {
+        const client = await ctx.db.get(cp.clientId);
+        results.push({
+          ...cp,
+          packageName: pkg.name ?? "",
+          packageCategory: pkg.category ?? "other",
+          packageHoursIncluded: pkg.hoursIncluded ?? null,
+          clientName: client?.name ?? "",
+          clientSlug: client?.slug ?? "",
+        });
+      }
+    }
+    return results;
+  },
+});
+
 // Helper: recalculate client MRR from active package assignments
 async function syncClientMrr(ctx: MutationCtx, clientId: Id<"clients">) {
   const assignments = await ctx.db

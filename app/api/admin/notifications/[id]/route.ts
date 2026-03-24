@@ -14,8 +14,6 @@ export async function DELETE(
   const { id } = await params;
   const approvalId = id;
 
-  }
-
   await dismissApproval(approvalId);
   return NextResponse.json({ success: true });
 }
