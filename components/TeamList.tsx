@@ -42,6 +42,7 @@ function TeamMemberFormModal({
   const [memberRoleLevel, setMemberRoleLevel] = useState<RoleLevel>((member?.roleLevel as RoleLevel) ?? "employee");
   const [slackUserId, setSlackUserId] = useState(member?.slackUserId || "");
   const [tags, setTags] = useState<string[]>(member?.tags || []);
+  const [employeeStatus, setEmployeeStatus] = useState(member?.employeeStatus || "active");
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -117,6 +118,7 @@ function TeamMemberFormModal({
 
     if (canManageRoles) {
       body.roleLevel = memberRoleLevel;
+      body.employeeStatus = employeeStatus;
     }
 
     try {
@@ -331,6 +333,25 @@ function TeamMemberFormModal({
                 ))}
               </select>
               <p className="text-xs text-[var(--muted)] mt-1">Controls what this team member can see and do</p>
+            </div>
+          )}
+
+          {/* Employee Status — only visible to owner */}
+          {canManageRoles && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Employee Status</label>
+              <select
+                value={employeeStatus}
+                onChange={(e) => setEmployeeStatus(e.target.value)}
+                className={inputClass}
+              >
+                <option value="active">Active</option>
+                <option value="maternity_leave">Maternity Leave</option>
+                <option value="leave">On Leave</option>
+                <option value="terminated">Terminated</option>
+                <option value="past_employee">Past Employee</option>
+              </select>
+              <p className="text-xs text-[var(--muted)] mt-1">Non-active employees are hidden from timesheets and daily views</p>
             </div>
           )}
 

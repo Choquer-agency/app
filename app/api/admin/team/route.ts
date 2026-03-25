@@ -42,9 +42,9 @@ export async function POST(request: NextRequest) {
       ? { hourlyRate: body.hourlyRate, salary: body.salary, payType: body.payType }
       : {};
 
-    // Gate role assignment
+    // Gate role/status assignment
     const roleData = hasPermission(session.roleLevel, "team:manage_roles")
-      ? { roleLevel: body.roleLevel }
+      ? { roleLevel: body.roleLevel, employeeStatus: body.employeeStatus }
       : {};
 
     const member = await addTeamMember({
@@ -92,9 +92,10 @@ export async function PUT(request: NextRequest) {
       delete body.payType;
     }
 
-    // Strip role changes if user lacks permission
+    // Strip role/status changes if user lacks permission
     if (!hasPermission(session.roleLevel, "team:manage_roles")) {
       delete body.roleLevel;
+      delete body.employeeStatus;
     }
 
     const member = await updateTeamMember(body.id, body);
