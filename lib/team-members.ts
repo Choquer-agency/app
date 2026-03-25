@@ -86,7 +86,7 @@ export async function getTeamMemberByEmail(email: string): Promise<TeamMember | 
 
 export async function updateTeamMember(
   id: string,
-  data: { name?: string; email?: string; role?: string; calLink?: string; profilePicUrl?: string; color?: string; startDate?: string; birthday?: string; active?: boolean; availableHoursPerWeek?: number; hourlyRate?: number | null; salary?: number | null; payType?: string; roleLevel?: string; slackUserId?: string; tags?: string[] }
+  data: { name?: string; email?: string; role?: string; calLink?: string; profilePicUrl?: string; color?: string; startDate?: string; birthday?: string; active?: boolean; employeeStatus?: string; availableHoursPerWeek?: number; hourlyRate?: number | null; salary?: number | null; payType?: string; roleLevel?: string; slackUserId?: string; tags?: string[]; vacationDaysTotal?: number; vacationDaysUsed?: number }
 ): Promise<TeamMember | null> {
   const convex = getConvexClient();
   const updates: Record<string, any> = { id: id as any };
