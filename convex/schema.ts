@@ -116,6 +116,7 @@ export default defineSchema({
     startDate: v.optional(v.string()),
     birthday: v.optional(v.string()),
     active: v.boolean(),
+    employeeStatus: v.optional(v.string()), // "active" | "maternity_leave" | "leave" | "terminated" | "past_employee"
     // Auth
     passwordHash: v.optional(v.string()),
     roleLevel: v.optional(v.string()), // "owner" | "c_suite" | "bookkeeper" | "employee" | "intern"

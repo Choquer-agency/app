@@ -159,6 +159,9 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
     const seen = new Set<string>();
     return members.filter((m: any) => {
       if (m.active === false) return false;
+      // Hide employees on leave, terminated, etc.
+      const status = m.employeeStatus;
+      if (status && status !== "active") return false;
       if (!CLOCK_IN_ROLES.has(m.roleLevel ?? "employee")) return false;
       const email = (m.email || "").toLowerCase();
       if (seen.has(email)) return false;
