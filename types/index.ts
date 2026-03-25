@@ -157,6 +157,7 @@ export interface TeamMember {
   startDate: string | null;
   birthday: string | null;
   active: boolean;
+  employeeStatus?: string; // "active" | "maternity_leave" | "leave" | "terminated" | "past_employee"
   roleLevel: import("@/lib/permissions").RoleLevel;
   lastLogin: string | null;
   slackUserId: string;

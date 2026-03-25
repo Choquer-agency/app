@@ -15,6 +15,7 @@ function docToTeamMember(doc: any): TeamMember {
     startDate: doc.startDate ?? null,
     birthday: doc.birthday ?? null,
     active: doc.active ?? true,
+    employeeStatus: doc.employeeStatus ?? "active",
     roleLevel: validateRoleLevel(doc.roleLevel),
     lastLogin: doc.lastLogin ?? null,
     slackUserId: doc.slackUserId ?? "",
