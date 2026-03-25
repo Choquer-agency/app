@@ -11,48 +11,53 @@ import TimeTracker from "./TimeTracker";
 // Wrapper that lazily gets/creates the service ticket for a board entry
 function ServiceTimeTracker({ entryId }: { entryId: number }) {
   const [ticketId, setTicketId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch time data to check if a service ticket exists
+    setLoading(true);
     fetch(`/api/admin/service-board/${entryId}/time-entries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "get_or_create_ticket" }) })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data?.ticketId) setTicketId(data.ticketId); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [entryId]);
 
-  if (!ticketId) {
-    // Show a play button that creates the ticket on click
+  if (ticketId) {
     return (
-      <button
-        onClick={async (e) => {
-          e.stopPropagation();
-          try {
-            const res = await fetch(`/api/admin/service-board/${entryId}/time-entries`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "start_timer" }),
-            });
-            if (res.ok) {
-              const data = await res.json();
-              if (data.ticketId) setTicketId(data.ticketId);
-              window.dispatchEvent(new CustomEvent("timerChange"));
-            }
-          } catch {}
-        }}
-        className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-emerald-600 transition"
-        title="Start timer"
-      >
-        <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-        0h
-      </button>
+      <TimeTracker
+        ticketId={ticketId}
+        onTimerChange={() => window.dispatchEvent(new CustomEvent("timerChange"))}
+      />
     );
   }
 
+  // Show consistent play button style (matches TimeTracker) while loading or before ticket exists
   return (
-    <TimeTracker
-      ticketId={ticketId}
-      onTimerChange={() => window.dispatchEvent(new CustomEvent("timerChange"))}
-    />
+    <button
+      disabled={loading}
+      onClick={async (e) => {
+        e.stopPropagation();
+        try {
+          const res = await fetch(`/api/admin/service-board/${entryId}/time-entries`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "start_timer" }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ticketId) setTicketId(data.ticketId);
+            window.dispatchEvent(new CustomEvent("timerChange"));
+          }
+        } catch {}
+      }}
+      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-50 transition"
+      title="Start timer"
+    >
+      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+      </svg>
+      <span>Start</span>
+    </button>
   );
 }
 
