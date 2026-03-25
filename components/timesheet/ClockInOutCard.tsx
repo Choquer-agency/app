@@ -592,11 +592,13 @@ export default function ClockInOutCard({
                   })}
                 </span>
               </div>
-              {status.activeShift.totalBreakMinutes > 0 && (
+              {((status.activeShift as any).breakCount > 0 || status.activeShift.totalBreakMinutes > 0) && (
                 <div className="flex justify-between text-sm pl-4 border-l-2 border-amber-100">
                   <span className="text-[#6B6B6B]">Breaks</span>
                   <span className="font-mono text-[#1A1A1A]">
-                    {status.activeShift.totalBreakMinutes}m
+                    {status.activeShift.totalBreakMinutes > 0
+                      ? `${status.activeShift.totalBreakMinutes}m`
+                      : "< 1m"}
                   </span>
                 </div>
               )}
