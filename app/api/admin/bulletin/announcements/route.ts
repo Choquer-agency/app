@@ -16,10 +16,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "title is required" }, { status: 400 });
     }
 
-    // Default expiry: end of today
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-    const expiresAt = endOfDay.toISOString();
+    // Default expiry: 7 days from now
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + 7);
+    expiry.setHours(23, 59, 59, 999);
+    const expiresAt = expiry.toISOString();
 
     const convex = getConvexClient();
     const newId = await convex.mutation(api.bulletin.createAnnouncement, {

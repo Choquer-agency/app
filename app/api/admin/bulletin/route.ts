@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
     weekStart.setDate(now.getDate() + mondayOffset);
     const weekStartStr = weekStart.toISOString().split("T")[0];
 
-    // Fetch all data in parallel
-    const [personalNoteDoc, announcements, projects, quoteDoc, calendarEvents, teamMembers] = await Promise.all([
+    // Fetch all data in parallel — use allSettled so one failure doesn't kill everything
+    const results = await Promise.allSettled([
       convex.query(api.bulletin.getPersonalNote, { teamMemberId: session.teamMemberId as any }),
       convex.query(api.bulletin.listAnnouncements, { limit: 20 }),
       convex.query(api.projects.list, {}),
@@ -30,6 +30,13 @@ export async function GET(request: NextRequest) {
       convex.query(api.bulletin.listCalendarEvents, {}),
       getTeamMembers(),
     ]);
+
+    const personalNoteDoc = results[0].status === "fulfilled" ? results[0].value : null;
+    const announcements = results[1].status === "fulfilled" ? (results[1].value as any[]) : [];
+    const projects = results[2].status === "fulfilled" ? (results[2].value as any[]) : [];
+    const quoteDoc = results[3].status === "fulfilled" ? results[3].value : null;
+    const calendarEvents = results[4].status === "fulfilled" ? (results[4].value as any[]) : [];
+    const teamMembers = results[5].status === "fulfilled" ? (results[5].value as any[]) : [];
 
     const personalNote = personalNoteDoc?.content || "";
 
@@ -124,65 +131,71 @@ export async function GET(request: NextRequest) {
 
       // Birthdays (next 14 days)
       if (member.birthday) {
-        const bday = new Date(member.birthday + "T00:00:00");
-        const bdayMonth = bday.getMonth();
-        const bdayDate = bday.getDate();
-        const thisYearBday = new Date(today.getFullYear(), bdayMonth, bdayDate);
-        let diff = Math.ceil(
-          (thisYearBday.getTime() - new Date(today.getFullYear(), todayMonth, todayDate).getTime()) / (1000 * 60 * 60 * 24)
-        );
-        if (diff < 0) diff += 365;
+        try {
+          const bday = new Date(member.birthday + "T00:00:00");
+          if (isNaN(bday.getTime())) continue;
+          const bdayMonth = bday.getMonth();
+          const bdayDate = bday.getDate();
+          const thisYearBday = new Date(today.getFullYear(), bdayMonth, bdayDate);
+          let diff = Math.ceil(
+            (thisYearBday.getTime() - new Date(today.getFullYear(), todayMonth, todayDate).getTime()) / (1000 * 60 * 60 * 24)
+          );
+          if (diff < 0) diff += 365;
 
-        if (diff <= 14) {
-          const display = diff === 0 ? "Today!" : diff === 1 ? "Tomorrow" : `In ${diff} days`;
-          autoAnnouncements.push({
-            id: `auto-birthday-${autoIdx++}`,
-            authorId: "",
-            authorName: "System",
-            title: `${member.name}'s Birthday`,
-            content: display,
-            pinned: diff === 0,
-            source: "auto",
-            announcementType: "birthday",
-            createdAt: today.toISOString(),
-          });
-        }
+          if (diff <= 14) {
+            const display = diff === 0 ? "Today!" : diff === 1 ? "Tomorrow" : `In ${diff} days`;
+            autoAnnouncements.push({
+              id: `auto-birthday-${autoIdx++}`,
+              authorId: "",
+              authorName: "System",
+              title: `${member.name}'s Birthday`,
+              content: display,
+              pinned: diff === 0,
+              source: "auto",
+              announcementType: "birthday",
+              createdAt: today.toISOString(),
+            });
+          }
+        } catch { /* skip bad date */ }
       }
 
       // Anniversaries (next 14 days)
       if (member.startDate) {
-        const start = new Date(member.startDate + "T00:00:00");
-        const startMonth = start.getMonth();
-        const startDate = start.getDate();
-        let nextAnniversaryYear = today.getFullYear();
-        const thisYearAnniv = new Date(nextAnniversaryYear, startMonth, startDate);
-        const todayFlat = new Date(nextAnniversaryYear, todayMonth, todayDate);
-        let diff = Math.ceil((thisYearAnniv.getTime() - todayFlat.getTime()) / (1000 * 60 * 60 * 24));
-        if (diff < 0) {
-          diff += 365;
-          nextAnniversaryYear++;
-        }
-        const years = nextAnniversaryYear - start.getFullYear();
-        if (years < 1) continue;
+        try {
+          const start = new Date(member.startDate + "T00:00:00");
+          if (isNaN(start.getTime())) continue;
+          const startMonth = start.getMonth();
+          const startDate = start.getDate();
+          let nextAnniversaryYear = today.getFullYear();
+          const thisYearAnniv = new Date(nextAnniversaryYear, startMonth, startDate);
+          const todayFlat = new Date(nextAnniversaryYear, todayMonth, todayDate);
+          let diff = Math.ceil((thisYearAnniv.getTime() - todayFlat.getTime()) / (1000 * 60 * 60 * 24));
+          if (diff < 0) {
+            diff += 365;
+            nextAnniversaryYear++;
+          }
+          const years = nextAnniversaryYear - start.getFullYear();
+          if (years < 1) continue;
 
-        if (diff <= 14) {
-          const display = diff === 0
-            ? `Today! (${years} year${years > 1 ? "s" : ""})`
-            : diff === 1
-            ? `Tomorrow (${years} year${years > 1 ? "s" : ""})`
-            : `In ${diff} days (${years} year${years > 1 ? "s" : ""})`;
-          autoAnnouncements.push({
-            id: `auto-anniversary-${autoIdx++}`,
-            authorId: "",
-            authorName: "System",
-            title: `${member.name}'s Work Anniversary`,
-            content: display,
-            pinned: diff === 0,
-            source: "auto",
-            announcementType: "anniversary",
-            createdAt: today.toISOString(),
+          if (diff <= 14) {
+            const display = diff === 0
+              ? `Today! (${years} year${years > 1 ? "s" : ""})`
+              : diff === 1
+              ? `Tomorrow (${years} year${years > 1 ? "s" : ""})`
+              : `In ${diff} days (${years} year${years > 1 ? "s" : ""})`;
+            autoAnnouncements.push({
+              id: `auto-anniversary-${autoIdx++}`,
+              authorId: "",
+              authorName: "System",
+              title: `${member.name}'s Work Anniversary`,
+              content: display,
+              pinned: diff === 0,
+              source: "auto",
+              announcementType: "anniversary",
+              createdAt: today.toISOString(),
           });
         }
+        } catch { /* skip bad date */ }
       }
     }
 
@@ -206,49 +219,50 @@ export async function GET(request: NextRequest) {
 
     // Custom events (holidays, etc.) — expand recurring ones
     for (const ev of calendarEvents as any[]) {
-      const baseDateStr = ev.eventDate as string;
-      const baseDate = new Date(baseDateStr + "T00:00:00");
-      const recurrence = (ev.recurrence as string) || "none";
-      const title = ev.title as string;
-      const type = ev.eventType as string;
+      try {
+        const baseDateStr = ev.eventDate as string;
+        if (!baseDateStr) continue;
+        const baseDate = new Date(baseDateStr + "T00:00:00");
+        if (isNaN(baseDate.getTime())) continue;
+        const recurrence = (ev.recurrence as string) || "none";
+        const title = ev.title as string;
+        const type = ev.eventType as string;
 
-      if (recurrence === "yearly") {
-        for (let yr = today.getFullYear(); yr <= today.getFullYear() + 1; yr++) {
-          calendarEntries.push({
-            date: new Date(yr, baseDate.getMonth(), baseDate.getDate()).toISOString().split("T")[0],
-            title,
-            type,
-          });
-        }
-      } else if (recurrence === "quarterly") {
-        for (let q = 0; q < 5; q++) {
-          const d = new Date(baseDate.getFullYear(), baseDate.getMonth() + q * 3, baseDate.getDate());
-          if (d.getFullYear() >= today.getFullYear()) {
+        if (recurrence === "yearly") {
+          for (let yr = today.getFullYear(); yr <= today.getFullYear() + 1; yr++) {
+            calendarEntries.push({
+              date: new Date(yr, baseDate.getMonth(), baseDate.getDate()).toISOString().split("T")[0],
+              title,
+              type,
+            });
+          }
+        } else if (recurrence === "quarterly") {
+          for (let q = 0; q < 5; q++) {
+            const d = new Date(baseDate.getFullYear(), baseDate.getMonth() + q * 3, baseDate.getDate());
+            if (d.getFullYear() >= today.getFullYear()) {
+              calendarEntries.push({ date: d.toISOString().split("T")[0], title, type });
+            }
+          }
+        } else if (recurrence === "monthly") {
+          for (let m = 0; m < 3; m++) {
+            const d = new Date(today.getFullYear(), today.getMonth() + m, baseDate.getDate());
             calendarEntries.push({ date: d.toISOString().split("T")[0], title, type });
           }
+        } else if (recurrence === "weekly") {
+          const startDay = baseDate.getDay();
+          const start = new Date(today);
+          const daysUntil = (startDay - start.getDay() + 7) % 7;
+          start.setDate(start.getDate() + daysUntil);
+          for (let w = 0; w < 13; w++) {
+            const d = new Date(start);
+            d.setDate(start.getDate() + w * 7);
+            calendarEntries.push({ date: d.toISOString().split("T")[0], title, type });
+          }
+        } else {
+          calendarEntries.push({ date: baseDateStr, title, type });
         }
-      } else if (recurrence === "monthly") {
-        for (let m = 0; m < 3; m++) {
-          const d = new Date(today.getFullYear(), today.getMonth() + m, baseDate.getDate());
-          calendarEntries.push({ date: d.toISOString().split("T")[0], title, type });
-        }
-      } else if (recurrence === "weekly") {
-        const startDay = baseDate.getDay();
-        const start = new Date(today);
-        const daysUntil = (startDay - start.getDay() + 7) % 7;
-        start.setDate(start.getDate() + daysUntil);
-        for (let w = 0; w < 13; w++) {
-          const d = new Date(start);
-          d.setDate(start.getDate() + w * 7);
-          calendarEntries.push({ date: d.toISOString().split("T")[0], title, type });
-        }
-      } else {
-        // One-time event
-        calendarEntries.push({
-          date: baseDateStr,
-          title,
-          type,
-        });
+      } catch {
+        // Skip events with bad date data
       }
     }
 
@@ -257,29 +271,37 @@ export async function GET(request: NextRequest) {
       if (!member.active) continue;
 
       if (member.birthday) {
-        const bday = new Date(member.birthday + "T00:00:00");
-        const thisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
-        const nextYear = new Date(today.getFullYear() + 1, bday.getMonth(), bday.getDate());
-        for (const d of [thisYear, nextYear]) {
-          calendarEntries.push({
-            date: d.toISOString().split("T")[0],
-            title: `${member.name}'s Birthday`,
-            type: "birthday",
-          });
-        }
+        try {
+          const bday = new Date(member.birthday + "T00:00:00");
+          if (!isNaN(bday.getTime())) {
+            const thisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+            const nextYear = new Date(today.getFullYear() + 1, bday.getMonth(), bday.getDate());
+            for (const d of [thisYear, nextYear]) {
+              calendarEntries.push({
+                date: d.toISOString().split("T")[0],
+                title: `${member.name}'s Birthday`,
+                type: "birthday",
+              });
+            }
+          }
+        } catch { /* skip */ }
       }
 
       if (member.startDate) {
-        const start = new Date(member.startDate + "T00:00:00");
-        for (let yr = today.getFullYear(); yr <= today.getFullYear() + 1; yr++) {
-          const years = yr - start.getFullYear();
-          if (years < 1) continue;
-          calendarEntries.push({
-            date: new Date(yr, start.getMonth(), start.getDate()).toISOString().split("T")[0],
-            title: `${member.name}'s Anniversary — ${years} Year${years > 1 ? "s" : ""}!`,
-            type: "anniversary",
-          });
-        }
+        try {
+          const start = new Date(member.startDate + "T00:00:00");
+          if (!isNaN(start.getTime())) {
+            for (let yr = today.getFullYear(); yr <= today.getFullYear() + 1; yr++) {
+              const years = yr - start.getFullYear();
+              if (years < 1) continue;
+              calendarEntries.push({
+                date: new Date(yr, start.getMonth(), start.getDate()).toISOString().split("T")[0],
+                title: `${member.name}'s Anniversary — ${years} Year${years > 1 ? "s" : ""}!`,
+                type: "anniversary",
+              });
+            }
+          }
+        } catch { /* skip */ }
       }
     }
 
