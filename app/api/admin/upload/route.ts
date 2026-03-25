@@ -25,10 +25,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Try Vercel Blob first (production)
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB2_READ_WRITE_TOKEN;
+    if (blobToken) {
       const { put } = await import("@vercel/blob");
       const blob = await put(`team/${Date.now()}-${file.name}`, file, {
         access: "public",
+        token: blobToken,
       });
       return NextResponse.json({ url: blob.url });
     }
