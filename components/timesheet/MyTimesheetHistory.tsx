@@ -41,7 +41,7 @@ export default function MyTimesheetHistory({
   const [loading, setLoading] = useState(true);
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
-  const [memberInfo, setMemberInfo] = useState<{ vacationDaysTotal?: number; vacationDaysUsed?: number; sickHoursTotal?: number } | null>(null);
+  const [memberInfo, setMemberInfo] = useState<{ vacationDaysTotal?: number; vacationDaysUsed?: number; sickDaysTotal?: number } | null>(null);
 
   // Change request modal state
   const [selectedEntry, setSelectedEntry] = useState<TimesheetEntry | null>(null);
@@ -150,6 +150,8 @@ export default function MyTimesheetHistory({
     0
   );
   const sickDayCount = entries.filter((e) => e.isSickDay).length;
+  const sickDaysTotal = memberInfo?.sickDaysTotal ?? 5;
+  const sickDaysRemaining = Math.max(0, sickDaysTotal - sickDayCount);
   const vacationDaysUsed = entries.filter((e) => e.isVacation).length;
   const vacationDaysTotal = memberInfo?.vacationDaysTotal ?? 10;
   const vacationRemaining = Math.max(0, vacationDaysTotal - vacationDaysUsed);
@@ -206,11 +208,11 @@ export default function MyTimesheetHistory({
         </div>
         <div className="bg-rose-50 p-4 md:p-6 rounded-2xl border border-rose-100 text-rose-900">
           <h3 className="text-xs font-bold uppercase opacity-70 mb-1">
-            Sick Days Used
+            Sick Days Remaining
           </h3>
           <div className="text-2xl md:text-3xl font-bold">
-            {sickDayCount}{" "}
-            <span className="text-sm font-normal opacity-70">Days</span>
+            {sickDaysRemaining}{" "}
+            <span className="text-sm font-normal opacity-70">/ {sickDaysTotal}</span>
           </div>
         </div>
         <div className="bg-white p-4 md:p-6 rounded-2xl border border-[#F6F5F1] text-[#1A1A1A] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">

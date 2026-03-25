@@ -43,6 +43,7 @@ function TeamMemberFormModal({
   const [slackUserId, setSlackUserId] = useState(member?.slackUserId || "");
   const [tags, setTags] = useState<string[]>(member?.tags || []);
   const [employeeStatus, setEmployeeStatus] = useState(member?.employeeStatus || "active");
+  const [sickDaysTotal, setSickDaysTotal] = useState<number | "">(member?.sickDaysTotal ?? 5);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -119,6 +120,7 @@ function TeamMemberFormModal({
     if (canManageRoles) {
       body.roleLevel = memberRoleLevel;
       body.employeeStatus = employeeStatus;
+      body.sickDaysTotal = sickDaysTotal === "" ? 5 : sickDaysTotal;
     }
 
     try {
@@ -317,6 +319,37 @@ function TeamMemberFormModal({
                 )}
               </div>
             </>
+          )}
+
+          {/* Time Off Allocation — only visible to owner */}
+          {canManageRoles && (
+            <div className="border-t border-[var(--border)] pt-4 mt-2">
+              <p className="text-sm font-medium text-[var(--foreground)] mb-3">Time Off Allocation</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[var(--muted)] mb-1">Vacation Days / Year</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={member?.vacationDaysTotal ?? 10}
+                    onChange={() => {}}
+                    className={inputClass}
+                    readOnly
+                  />
+                  <p className="text-xs text-[var(--muted)] mt-1">Used: {member?.vacationDaysUsed ?? 0}</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-[var(--muted)] mb-1">Sick Days / Year</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={sickDaysTotal}
+                    onChange={(e) => setSickDaysTotal(e.target.value === "" ? "" : Number(e.target.value))}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Role Level — only visible to owner */}

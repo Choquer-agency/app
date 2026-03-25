@@ -128,9 +128,10 @@ export default defineSchema({
     hourlyRate: v.optional(v.number()),
     salary: v.optional(v.number()),
     payType: v.optional(v.string()), // "hourly" | "salary"
-    // Vacation balance
+    // Vacation & sick balance
     vacationDaysTotal: v.optional(v.number()),
     vacationDaysUsed: v.optional(v.number()),
+    sickDaysTotal: v.optional(v.number()), // annual sick day allocation
     // Tags
     tags: v.optional(v.array(v.string())),
   })

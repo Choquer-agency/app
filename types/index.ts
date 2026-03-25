@@ -165,6 +165,7 @@ export interface TeamMember {
   hourlyRate: number | null;
   salary: number | null;
   payType: "hourly" | "salary";
+  sickDaysTotal?: number;
   tags: string[];
   createdAt?: string;
 }

@@ -65,6 +65,7 @@ export const create = mutation({
     payType: v.optional(v.string()),
     vacationDaysTotal: v.optional(v.number()),
     vacationDaysUsed: v.optional(v.number()),
+    sickDaysTotal: v.optional(v.number()),
     tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -113,6 +114,7 @@ export const update = mutation({
     payType: v.optional(v.string()),
     vacationDaysTotal: v.optional(v.number()),
     vacationDaysUsed: v.optional(v.number()),
+    sickDaysTotal: v.optional(v.number()),
     tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {

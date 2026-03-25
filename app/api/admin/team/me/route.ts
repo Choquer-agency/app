@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       email: me.email,
       vacationDaysTotal: (me as any).vacationDaysTotal ?? 10,
       vacationDaysUsed: (me as any).vacationDaysUsed ?? 0,
-      sickHoursTotal: (me as any).sickHoursTotal ?? 0,
+      sickDaysTotal: me.sickDaysTotal ?? 5,
       hourlyRate: me.hourlyRate,
       role: me.role,
     });
