@@ -3,6 +3,7 @@ import { getSession } from "@/lib/admin-auth";
 import { hasMinRole, type RoleLevel } from "@/lib/permissions";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@/convex/_generated/api";
+import { notifyTeamAnnouncement } from "@/lib/notification-triggers";
 
 export async function POST(request: NextRequest) {
   const session = getSession(request);
@@ -32,6 +33,9 @@ export async function POST(request: NextRequest) {
       announcementType: "general",
       expiresAt,
     });
+
+    // Notify all team members about the announcement
+    notifyTeamAnnouncement(session.teamMemberId, title);
 
     return NextResponse.json({
       id: newId,

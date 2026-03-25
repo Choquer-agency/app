@@ -82,7 +82,8 @@ export async function notifyStatusChange(
     "status_change",
     `${ticket.ticketNumber} status changed`,
     `${statusLabel(oldStatus)} \u2192 ${statusLabel(newStatus)}`,
-    ticketLink(ticketId)
+    ticketLink(ticketId),
+    { newStatus }
   );
 }
 
@@ -138,7 +139,7 @@ export async function notifyMention(
   await createBulkNotifications(
     recipientIds,
     ticketId,
-    "comment",
+    "mention",
     `${actorName} mentioned you in ${ticket.ticketNumber}`,
     ticket.title,
     ticketLink(ticketId)
@@ -250,5 +251,192 @@ export async function notifyRunawayTimer(
     `Runaway timer on ${ticketNumber}`,
     "Timer has been running for over 10 hours",
     ticketLink(ticketId)
+  );
+}
+
+// === Trigger: Ticket Created ===
+
+export async function notifyTicketCreated(
+  ticketId: number | string,
+  ticketNumber: string,
+  ticketTitle: string,
+  creatorId: number | string | null,
+  assigneeIds: (number | string)[]
+): Promise<void> {
+  const recipientIds = assigneeIds.filter((id) => id !== creatorId);
+  if (recipientIds.length === 0) return;
+
+  await createBulkNotifications(
+    recipientIds,
+    ticketId,
+    "ticket_created",
+    `New ticket ${ticketNumber} created`,
+    ticketTitle,
+    ticketLink(ticketId)
+  );
+}
+
+// === Trigger: Due Date Changed ===
+
+export async function notifyDueDateChanged(
+  ticketId: number | string,
+  oldDate: string | null,
+  newDate: string | null,
+  actorId: number | string | null
+): Promise<void> {
+  const ticket = await getTicketById(ticketId as any);
+  if (!ticket) return;
+
+  const recipientIds: string[] = [];
+  if (ticket.createdById && ticket.createdById !== actorId) {
+    recipientIds.push(ticket.createdById as string);
+  }
+  const assigneeIds = await getAssigneeIds(ticketId);
+  for (const id of assigneeIds) {
+    if (id !== actorId && !recipientIds.includes(id)) {
+      recipientIds.push(id);
+    }
+  }
+
+  if (recipientIds.length === 0) return;
+
+  const fmt = (d: string | null) => (d ? d : "none");
+  await createBulkNotifications(
+    recipientIds,
+    ticketId,
+    "due_date_changed",
+    `${ticket.ticketNumber} due date changed`,
+    `${fmt(oldDate)} \u2192 ${fmt(newDate)}`,
+    ticketLink(ticketId)
+  );
+}
+
+// === Trigger: Ticket Closed ===
+
+export async function notifyTicketClosed(
+  ticketId: number | string,
+  actorId: number | string | null
+): Promise<void> {
+  const ticket = await getTicketById(ticketId as any);
+  if (!ticket) return;
+
+  const recipientIds: string[] = [];
+  if (ticket.createdById && ticket.createdById !== actorId) {
+    recipientIds.push(ticket.createdById as string);
+  }
+  const assigneeIds = await getAssigneeIds(ticketId);
+  for (const id of assigneeIds) {
+    if (id !== actorId && !recipientIds.includes(id)) {
+      recipientIds.push(id);
+    }
+  }
+
+  if (recipientIds.length === 0) return;
+
+  await createBulkNotifications(
+    recipientIds,
+    ticketId,
+    "ticket_closed",
+    `${ticket.ticketNumber} was closed`,
+    ticket.title,
+    ticketLink(ticketId)
+  );
+}
+
+// === Trigger: Vacation Requested (admin notification) ===
+
+export async function notifyVacationRequested(
+  memberName: string,
+  memberId: number | string
+): Promise<void> {
+  const adminIds = await getAdminIds();
+  const recipientIds = adminIds.filter((id) => id !== String(memberId));
+  if (recipientIds.length === 0) return;
+
+  await createBulkNotifications(
+    recipientIds,
+    null,
+    "vacation_requested",
+    `${memberName} requested vacation`,
+    "Review in timesheet settings",
+    "/admin/settings/timesheet"
+  );
+}
+
+// === Trigger: Vacation Resolved (employee notification) ===
+
+export async function notifyVacationResolved(
+  memberId: number | string,
+  status: "approved" | "denied",
+  reviewerName: string
+): Promise<void> {
+  await createNotification(
+    memberId,
+    null,
+    "vacation_resolved",
+    `Vacation request ${status}`,
+    `${reviewerName} ${status} your vacation request`,
+    "/admin/settings/timesheet"
+  );
+}
+
+// === Trigger: Time Adjustment Requested (admin notification) ===
+
+export async function notifyTimeAdjustmentRequested(
+  memberName: string,
+  memberId: number | string
+): Promise<void> {
+  const adminIds = await getAdminIds();
+  const recipientIds = adminIds.filter((id) => id !== String(memberId));
+  if (recipientIds.length === 0) return;
+
+  await createBulkNotifications(
+    recipientIds,
+    null,
+    "time_adjustment_requested",
+    `${memberName} requested a time adjustment`,
+    "Review in timesheet settings",
+    "/admin/settings/timesheet"
+  );
+}
+
+// === Trigger: Time Adjustment Resolved (employee notification) ===
+
+export async function notifyTimeAdjustmentResolved(
+  memberId: number | string,
+  status: "approved" | "denied",
+  reviewerName: string
+): Promise<void> {
+  await createNotification(
+    memberId,
+    null,
+    "time_adjustment_resolved",
+    `Time adjustment ${status}`,
+    `${reviewerName} ${status} your time adjustment`,
+    "/admin/settings/timesheet"
+  );
+}
+
+// === Trigger: Team Announcement ===
+
+export async function notifyTeamAnnouncement(
+  authorId: number | string,
+  title: string
+): Promise<void> {
+  const convex = getConvexClient();
+  const members = await convex.query(api.teamMembers.list, {});
+  const recipientIds = members
+    .filter((m: any) => m.active !== false && m._id !== String(authorId))
+    .map((m: any) => m._id as string);
+
+  if (recipientIds.length === 0) return;
+
+  await createBulkNotifications(
+    recipientIds,
+    null,
+    "team_announcement",
+    "New team announcement",
+    title,
+    "/admin/bulletin"
   );
 }

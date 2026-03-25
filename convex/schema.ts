@@ -331,6 +331,37 @@ export default defineSchema({
     .index("by_recipient", ["recipientId"])
     .index("by_recipient_unread", ["recipientId", "isRead"]),
 
+  // === NOTIFICATION PREFERENCES ===
+  notificationPreferences: defineTable({
+    teamMemberId: v.id("teamMembers"),
+
+    // Ticket notifications
+    ticket_assigned: v.optional(v.boolean()),
+    ticket_status_stuck: v.optional(v.boolean()),
+    ticket_status_qa_ready: v.optional(v.boolean()),
+    ticket_status_needs_attention: v.optional(v.boolean()),
+    ticket_status_change: v.optional(v.boolean()),
+    ticket_created: v.optional(v.boolean()),
+    ticket_comment: v.optional(v.boolean()),
+    ticket_mention: v.optional(v.boolean()),
+    ticket_due_soon: v.optional(v.boolean()),
+    ticket_overdue: v.optional(v.boolean()),
+    ticket_due_date_changed: v.optional(v.boolean()),
+    ticket_closed: v.optional(v.boolean()),
+
+    // Timesheet & HR notifications
+    vacation_requested: v.optional(v.boolean()),
+    vacation_resolved: v.optional(v.boolean()),
+    time_adjustment_requested: v.optional(v.boolean()),
+    time_adjustment_resolved: v.optional(v.boolean()),
+    team_announcement: v.optional(v.boolean()),
+
+    // Operational notifications
+    hour_cap_warning: v.optional(v.boolean()),
+    hour_cap_exceeded: v.optional(v.boolean()),
+    runaway_timer: v.optional(v.boolean()),
+  }).index("by_teamMemberId", ["teamMemberId"]),
+
   // === SAVED VIEWS ===
   savedViews: defineTable({
     teamMemberId: v.id("teamMembers"),

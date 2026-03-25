@@ -406,11 +406,20 @@ export type NotificationType =
   | "assigned"
   | "status_change"
   | "comment"
+  | "mention"
   | "due_soon"
   | "overdue"
   | "hour_cap_warning"
   | "hour_cap_exceeded"
-  | "runaway_timer";
+  | "runaway_timer"
+  | "ticket_created"
+  | "due_date_changed"
+  | "ticket_closed"
+  | "vacation_requested"
+  | "vacation_resolved"
+  | "time_adjustment_requested"
+  | "time_adjustment_resolved"
+  | "team_announcement";
 
 export interface Notification {
   id: string;

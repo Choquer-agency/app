@@ -3,6 +3,7 @@ import { getSession } from "@/lib/admin-auth";
 import { createChangeRequest } from "@/lib/timesheet";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@/convex/_generated/api";
+import { notifyTimeAdjustmentRequested } from "@/lib/notification-triggers";
 
 export async function GET(request: NextRequest) {
   const session = getSession(request);
@@ -39,6 +40,8 @@ export async function POST(request: NextRequest) {
       body.proposedClockOut,
       body.reason
     );
+    // Notify admins about time adjustment request
+    notifyTimeAdjustmentRequested(session.name, session.teamMemberId);
     return NextResponse.json(result);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });

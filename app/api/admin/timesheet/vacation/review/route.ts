@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/admin-auth";
 import { hasPermission } from "@/lib/permissions";
 import { approveVacationRequest, denyVacationRequest } from "@/lib/timesheet";
+import { notifyVacationResolved } from "@/lib/notification-triggers";
 
 export async function POST(request: NextRequest) {
   const session = getSession(request);
@@ -24,12 +25,18 @@ export async function POST(request: NextRequest) {
       session.teamMemberId,
       body.reviewNote
     );
+    if (result) {
+      notifyVacationResolved(result.teamMemberId, "approved", session.name);
+    }
   } else if (body.action === "deny") {
     result = await denyVacationRequest(
       body.requestId,
       session.teamMemberId,
       body.reviewNote
     );
+    if (result) {
+      notifyVacationResolved(result.teamMemberId, "denied", session.name);
+    }
   } else {
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }

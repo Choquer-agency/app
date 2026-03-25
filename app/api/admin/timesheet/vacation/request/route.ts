@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/admin-auth";
 import { createVacationRequest, getMyVacationRequests } from "@/lib/timesheet";
+import { notifyVacationRequested } from "@/lib/notification-triggers";
 
 export async function GET(request: NextRequest) {
   const session = getSession(request);
@@ -34,6 +35,8 @@ export async function POST(request: NextRequest) {
       body.totalDays,
       body.reason
     );
+    // Notify admins about vacation request
+    notifyVacationRequested(session.name, session.teamMemberId);
     return NextResponse.json(result);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });

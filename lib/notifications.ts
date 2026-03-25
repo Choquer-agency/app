@@ -1,6 +1,11 @@
 import { getConvexClient } from "./convex-server";
 import { api } from "@/convex/_generated/api";
 import { Notification, NotificationType } from "@/types";
+import {
+  shouldNotify,
+  clearPrefsCache,
+  type NotificationMetadata,
+} from "@/lib/notification-preferences";
 
 // === Doc Mapper ===
 
@@ -28,9 +33,14 @@ export async function createNotification(
   type: NotificationType,
   title: string,
   body: string,
-  link: string
+  link: string,
+  metadata?: NotificationMetadata
 ): Promise<Notification | null> {
   try {
+    // Check user preferences before sending
+    const allowed = await shouldNotify(String(recipientId), type, metadata);
+    if (!allowed) return null;
+
     const convex = getConvexClient();
     const doc = await convex.mutation(api.notifications.create, {
       recipientId: recipientId as any,
@@ -53,11 +63,13 @@ export async function createBulkNotifications(
   type: NotificationType,
   title: string,
   body: string,
-  link: string
+  link: string,
+  metadata?: NotificationMetadata
 ): Promise<void> {
+  clearPrefsCache(); // Clear cache at start of bulk operation
   const unique = [...new Set(recipientIds.filter((id) => id != null))];
   for (const recipientId of unique) {
-    await createNotification(recipientId, ticketId, type, title, body, link);
+    await createNotification(recipientId, ticketId, type, title, body, link, metadata);
   }
 }
 
@@ -122,6 +134,12 @@ export async function hasRecentNotification(
     if (!ticketId && doc.ticketId) return false;
     const createdAt = doc._creationTime ?? 0;
     return createdAt > cutoff;
+  });
+}
+
+export async function deleteNotification(notificationId: string): Promise<void> {
+  await convex.mutation(api.notifications.remove, {
+    id: notificationId as any,
   });
 }
 

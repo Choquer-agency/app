@@ -58,6 +58,56 @@ function NotificationIcon({ type }: { type: NotificationType }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
         </svg>
       );
+    case "mention":
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 1 0-2.636 6.364M16.5 12V8.25" />
+        </svg>
+      );
+    case "ticket_created":
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      );
+    case "due_date_changed":
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+        </svg>
+      );
+    case "ticket_closed":
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+      );
+    case "vacation_requested":
+    case "vacation_resolved":
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008Z" />
+        </svg>
+      );
+    case "time_adjustment_requested":
+    case "time_adjustment_resolved":
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+      );
+    case "team_announcement":
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 1 1 0-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 0 1-1.44-4.282m3.102.069a18.03 18.03 0 0 1-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 0 1 8.835 2.535M10.34 6.66a23.847 23.847 0 0 0 8.835-2.535m0 0A23.74 23.74 0 0 0 18.795 3m.38 1.125a23.91 23.91 0 0 1 1.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 0 0 1.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 0 1 0 3.46" />
+        </svg>
+      );
+    default:
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+        </svg>
+      );
   }
 }
 
@@ -68,8 +118,10 @@ function typeColor(type: NotificationType): string {
     case "status_change":
       return "text-purple-500";
     case "comment":
+    case "mention":
       return "text-green-500";
     case "due_soon":
+    case "due_date_changed":
       return "text-amber-500";
     case "overdue":
     case "runaway_timer":
@@ -78,19 +130,37 @@ function typeColor(type: NotificationType): string {
       return "text-orange-500";
     case "hour_cap_exceeded":
       return "text-red-600";
+    case "ticket_created":
+      return "text-blue-400";
+    case "ticket_closed":
+      return "text-gray-500";
+    case "vacation_requested":
+    case "vacation_resolved":
+      return "text-teal-500";
+    case "time_adjustment_requested":
+    case "time_adjustment_resolved":
+      return "text-indigo-500";
+    case "team_announcement":
+      return "text-pink-500";
+    default:
+      return "text-gray-400";
   }
 }
 
 interface NotificationListProps {
   notifications: Notification[];
-  onMarkRead: (id: number) => void;
+  onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
+  canDelete?: boolean;
+  onDelete?: (id: string) => void;
 }
 
 export default function NotificationList({
   notifications,
   onMarkRead,
   onMarkAllRead,
+  canDelete = false,
+  onDelete,
 }: NotificationListProps) {
   const router = useRouter();
   const hasUnread = notifications.some((n) => !n.isRead);
@@ -124,12 +194,12 @@ export default function NotificationList({
           </div>
         ) : (
           notifications.map((n) => (
-            <button
+            <div
               key={n.id}
-              onClick={() => handleClick(n)}
-              className={`w-full text-left px-3 py-2.5 flex items-start gap-2.5 transition hover:bg-gray-50 ${
+              className={`relative group w-full text-left px-3 py-2.5 flex items-start gap-2.5 transition hover:bg-gray-50 cursor-pointer ${
                 !n.isRead ? "bg-blue-50/50" : ""
               }`}
+              onClick={() => handleClick(n)}
             >
               <div className={`mt-0.5 ${typeColor(n.type)}`}>
                 <NotificationIcon type={n.type} />
@@ -150,7 +220,21 @@ export default function NotificationList({
               {!n.isRead && (
                 <div className="mt-1.5 w-2 h-2 rounded-full bg-[var(--accent)] shrink-0" />
               )}
-            </button>
+              {canDelete && onDelete && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(n.id);
+                  }}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded-md text-[var(--muted)] hover:text-red-500 hover:bg-red-50 transition-all"
+                  title="Delete notification"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           ))
         )}
       </div>

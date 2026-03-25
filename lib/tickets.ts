@@ -9,7 +9,13 @@ import {
   CreateTicketInput,
 } from "@/types";
 import { logActivity } from "@/lib/ticket-activity";
-import { notifyStatusChange, notifyAssigned } from "@/lib/notification-triggers";
+import {
+  notifyStatusChange,
+  notifyAssigned,
+  notifyTicketCreated,
+  notifyDueDateChanged,
+  notifyTicketClosed,
+} from "@/lib/notification-triggers";
 import { docToTicket, docToAssignee } from "@/lib/ticket-mappers";
 
 // Actor info for activity logging
@@ -145,6 +151,17 @@ export async function createTicket(
     });
   }
 
+  // Notify assignees about new ticket
+  if (data.assigneeIds && data.assigneeIds.length > 0) {
+    notifyTicketCreated(
+      ticketId,
+      doc!.ticketNumber,
+      data.title,
+      createdById,
+      data.assigneeIds
+    );
+  }
+
   // Return full ticket with joined data
   return (await getTicketById(ticketId))!;
 }
@@ -206,6 +223,9 @@ export async function updateTicket(
         newValue: status,
       });
       notifyStatusChange(id, current.status, status, actor.id);
+      if (status === "closed") {
+        notifyTicketClosed(id, actor.id);
+      }
     }
     if (priority !== current.priority) {
       await logActivity(id, actor.id, actor.name, "priority_change", {
@@ -239,6 +259,7 @@ export async function updateTicket(
         oldValue: current.dueDate,
         newValue: dueDate,
       });
+      notifyDueDateChanged(id, current.dueDate || null, dueDate || null, actor.id);
     }
     if (startDate !== current.startDate) {
       await logActivity(id, actor.id, actor.name, "due_date_change", {
