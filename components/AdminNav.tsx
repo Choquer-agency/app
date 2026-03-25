@@ -14,7 +14,7 @@ const NAV_LINKS: { href: string; label: string; exact?: boolean; permission: Per
   { href: "/admin/tickets", label: "Tickets", permission: "nav:tickets" },
   { href: "/admin/reports", label: "Reports", exact: true, permission: "nav:reports" },
   { href: "/admin/meetings", label: "Meetings", exact: true, permission: "nav:reports" },
-  { href: "/admin/timesheet", label: "Time Sheet", permission: "nav:timesheet" },
+  { href: "/admin/timesheet", label: "Timesheet", permission: "nav:timesheet" },
   { href: "/admin/settings", label: "Settings", permission: "nav:settings" },
 ];
 

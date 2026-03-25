@@ -8,6 +8,7 @@ const TABS = [
   { href: "/admin/settings/team", label: "Team" },
   { href: "/admin/settings/templates", label: "Templates", minRole: "c_suite" as RoleLevel },
   { href: "/admin/settings/calendar", label: "Calendar" },
+  { href: "/admin/settings/timesheet", label: "Timesheet", minRole: "c_suite" as RoleLevel },
   { href: "/admin/settings/past-clients", label: "Past Clients", minRole: "c_suite" as RoleLevel },
   { href: "/admin/settings/activity", label: "Activity", minRole: "c_suite" as RoleLevel },
 ];

@@ -7,11 +7,6 @@ import MyTimesheetHistory from "./MyTimesheetHistory";
 import VacationRequestForm from "./VacationRequestForm";
 import MyVacationRequests from "./MyVacationRequests";
 import AdminTimesheetDashboard from "./AdminTimesheetDashboard";
-import PayrollReport from "./PayrollReport";
-import TimesheetSettings from "./TimesheetSettings";
-
-type AdminView = "dashboard" | "payroll" | "settings";
-type EmployeeView = "clock" | "history";
 
 export default function TimesheetPage({
   roleLevel,
@@ -24,80 +19,19 @@ export default function TimesheetPage({
 }) {
   const canManage = hasPermission(roleLevel, "timesheet:manage");
   const canViewAll = hasPermission(roleLevel, "timesheet:view_all");
-  const canExport = hasPermission(roleLevel, "timesheet:export");
 
   // Admin/bookkeeper users go straight to dashboard; employees go to clock view
   const isAdminUser = canViewAll || canManage;
 
-  const [adminView, setAdminView] = useState<AdminView>("dashboard");
-  const [employeeView, setEmployeeView] = useState<EmployeeView>("clock");
+  const [employeeView, setEmployeeView] = useState<"clock" | "history">("clock");
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey((k) => k + 1);
 
   // ===================== ADMIN / BOOKKEEPER FLOW =====================
   if (isAdminUser) {
-    if (adminView === "payroll" && canExport) {
-      return (
-        <div className="max-w-6xl mx-auto mt-4 md:mt-8 px-4 md:px-6 pb-20">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6 md:mb-8">
-            <button
-              onClick={() => setAdminView("dashboard")}
-              className="text-sm text-[#6B6B6B] hover:text-[#263926] self-start"
-            >
-              &larr; Back
-            </button>
-            <h1 className="text-xl md:text-2xl font-bold text-[#263926]">
-              Payroll Report
-            </h1>
-          </div>
-          <PayrollReport />
-        </div>
-      );
-    }
-
-    if (adminView === "settings" && canManage) {
-      return (
-        <div className="max-w-2xl mx-auto mt-4 md:mt-8 px-4 md:px-6 pb-20">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6 md:mb-8">
-            <button
-              onClick={() => setAdminView("dashboard")}
-              className="text-sm text-[#6B6B6B] hover:text-[#263926] self-start"
-            >
-              &larr; Back
-            </button>
-            <h1 className="text-xl md:text-2xl font-bold text-[#263926]">
-              Timesheet Settings
-            </h1>
-          </div>
-          <TimesheetSettings />
-        </div>
-      );
-    }
-
-    // Default: Admin Dashboard
     return (
       <div className="mt-4 md:mt-8 pb-20">
         <AdminTimesheetDashboard teamMemberId={teamMemberId} />
-
-        {/* Quick links below dashboard */}
-        <div className="max-w-5xl mx-auto px-4 md:px-6 mt-6 flex flex-wrap gap-3">
-          {canExport && (
-            <button
-              onClick={() => setAdminView("payroll")}
-              className="px-5 py-2.5 text-[#263926] bg-white hover:bg-[#F6F5F1] border border-[#F6F5F1] rounded-full font-medium text-sm transition-colors"
-            >
-              Payroll Report
-            </button>
-          )}
-          {canManage && (
-            <button
-              onClick={() => setAdminView("settings")}
-              className="px-5 py-2.5 text-[#6B6B6B] bg-white hover:bg-[#F6F5F1] border border-[#F6F5F1] rounded-full font-medium text-sm transition-colors"
-            >
-              Settings
-            </button>
-          )}
-        </div>
       </div>
     );
   }
