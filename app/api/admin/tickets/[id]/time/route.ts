@@ -6,6 +6,7 @@ import {
   startTimer,
   addManualEntry,
 } from "@/lib/time-entries";
+import { getActiveShift } from "@/lib/timesheet";
 
 export async function GET(
   request: NextRequest,
@@ -58,6 +59,15 @@ export async function POST(
         note: body.note,
       });
       return NextResponse.json(entry, { status: 201 });
+    }
+
+    // Enforce: must be clocked in to start a ticket timer
+    const activeShift = await getActiveShift(session.teamMemberId);
+    if (!activeShift) {
+      return NextResponse.json(
+        { error: "You must clock in before tracking time on tickets." },
+        { status: 403 }
+      );
     }
 
     // Start timer

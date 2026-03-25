@@ -10,6 +10,7 @@ import {
   CalendarEntry,
 } from "@/types";
 import { hasMinRole, type RoleLevel } from "@/lib/permissions";
+import WhosInWidget from "./WhosInWidget";
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -585,6 +586,9 @@ export default function HomeDashboard({
           </div>
         </div>
       </div>
+
+      {/* Who's In — purple theme */}
+      <WhosInWidget />
 
       {/* Project Status — blue theme */}
       <div className="rounded-2xl bg-[#F0F6FF] overflow-hidden">

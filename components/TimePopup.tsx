@@ -6,7 +6,7 @@ import { TimeEntry } from "@/types";
 import { friendlyDateWithDay } from "@/lib/date-format";
 
 interface TimePopupProps {
-  ticketId: number;
+  ticketId: string;
   entries: TimeEntry[];
   totalSeconds: number;
   onClose: () => void;
@@ -75,7 +75,7 @@ export default function TimePopup({
   const [durationInput, setDurationInput] = useState("");
   const [noteInput, setNoteInput] = useState("");
   const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editStart, setEditStart] = useState("");
   const [editEnd, setEditEnd] = useState("");
   const [editNote, setEditNote] = useState("");
@@ -175,7 +175,7 @@ export default function TimePopup({
     }
   }
 
-  async function handleDelete(entryId: number) {
+  async function handleDelete(entryId: string) {
     try {
       const res = await fetch(`/api/admin/tickets/${ticketId}/time/${entryId}`, {
         method: "DELETE",

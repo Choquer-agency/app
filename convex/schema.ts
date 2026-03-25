@@ -57,6 +57,18 @@ export default defineSchema({
     .index("by_status", ["clientStatus"])
     .index("by_country", ["country"]),
 
+  // === LEADS ===
+  leads: defineTable({
+    company: v.string(),
+    contactName: v.optional(v.string()),
+    contactRole: v.optional(v.string()),
+    contactEmail: v.optional(v.string()),
+    website: v.optional(v.string()),
+    status: v.string(), // "new" | "contacted" | "responded" | "meeting_scheduled" | "proposal_sent" | "won" | "lost"
+    notes: v.optional(v.string()),
+    source: v.optional(v.string()),
+  }).index("by_status", ["status"]),
+
   packages: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
@@ -115,6 +127,9 @@ export default defineSchema({
     hourlyRate: v.optional(v.number()),
     salary: v.optional(v.number()),
     payType: v.optional(v.string()), // "hourly" | "salary"
+    // Vacation balance
+    vacationDaysTotal: v.optional(v.number()),
+    vacationDaysUsed: v.optional(v.number()),
     // Tags
     tags: v.optional(v.array(v.string())),
   })
@@ -455,4 +470,78 @@ export default defineSchema({
     meetingDate: v.string(), // DATE
     source: v.optional(v.string()), // "manual"
   }).index("by_member", ["teamMemberId"]),
+
+  // === TIMESHEET (Payroll clock in/out — separate from ticket time tracking) ===
+  timesheetEntries: defineTable({
+    teamMemberId: v.id("teamMembers"),
+    date: v.string(), // "YYYY-MM-DD"
+    clockInTime: v.string(), // ISO timestamp
+    clockOutTime: v.optional(v.string()), // ISO timestamp, null = still clocked in
+    totalBreakMinutes: v.optional(v.number()),
+    workedMinutes: v.optional(v.number()), // computed: clock duration minus breaks
+    isSickDay: v.optional(v.boolean()),
+    isHalfSickDay: v.optional(v.boolean()),
+    isVacation: v.optional(v.boolean()),
+    note: v.optional(v.string()),
+    issues: v.optional(v.array(v.string())), // "MISSING_CLOCK_OUT" | "LONG_SHIFT_NO_BREAK" | "OPEN_BREAK" | "OVERTIME_WARNING"
+    pendingApproval: v.optional(v.boolean()),
+    sickHoursUsed: v.optional(v.number()),
+    changeRequest: v.optional(v.any()),
+  })
+    .index("by_teamMemberId", ["teamMemberId"])
+    .index("by_date", ["date"])
+    .index("by_teamMemberId_and_date", ["teamMemberId", "date"]),
+
+  timesheetBreaks: defineTable({
+    timesheetEntryId: v.id("timesheetEntries"),
+    startTime: v.string(), // ISO timestamp
+    endTime: v.optional(v.string()), // ISO timestamp, null = break in progress
+    breakType: v.optional(v.string()), // "unpaid"
+    durationMinutes: v.optional(v.number()),
+  }).index("by_timesheetEntryId", ["timesheetEntryId"]),
+
+  vacationRequests: defineTable({
+    teamMemberId: v.id("teamMembers"),
+    startDate: v.string(), // "YYYY-MM-DD"
+    endDate: v.string(), // "YYYY-MM-DD"
+    totalDays: v.number(),
+    reason: v.optional(v.string()),
+    status: v.string(), // "pending" | "approved" | "denied"
+    reviewedById: v.optional(v.id("teamMembers")),
+    reviewedAt: v.optional(v.string()),
+    reviewNote: v.optional(v.string()),
+  })
+    .index("by_teamMemberId", ["teamMemberId"])
+    .index("by_status", ["status"])
+    .index("by_startDate_and_endDate", ["startDate", "endDate"]),
+
+  timesheetChangeRequests: defineTable({
+    timesheetEntryId: v.id("timesheetEntries"),
+    teamMemberId: v.id("teamMembers"),
+    originalClockIn: v.string(),
+    originalClockOut: v.optional(v.string()),
+    proposedClockIn: v.string(),
+    proposedClockOut: v.optional(v.string()),
+    reason: v.string(),
+    status: v.string(), // "pending" | "approved" | "denied"
+    reviewedById: v.optional(v.id("teamMembers")),
+    reviewedAt: v.optional(v.string()),
+    reviewNote: v.optional(v.string()),
+    minutesDelta: v.optional(v.number()), // positive = gained, negative = lost
+  })
+    .index("by_timesheetEntryId", ["timesheetEntryId"])
+    .index("by_teamMemberId", ["teamMemberId"])
+    .index("by_status", ["status"]),
+
+  timesheetSettings: defineTable({
+    key: v.string(), // singleton: "global"
+    halfDaySickCutoffTime: v.optional(v.string()), // default "12:00"
+    overtimeThresholdMinutes: v.optional(v.number()), // default 480 (8hrs)
+    longShiftBreakThresholdMinutes: v.optional(v.number()), // default 300 (5hrs)
+    defaultVacationDaysPerYear: v.optional(v.number()), // default 10
+    bookkeeperEmail: v.optional(v.string()),
+    companyLogoUrl: v.optional(v.string()),
+    standardWorkDayHours: v.optional(v.number()), // default 8
+    sickHoursTotal: v.optional(v.number()), // per employee per year
+  }).index("by_key", ["key"]),
 });

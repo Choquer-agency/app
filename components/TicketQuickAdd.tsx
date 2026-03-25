@@ -7,7 +7,7 @@ import { StatusDot } from "./TicketStatusBadge";
 interface TicketQuickAddProps {
   status: TicketStatus;
   onCreated: (ticket: Ticket) => void;
-  projectId?: number;
+  projectId?: string;
   isPersonal?: boolean;
 }
 
@@ -119,7 +119,7 @@ export default function TicketQuickAdd({ status, onCreated, projectId, isPersona
 }
 
 // Mobile version
-export function TicketQuickAddMobile({ status, onCreated, projectId, isPersonal }: { status: TicketStatus; onCreated: (ticket: Ticket) => void; projectId?: number; isPersonal?: boolean }) {
+export function TicketQuickAddMobile({ status, onCreated, projectId, isPersonal }: { status: TicketStatus; onCreated: (ticket: Ticket) => void; projectId?: string; isPersonal?: boolean }) {
   const [active, setActive] = useState(false);
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);

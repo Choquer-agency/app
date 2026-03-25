@@ -10,7 +10,7 @@ import TicketCreateModal from "./TicketCreateModal";
 import DateCascadeConfirm from "./DateCascadeConfirm";
 
 interface TicketDetailModalProps {
-  ticketId: number;
+  ticketId: string;
   teamMembers: TeamMember[];
   onClose: () => void;
   onTicketUpdated: () => void;
@@ -33,7 +33,7 @@ export default function TicketDetailModal({
   const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
   const [commentsLoading, setCommentsLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentTicketId, setCurrentTicketId] = useState(ticketId);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -45,7 +45,7 @@ export default function TicketDetailModal({
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const fetchTicket = useCallback(async (id: number) => {
+  const fetchTicket = useCallback(async (id: string) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/tickets/${id}`);
@@ -62,7 +62,7 @@ export default function TicketDetailModal({
     }
   }, []);
 
-  const fetchActivity = useCallback(async (id: number) => {
+  const fetchActivity = useCallback(async (id: string) => {
     setActivityLoading(true);
     try {
       const res = await fetch(`/api/admin/tickets/${id}/activity`);
@@ -74,7 +74,7 @@ export default function TicketDetailModal({
     }
   }, []);
 
-  const fetchComments = useCallback(async (id: number) => {
+  const fetchComments = useCallback(async (id: string) => {
     setCommentsLoading(true);
     try {
       const res = await fetch(`/api/admin/tickets/${id}/comments`);
@@ -86,7 +86,7 @@ export default function TicketDetailModal({
     }
   }, []);
 
-  const fetchSubTickets = useCallback(async (id: number) => {
+  const fetchSubTickets = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/admin/tickets?parentTicketId=${id}`);
       if (res.ok) {
@@ -188,7 +188,7 @@ export default function TicketDetailModal({
     }
   }
 
-  async function handleAssigneeToggle(tId: number, memberId: number, action: "add" | "remove") {
+  async function handleAssigneeToggle(tId: string, memberId: string, action: "add" | "remove") {
     if (!ticket) return;
     const member = teamMembers.find((m) => m.id === memberId);
     setTicket((prev) => {
@@ -200,7 +200,7 @@ export default function TicketDetailModal({
           assignees: [
             ...current,
             {
-              id: Date.now(),
+              id: String(Date.now()),
               ticketId: tId,
               teamMemberId: memberId,
               assignedAt: new Date().toISOString(),
@@ -248,7 +248,7 @@ export default function TicketDetailModal({
     }
   }
 
-  async function handleEditComment(commentId: number, content: string) {
+  async function handleEditComment(commentId: string, content: string) {
     const res = await fetch(`/api/admin/tickets/${currentTicketId}/comments/${commentId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -259,7 +259,7 @@ export default function TicketDetailModal({
     }
   }
 
-  async function handleDeleteComment(commentId: number) {
+  async function handleDeleteComment(commentId: string) {
     const res = await fetch(`/api/admin/tickets/${currentTicketId}/comments/${commentId}`, {
       method: "DELETE",
     });
@@ -280,7 +280,7 @@ export default function TicketDetailModal({
     } catch {}
   }
 
-  function handleSubTicketClick(subId: number) {
+  function handleSubTicketClick(subId: string) {
     setCurrentTicketId(subId);
     const url = new URL(window.location.href);
     url.searchParams.set("ticket", String(subId));

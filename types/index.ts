@@ -878,3 +878,104 @@ export interface CreateRecurringTemplateInput {
   active?: boolean;
   assigneeIds?: string[];
 }
+
+// === Timesheet Types (Payroll clock in/out) ===
+
+export type TimesheetIssueType =
+  | "MISSING_CLOCK_OUT"
+  | "LONG_SHIFT_NO_BREAK"
+  | "OPEN_BREAK"
+  | "OVERTIME_WARNING";
+
+export interface TimesheetEntry {
+  id: string;
+  teamMemberId: string;
+  date: string;
+  clockInTime: string;
+  clockOutTime: string | null;
+  totalBreakMinutes: number;
+  workedMinutes: number | null;
+  isSickDay: boolean;
+  isHalfSickDay: boolean;
+  isVacation: boolean;
+  note: string;
+  issues: TimesheetIssueType[];
+  pendingApproval?: boolean;
+  sickHoursUsed?: number;
+  changeRequest?: {
+    clockIn?: string | null;
+    clockOut?: string | null;
+    breaks?: TimesheetBreak[];
+    adminNotes?: string;
+    isSickDay?: boolean;
+    isVacationDay?: boolean;
+    pendingApproval?: boolean;
+  } | null;
+  createdAt: string;
+  // Joined fields
+  memberName?: string;
+  memberColor?: string;
+  memberProfilePicUrl?: string;
+  breaks?: TimesheetBreak[];
+}
+
+export interface TimesheetBreak {
+  id: string;
+  timesheetEntryId: string;
+  startTime: string;
+  endTime: string | null;
+  breakType: string;
+  durationMinutes: number | null;
+}
+
+export type VacationRequestStatus = "pending" | "approved" | "denied";
+
+export interface VacationRequest {
+  id: string;
+  teamMemberId: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  reason: string;
+  status: VacationRequestStatus;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+  // Joined fields
+  memberName?: string;
+  reviewedByName?: string;
+}
+
+export interface TimesheetChangeRequest {
+  id: string;
+  timesheetEntryId: string;
+  teamMemberId: string;
+  originalClockIn: string;
+  originalClockOut: string | null;
+  proposedClockIn: string;
+  proposedClockOut: string | null;
+  reason: string;
+  status: VacationRequestStatus;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  minutesDelta: number | null;
+  createdAt: string;
+  // Joined fields
+  memberName?: string;
+}
+
+export interface PayrollReportEntry {
+  teamMemberId: string;
+  memberName: string;
+  payType: "hourly" | "salary";
+  hourlyRate: number | null;
+  totalWorkedMinutes: number;
+  totalWorkedDecimalHours: number;
+  sickDays: number;
+  halfSickDays: number;
+  vacationDays: number;
+  overtimeDays: number;
+  issueCount: number;
+}

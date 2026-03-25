@@ -53,8 +53,8 @@ interface TicketDetailContentProps {
   teamMembers: TeamMember[];
   subTickets: Ticket[];
   onUpdate: (fields: Partial<Ticket>) => void;
-  onAssigneeToggle: (ticketId: number, memberId: number, action: "add" | "remove") => void;
-  onSubTicketClick: (ticketId: number) => void;
+  onAssigneeToggle: (ticketId: string, memberId: string, action: "add" | "remove") => void;
+  onSubTicketClick: (ticketId: string) => void;
   onAddSubTicket: () => void;
 }
 
@@ -72,7 +72,7 @@ export default function TicketDetailContent({
   const [descValue, setDescValue] = useState(ticket.description || "");
   const [attachments, setAttachments] = useState<TicketAttachment[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(true);
-  const [parentTicket, setParentTicket] = useState<{ id: number; ticketNumber: string; title: string } | null>(null);
+  const [parentTicket, setParentTicket] = useState<{ id: string; ticketNumber: string; title: string } | null>(null);
   const [commitments, setCommitments] = useState<TicketCommitment[]>([]);
   const [showCommitForm, setShowCommitForm] = useState(false);
   const [commitDate, setCommitDate] = useState<string | null>(null);
@@ -184,7 +184,7 @@ export default function TicketDetailContent({
     if (res.ok) fetchAttachments();
   }
 
-  async function handleAttachmentDelete(attachmentId: number) {
+  async function handleAttachmentDelete(attachmentId: string) {
     const res = await fetch(`/api/admin/tickets/${ticket.id}/attachments/${attachmentId}`, {
       method: "DELETE",
     });

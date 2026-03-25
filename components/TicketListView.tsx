@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Ticket, TicketFilters as Filters, TicketStatus, TicketPriority, SavedView, TeamMember, ProjectGroup } from "@/types";
 import { useKeyboardShortcuts } from "./KeyboardShortcutProvider";
+import { useTickets } from "@/hooks/useTickets";
+import { useSubTickets } from "@/hooks/useSubTickets";
 import TicketStatusBadge, { STATUS_ORDER, getStatusLabel, getStatusColor, StatusDot, getStatusDotColor } from "./TicketStatusBadge";
 import TicketPriorityBadge, { getPriorityLabel, PriorityDropdown } from "./TicketPriorityBadge";
 import TicketAssigneeAvatars from "./TicketAssigneeAvatars";
@@ -178,32 +180,116 @@ function groupTickets(tickets: Ticket[], groupBy: GroupBy, projectGroups?: Proje
     }));
 }
 
+function SubTicketRows({
+  parentTicketId,
+  selectedIds,
+  teamMembers,
+  projectId,
+  onToggleSelect,
+  onOpenDetail,
+  onStatusChange,
+  onAssigneeToggle,
+  onDueDateChange,
+  onPriorityChange,
+}: {
+  parentTicketId: string;
+  selectedIds: Set<string>;
+  teamMembers: TeamMember[];
+  projectId?: string;
+  onToggleSelect: (id: string) => void;
+  onOpenDetail: (id: string) => void;
+  onStatusChange: (id: string, status: TicketStatus) => void;
+  onAssigneeToggle: (ticketId: string, memberId: string, action: "add" | "remove") => void;
+  onDueDateChange: (id: string, date: string | null) => void;
+  onPriorityChange: (id: string, priority: TicketPriority) => void;
+}) {
+  const { subTickets, isLoading } = useSubTickets(parentTicketId);
+
+  if (isLoading) {
+    return (
+      <tr>
+        <td colSpan={999} className="px-6 py-2 text-xs text-[var(--muted)]">Loading subtasks...</td>
+      </tr>
+    );
+  }
+
+  return (
+    <>
+      {subTickets.map((sub) => (
+        <tr
+          key={sub.id}
+          onClick={() => onOpenDetail(sub.id)}
+          className="border-b border-[var(--border)] last:border-b-0 hover:bg-gray-50/50 cursor-pointer transition bg-gray-50/30"
+        >
+          <td className="px-2 py-3">
+            <div className="flex items-center gap-1">
+              <span className="w-4" />
+              <input
+                type="checkbox"
+                checked={selectedIds.has(sub.id)}
+                onChange={(e) => { e.stopPropagation(); onToggleSelect(sub.id); }}
+                onClick={(e) => e.stopPropagation()}
+                className="rounded"
+              />
+            </div>
+          </td>
+          <td className="px-1 py-3" />
+          <td className="px-3 py-3">
+            <div className="flex items-center gap-2.5 pl-6">
+              <StatusDot status={sub.status} size={10} />
+              <span className="font-medium text-[var(--foreground)]">
+                {sub.title}
+              </span>
+            </div>
+          </td>
+          <td className="px-3 py-3" />
+          {!projectId && <td className="px-3 py-3 text-xs text-[var(--muted)]">{sub.clientName || "\u2014"}</td>}
+          <td className="px-3 py-3">
+            <StatusDropdown status={sub.status} onChange={(s) => onStatusChange(sub.id, s)} />
+          </td>
+          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+            <TimeTracker ticketId={sub.id} onTimerChange={() => window.dispatchEvent(new CustomEvent("timerChange"))} />
+          </td>
+          <td className="px-3 py-3">
+            <AssigneeDropdown ticketId={sub.id} assignees={sub.assignees || []} teamMembers={teamMembers} onToggle={onAssigneeToggle} />
+          </td>
+          <td className="px-0 py-0">
+            <DatePicker value={sub.dueDate} onChange={(d) => onDueDateChange(sub.id, d)} placeholder="\u2014" displayFormat="short" className="w-full h-full px-3 py-3 block" />
+          </td>
+          <td className="px-3 py-3">
+            <PriorityDropdown priority={sub.priority} onChange={(p) => onPriorityChange(sub.id, p)} />
+          </td>
+          {!projectId && <td className="px-3 py-3" />}
+        </tr>
+      ))}
+    </>
+  );
+}
+
 interface TicketListViewProps {
-  projectId?: number;
-  clientId?: number;
+  projectId?: string;
+  clientId?: string;
   isPersonal?: boolean;
-  ownerId?: number;
-  assigneeId?: number;
+  ownerId?: string;
+  assigneeId?: string;
 }
 
 export default function TicketListView({ projectId, clientId, isPersonal, ownerId, assigneeId }: TicketListViewProps = {}) {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState(true);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [projectGroups, setProjectGroups] = useState<ProjectGroup[]>([]);
   const [filters, setFilters] = useState<Filters>({ archived: false });
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [activeViewId, setActiveViewId] = useState<number | null>(null);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [detailTicketId, setDetailTicketId] = useState<number | null>(null);
+  const [detailTicketId, setDetailTicketId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createAsMeeting, setCreateAsMeeting] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const createMenuRef = useRef<HTMLDivElement>(null);
   const [cascadeInfo, setCascadeInfo] = useState<{
-    ticketId: number;
+    ticketId: string;
     ticketTitle: string;
     field: "startDate" | "dueDate";
     oldDate: string;
@@ -225,33 +311,44 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
   }, [viewMode]);
 
   // Keyboard navigation state
-  const [focusedTicketId, setFocusedTicketId] = useState<number | null>(null);
+  const [focusedTicketId, setFocusedTicketId] = useState<string | null>(null);
 
   // Subtask expand state
-  const [expandedTickets, setExpandedTickets] = useState<Set<number>>(new Set());
-  const [subTickets, setSubTickets] = useState<Map<number, Ticket[]>>(new Map());
+  const [expandedTickets, setExpandedTickets] = useState<Set<string>>(new Set());
+  // Track a single expanded parent for the useSubTickets subscription
+  const [activeExpandedParent, setActiveExpandedParent] = useState<string | null>(null);
 
   // Drag state
-  const [dragId, setDragId] = useState<number | null>(null);
-  const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const dragGroupRef = useRef<string | null>(null);
   const dragOverGroupRef = useRef<string | null>(null);
 
   const savedViewFiltersRef = useRef<string | null>(null);
+
+  // === Real-time ticket subscription ===
+  const { tickets, isLoading } = useTickets({
+    filters,
+    projectId,
+    clientId,
+    isPersonal,
+    ownerId,
+    assigneeId,
+  });
 
   // URL sync: open detail modal if ?ticket= param is present
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ticketParam = params.get("ticket");
     if (ticketParam) {
-      setDetailTicketId(Number(ticketParam));
+      setDetailTicketId(ticketParam);
     }
   }, []);
 
-  function openDetailModal(ticketId: number) {
+  function openDetailModal(ticketId: string) {
     setDetailTicketId(ticketId);
     const url = new URL(window.location.href);
-    url.searchParams.set("ticket", String(ticketId));
+    url.searchParams.set("ticket", ticketId);
     window.history.pushState({}, "", url.toString());
   }
 
@@ -262,82 +359,21 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
     window.history.pushState({}, "", url.toString());
   }
 
-  async function toggleSubTickets(ticketId: number) {
+  function toggleSubTickets(ticketId: string) {
     const next = new Set(expandedTickets);
     if (next.has(ticketId)) {
       next.delete(ticketId);
+      if (activeExpandedParent === ticketId) {
+        // Switch to another expanded parent or null
+        const remaining = Array.from(next);
+        setActiveExpandedParent(remaining.length > 0 ? remaining[0] : null);
+      }
     } else {
       next.add(ticketId);
-      // Fetch subtasks if not already loaded
-      if (!subTickets.has(ticketId)) {
-        try {
-          const res = await fetch(`/api/admin/tickets?parentTicketId=${ticketId}`);
-          if (res.ok) {
-            const data = await res.json();
-            const withAssignees = await Promise.all(
-              data.map(async (t: Ticket) => {
-                try {
-                  const aRes = await fetch(`/api/admin/tickets/${t.id}/assignees`);
-                  if (aRes.ok) t.assignees = await aRes.json();
-                } catch {}
-                return t;
-              })
-            );
-            setSubTickets((prev) => new Map(prev).set(ticketId, withAssignees));
-          }
-        } catch {}
-      }
+      setActiveExpandedParent(ticketId);
     }
     setExpandedTickets(next);
   }
-
-  const fetchTickets = useCallback(async () => {
-    try {
-      const params = new URLSearchParams();
-      if (filters.clientId) params.set("clientId", String(filters.clientId));
-      if (filters.assigneeId) params.set("assigneeId", String(filters.assigneeId));
-      if (filters.search) params.set("search", filters.search);
-      if (filters.status) {
-        params.set("status", Array.isArray(filters.status) ? filters.status.join(",") : filters.status);
-      }
-      if (filters.priority) {
-        params.set("priority", Array.isArray(filters.priority) ? filters.priority.join(",") : filters.priority);
-      }
-      if (filters.archived) params.set("archived", "true");
-      // Project / client scoping
-      if (projectId) params.set("projectId", String(projectId));
-      if (clientId) params.set("clientId", String(clientId));
-      // Only show tickets whose start date has arrived (for main ticket view, not project-specific)
-      if (!projectId) params.set("startDateActive", "true");
-      // Personal board scoping
-      if (isPersonal !== undefined) params.set("isPersonal", String(isPersonal));
-      if (ownerId) params.set("createdById", String(ownerId));
-      // Assignee scoping (My Board)
-      if (assigneeId && !filters.assigneeId) params.set("assigneeId", String(assigneeId));
-
-      const res = await fetch(`/api/admin/tickets?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        const ticketsWithAssignees = await Promise.all(
-          data.map(async (t: Ticket) => {
-            try {
-              const aRes = await fetch(`/api/admin/tickets/${t.id}/assignees`);
-              if (aRes.ok) t.assignees = await aRes.json();
-            } catch {}
-            return t;
-          })
-        );
-        // Filter out subtasks — they'll be loaded on expand
-        setTickets(ticketsWithAssignees.filter((t: Ticket) => !t.parentTicketId));
-      }
-    } catch {} finally {
-      setLoading(false);
-    }
-  }, [filters, projectId, clientId, isPersonal, ownerId, assigneeId]);
-
-  useEffect(() => {
-    fetchTickets();
-  }, [fetchTickets]);
 
   useEffect(() => {
     fetch("/api/admin/team")
@@ -359,40 +395,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
     }
   }, [projectId]);
 
-  async function handleAssigneeToggle(ticketId: number, memberId: number, action: "add" | "remove") {
-    // Optimistic update
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== ticketId) return t;
-        const currentAssignees = t.assignees || [];
-        if (action === "add") {
-          const member = teamMembers.find((m) => m.id === memberId);
-          if (!member) return t;
-          return {
-            ...t,
-            assignees: [
-              ...currentAssignees,
-              {
-                id: Date.now(),
-                ticketId,
-                teamMemberId: memberId,
-                assignedAt: new Date().toISOString(),
-                memberName: member.name,
-                memberEmail: member.email,
-                memberColor: member.color,
-                memberProfilePicUrl: member.profilePicUrl,
-              },
-            ],
-          };
-        } else {
-          return {
-            ...t,
-            assignees: currentAssignees.filter((a) => a.teamMemberId !== memberId),
-          };
-        }
-      })
-    );
-
+  async function handleAssigneeToggle(ticketId: string, memberId: string, action: "add" | "remove") {
     try {
       if (action === "add") {
         await fetch(`/api/admin/tickets/${ticketId}/assignees`, {
@@ -408,7 +411,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
         });
       }
     } catch {
-      fetchTickets();
+      // Convex subscription will reconcile automatically
     }
   }
 
@@ -491,7 +494,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
     });
   }
 
-  function toggleSelect(id: number) {
+  function toggleSelect(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -514,57 +517,38 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
   async function handleBulkAction(action: string, value: string | number) {
     const ticketIds = Array.from(selectedIds);
     try {
-      const res = await fetch("/api/admin/tickets/bulk", {
+      await fetch("/api/admin/tickets/bulk", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticketIds, action, value }),
       });
-      if (res.ok) {
-        fetchTickets();
-      }
     } catch {}
   }
 
-  async function handleStatusChange(ticketId: number, newStatus: TicketStatus) {
-    // Optimistic update
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t))
-    );
+  async function handleStatusChange(ticketId: string, newStatus: TicketStatus) {
     try {
       await fetch(`/api/admin/tickets/${ticketId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      fetchTickets();
-    } catch {
-      fetchTickets();
-    }
+    } catch {}
   }
 
-  async function handlePriorityChange(ticketId: number, newPriority: TicketPriority) {
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, priority: newPriority } : t))
-    );
+  async function handlePriorityChange(ticketId: string, newPriority: TicketPriority) {
     try {
       await fetch(`/api/admin/tickets/${ticketId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priority: newPriority }),
       });
-      fetchTickets();
-    } catch {
-      fetchTickets();
-    }
+    } catch {}
   }
 
-  async function handleDueDateChange(ticketId: number, newDate: string | null) {
+  async function handleDueDateChange(ticketId: string, newDate: string | null) {
     const ticket = tickets.find((t) => t.id === ticketId);
     const oldDate = ticket?.dueDate;
 
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, dueDate: newDate } : t))
-    );
     try {
       await fetch(`/api/admin/tickets/${ticketId}`, {
         method: "PUT",
@@ -582,33 +566,26 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
           newDate,
         });
       }
-    } catch {
-      fetchTickets();
-    }
+    } catch {}
   }
 
-  async function handleDueTimeChange(ticketId: number, newTime: string | null) {
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, dueTime: newTime } : t))
-    );
+  async function handleDueTimeChange(ticketId: string, newTime: string | null) {
     try {
       await fetch(`/api/admin/tickets/${ticketId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dueTime: newTime }),
       });
-    } catch {
-      fetchTickets();
-    }
+    } catch {}
   }
 
   // Drag and drop
-  function handleDragStart(ticketId: number, groupKey: string) {
+  function handleDragStart(ticketId: string, groupKey: string) {
     setDragId(ticketId);
     dragGroupRef.current = groupKey;
   }
 
-  function handleDragOver(e: React.DragEvent, ticketId: number, groupKey: string) {
+  function handleDragOver(e: React.DragEvent, ticketId: string, groupKey: string) {
     e.preventDefault();
     setDragOverId(ticketId);
     dragOverGroupRef.current = groupKey;
@@ -620,7 +597,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
     setDragOverId(null);
   }
 
-  async function handleDrop(targetId: number | null, groupKey: string) {
+  async function handleDrop(targetId: string | null, groupKey: string) {
     if (!dragId) {
       setDragId(null);
       setDragOverId(null);
@@ -631,7 +608,6 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
     const isCrossGroup = sourceGroupKey !== groupKey;
 
     if (isCrossGroup) {
-      // Cross-group drop: change the ticket's status/group
       const draggedTicket = tickets.find((t) => t.id === dragId);
       if (!draggedTicket) { setDragId(null); setDragOverId(null); return; }
 
@@ -639,14 +615,10 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
 
       if (groupBy === "status") {
         updates.status = groupKey;
-        setTickets((prev) => prev.map((t) => t.id === dragId ? { ...t, status: groupKey as TicketStatus } : t));
       } else if (groupBy === "priority") {
         updates.priority = groupKey;
-        setTickets((prev) => prev.map((t) => t.id === dragId ? { ...t, priority: groupKey as TicketPriority } : t));
       } else if (groupBy === "group") {
-        const gid = groupKey === "ungrouped" ? null : Number(groupKey);
-        updates.groupId = gid;
-        setTickets((prev) => prev.map((t) => t.id === dragId ? { ...t, groupId: gid } : t));
+        updates.groupId = groupKey === "ungrouped" ? null : groupKey;
       }
 
       setDragId(null);
@@ -658,9 +630,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updates),
         });
-      } catch {
-        fetchTickets();
-      }
+      } catch {}
       return;
     }
 
@@ -685,11 +655,6 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
 
     const items = reordered.map((t, i) => ({ id: t.id, sortOrder: (i + 1) * 100 }));
 
-    const updatedTickets = tickets.map((t) => {
-      const item = items.find((i) => i.id === t.id);
-      return item ? { ...t, sortOrder: item.sortOrder } : t;
-    });
-    setTickets(updatedTickets);
     setDragId(null);
     setDragOverId(null);
 
@@ -699,9 +664,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items }),
       });
-    } catch {
-      fetchTickets();
-    }
+    } catch {}
   }
 
   function isOverdue(dueDate: string | null): boolean {
@@ -799,7 +762,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
     return () => window.removeEventListener("command-palette:new-ticket", handleNewTicket);
   }, []);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="text-center py-12 text-[var(--muted)] text-sm">
         Loading tickets...
@@ -920,7 +883,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
           dragId={dragId}
           dragOverId={dragOverId}
           onTicketClick={openDetailModal}
-          onTicketCreated={fetchTickets}
+          onTicketCreated={() => {}}
           isPersonal={isPersonal}
         />
       ) : (
@@ -1326,61 +1289,28 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                               </>
                               )}
                             </tr>
-                            {/* Subtask rows */}
-                            {expandedTickets.has(ticket.id) && (subTickets.get(ticket.id) || []).map((sub) => (
-                              <tr
-                                key={sub.id}
-                                onClick={() => openDetailModal(sub.id)}
-                                className="border-b border-[var(--border)] last:border-b-0 hover:bg-gray-50/50 cursor-pointer transition bg-gray-50/30"
-                              >
-                                <td className="px-2 py-3">
-                                  <div className="flex items-center gap-1">
-                                    <span className="w-4" />
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedIds.has(sub.id)}
-                                      onChange={(e) => { e.stopPropagation(); toggleSelect(sub.id); }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="rounded"
-                                    />
-                                  </div>
-                                </td>
-                                <td className="px-1 py-3" />
-                                <td className="px-3 py-3">
-                                  <div className="flex items-center gap-2.5 pl-6">
-                                    <StatusDot status={sub.status} size={10} />
-                                    <span className="font-medium text-[var(--foreground)]">
-                                      {sub.title}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-3 py-3" />
-                                <td className="px-3 py-3 text-xs text-[var(--muted)]">{sub.clientName || "—"}</td>
-                                <td className="px-3 py-3">
-                                  <StatusDropdown status={sub.status} onChange={(s) => handleStatusChange(sub.id, s)} />
-                                </td>
-                                <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                                  <TimeTracker ticketId={sub.id} onTimerChange={() => window.dispatchEvent(new CustomEvent("timerChange"))} />
-                                </td>
-                                <td className="px-3 py-3">
-                                  <AssigneeDropdown ticketId={sub.id} assignees={sub.assignees || []} teamMembers={teamMembers} onToggle={handleAssigneeToggle} />
-                                </td>
-                                <td className="px-0 py-0">
-                                  <DatePicker value={sub.dueDate} onChange={(d) => handleDueDateChange(sub.id, d)} placeholder="—" displayFormat="short" className="w-full h-full px-3 py-3 block" />
-                                </td>
-                                <td className="px-3 py-3">
-                                  <PriorityDropdown priority={sub.priority} onChange={(p) => handlePriorityChange(sub.id, p)} />
-                                </td>
-                                <td className="px-3 py-3" />
-                              </tr>
-                            ))}
+                            {/* Subtask rows (real-time via Convex subscription) */}
+                            {expandedTickets.has(ticket.id) && (
+                              <SubTicketRows
+                                parentTicketId={ticket.id}
+                                selectedIds={selectedIds}
+                                teamMembers={teamMembers}
+                                projectId={projectId}
+                                onToggleSelect={toggleSelect}
+                                onOpenDetail={openDetailModal}
+                                onStatusChange={handleStatusChange}
+                                onAssigneeToggle={handleAssigneeToggle}
+                                onDueDateChange={handleDueDateChange}
+                                onPriorityChange={handlePriorityChange}
+                              />
+                            )}
                             </React.Fragment>
                           ))}
                           {/* Quick-add row inside table (status grouping only) */}
                           {groupBy === "status" && (
                             <TicketQuickAdd
                               status={group.key as TicketStatus}
-                              onCreated={() => fetchTickets()}
+                              onCreated={() => {}}
                               projectId={projectId}
                               isPersonal={isPersonal}
                             />
@@ -1453,7 +1383,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                       {groupBy === "status" && (
                         <TicketQuickAddMobile
                           status={group.key as TicketStatus}
-                          onCreated={() => fetchTickets()}
+                          onCreated={() => {}}
                           projectId={projectId}
                           isPersonal={isPersonal}
                         />
@@ -1481,7 +1411,6 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
               )
             );
             setSelectedIds(new Set());
-            fetchTickets();
           } catch {}
         }}
       />
@@ -1493,20 +1422,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
           teamMembers={teamMembers}
           onClose={closeDetailModal}
           onTicketUpdated={() => {
-            // Optimistically bump comment count for this ticket, then refetch in background
-            setTickets((prev) => prev.map((t) => {
-              if (t.id === detailTicketId) {
-                // Re-fetch just this ticket's comment count
-                fetch(`/api/admin/tickets/${detailTicketId}/comments`)
-                  .then((r) => r.ok ? r.json() : [])
-                  .then((comments) => {
-                    setTickets((p) => p.map((tt) => tt.id === detailTicketId ? { ...tt, commentCount: comments.length } : tt));
-                  })
-                  .catch(() => {});
-              }
-              return t;
-            }));
-            fetchTickets();
+            // Convex subscription handles real-time updates automatically
           }}
         />
       )}
@@ -1522,7 +1438,6 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
           onCreated={() => {
             setShowCreateModal(false);
             setCreateAsMeeting(false);
-            fetchTickets();
           }}
         />
       )}
@@ -1539,7 +1454,6 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
           onClose={() => setCascadeInfo(null)}
           onApplied={() => {
             setCascadeInfo(null);
-            fetchTickets();
           }}
         />
       )}

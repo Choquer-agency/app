@@ -11,8 +11,8 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await syncClientMrr(Number(id)).catch(() => {});
-  const client = await getClientById(Number(id));
+  await syncClientMrr(id).catch(() => {});
+  const client = await getClientById(id);
 
   if (!client) {
     notFound();

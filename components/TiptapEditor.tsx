@@ -14,7 +14,7 @@ import Mention from "@tiptap/extension-mention";
 import { useEffect, useCallback, useRef, useState, forwardRef, useImperativeHandle } from "react";
 
 interface MentionItem {
-  id: number;
+  id: string;
   label: string;
   profilePicUrl?: string;
   color?: string;

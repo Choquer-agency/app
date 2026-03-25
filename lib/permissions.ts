@@ -36,6 +36,7 @@ export type Permission =
   | "report:performance"
   | "report:revenue"
   | "report:forecasting"
+  | "report:accountability"
   // Team management
   | "team:view"
   | "team:edit"
@@ -43,6 +44,8 @@ export type Permission =
   | "team:edit_wages"
   | "team:manage_roles"
   | "team:manage_passwords"
+  // Leads
+  | "nav:leads"
   // Clients
   | "clients:view"
   | "clients:edit"
@@ -53,7 +56,15 @@ export type Permission =
   | "settings:view"
   | "settings:edit"
   // Time
-  | "time:delete_entries";
+  | "time:delete_entries"
+  // Timesheet (payroll clock in/out)
+  | "nav:timesheet"
+  | "timesheet:clock_self"
+  | "timesheet:view_own"
+  | "timesheet:view_all"
+  | "timesheet:manage"
+  | "timesheet:export"
+  | "timesheet:settings";
 
 // Minimum role required for each permission.
 // Any role at that tier or higher automatically gets access.
@@ -70,6 +81,7 @@ const PERMISSION_MAP: Record<Permission, RoleLevel> = {
   "report:performance": "employee",
   "report:revenue": "bookkeeper",
   "report:forecasting": "bookkeeper",
+  "report:accountability": "bookkeeper",
 
   "team:view": "intern",
   "team:edit": "bookkeeper",
@@ -77,6 +89,8 @@ const PERMISSION_MAP: Record<Permission, RoleLevel> = {
   "team:edit_wages": "owner",
   "team:manage_roles": "owner",
   "team:manage_passwords": "owner",
+
+  "nav:leads": "owner",
 
   "clients:view": "employee",
   "clients:edit": "bookkeeper",
@@ -88,6 +102,14 @@ const PERMISSION_MAP: Record<Permission, RoleLevel> = {
   "settings:edit": "bookkeeper",
 
   "time:delete_entries": "owner",
+
+  "nav:timesheet": "intern",
+  "timesheet:clock_self": "intern",
+  "timesheet:view_own": "intern",
+  "timesheet:view_all": "bookkeeper",
+  "timesheet:manage": "c_suite",
+  "timesheet:export": "bookkeeper",
+  "timesheet:settings": "owner",
 };
 
 /** Check if a role has a specific permission */

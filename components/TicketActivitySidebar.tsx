@@ -99,10 +99,10 @@ interface TicketActivitySidebarProps {
   comments: TicketComment[];
   commentsLoading: boolean;
   onAddComment: (content: string) => Promise<void>;
-  onEditComment: (commentId: number, content: string) => Promise<void>;
-  onDeleteComment: (commentId: number) => Promise<void>;
-  currentUserId: number | null;
-  teamMembers?: { id: number; name: string; profilePicUrl?: string; color?: string }[];
+  onEditComment: (commentId: string, content: string) => Promise<void>;
+  onDeleteComment: (commentId: string) => Promise<void>;
+  currentUserId: string | null;
+  teamMembers?: { id: string; name: string; profilePicUrl?: string; color?: string }[];
 }
 
 export default function TicketActivitySidebar({
@@ -119,7 +119,7 @@ export default function TicketActivitySidebar({
   const feedRef = useRef<HTMLDivElement>(null);
   const commentContentRef = useRef("");
   const [sending, setSending] = useState(false);
-  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const editContentRef = useRef("");
   const [editorKey, setEditorKey] = useState(0);
 
@@ -169,7 +169,7 @@ export default function TicketActivitySidebar({
     }
   }
 
-  async function handleSaveEdit(commentId: number) {
+  async function handleSaveEdit(commentId: string) {
     const content = editContentRef.current;
     if (!content || !content.trim()) return;
 

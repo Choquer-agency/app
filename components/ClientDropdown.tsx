@@ -9,9 +9,9 @@ export default function ClientDropdown({
   clientName,
   onChange,
 }: {
-  clientId: number | null;
+  clientId: string | null;
   clientName: string | undefined;
-  onChange: (clientId: number | null, clientName: string | null) => void;
+  onChange: (clientId: string | null, clientName: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");

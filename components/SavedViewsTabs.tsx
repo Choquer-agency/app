@@ -5,7 +5,7 @@ import ReactDOM from "react-dom";
 import { SavedView, TicketFilters } from "@/types";
 
 interface SavedViewsTabsProps {
-  activeViewId: number | null;
+  activeViewId: string | null;
   onViewSelect: (view: SavedView | null) => void;
   currentFilters: TicketFilters;
   hasUnsavedChanges: boolean;
@@ -29,9 +29,9 @@ export default function SavedViewsTabs({
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saveAsDefault, setSaveAsDefault] = useState(false);
-  const [menuViewId, setMenuViewId] = useState<number | null>(null);
+  const [menuViewId, setMenuViewId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
-  const [renaming, setRenaming] = useState<number | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [renameName, setRenameName] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const saveInputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +96,7 @@ export default function SavedViewsTabs({
     } catch {}
   }
 
-  async function handleUpdateFilters(viewId: number) {
+  async function handleUpdateFilters(viewId: string) {
     try {
       await fetch(`/api/admin/saved-views/${viewId}`, {
         method: "PUT",
@@ -108,7 +108,7 @@ export default function SavedViewsTabs({
     } catch {}
   }
 
-  async function handleSetDefault(viewId: number) {
+  async function handleSetDefault(viewId: string) {
     try {
       await fetch(`/api/admin/saved-views/${viewId}`, {
         method: "PUT",
@@ -120,7 +120,7 @@ export default function SavedViewsTabs({
     } catch {}
   }
 
-  async function handleRename(viewId: number) {
+  async function handleRename(viewId: string) {
     if (!renameName.trim()) return;
     try {
       await fetch(`/api/admin/saved-views/${viewId}`, {
@@ -134,7 +134,7 @@ export default function SavedViewsTabs({
     } catch {}
   }
 
-  async function handleDelete(viewId: number) {
+  async function handleDelete(viewId: string) {
     try {
       await fetch(`/api/admin/saved-views/${viewId}`, { method: "DELETE" });
       if (activeViewId === viewId) onViewSelect(null);

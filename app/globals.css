@@ -103,6 +103,23 @@ h1 {
   animation: spin-reverse 1s linear infinite;
 }
 
+/* Timesheet slide-in animation (matches Ollie) */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
 /* Notion-style clean aesthetic */
 ::selection {
   background: var(--accent-light);

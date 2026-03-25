@@ -62,6 +62,8 @@ export const create = mutation({
     hourlyRate: v.optional(v.number()),
     salary: v.optional(v.number()),
     payType: v.optional(v.string()),
+    vacationDaysTotal: v.optional(v.number()),
+    vacationDaysUsed: v.optional(v.number()),
     tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -81,6 +83,8 @@ export const create = mutation({
       hourlyRate: args.hourlyRate,
       salary: args.salary,
       payType: args.payType ?? "hourly",
+      vacationDaysTotal: args.vacationDaysTotal,
+      vacationDaysUsed: args.vacationDaysUsed,
       tags: args.tags ?? [],
     });
     return await ctx.db.get(id);
@@ -105,6 +109,8 @@ export const update = mutation({
     hourlyRate: v.optional(v.number()),
     salary: v.optional(v.number()),
     payType: v.optional(v.string()),
+    vacationDaysTotal: v.optional(v.number()),
+    vacationDaysUsed: v.optional(v.number()),
     tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {

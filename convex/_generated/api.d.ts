@@ -16,6 +16,7 @@ import type * as clientPackages from "../clientPackages.js";
 import type * as clients from "../clients.js";
 import type * as commitments from "../commitments.js";
 import type * as enrichedContent from "../enrichedContent.js";
+import type * as leads from "../leads.js";
 import type * as meetingNotes from "../meetingNotes.js";
 import type * as migration from "../migration.js";
 import type * as monthlySnapshots from "../monthlySnapshots.js";
@@ -38,6 +39,11 @@ import type * as ticketDependencies from "../ticketDependencies.js";
 import type * as ticketTemplateRoleAssignments from "../ticketTemplateRoleAssignments.js";
 import type * as tickets from "../tickets.js";
 import type * as timeEntries from "../timeEntries.js";
+import type * as timesheetBreaks from "../timesheetBreaks.js";
+import type * as timesheetChangeRequests from "../timesheetChangeRequests.js";
+import type * as timesheetEntries from "../timesheetEntries.js";
+import type * as timesheetSettings from "../timesheetSettings.js";
+import type * as vacationRequests from "../vacationRequests.js";
 import type * as visitors from "../visitors.js";
 
 import type {
@@ -55,6 +61,7 @@ declare const fullApi: ApiFromModules<{
   clients: typeof clients;
   commitments: typeof commitments;
   enrichedContent: typeof enrichedContent;
+  leads: typeof leads;
   meetingNotes: typeof meetingNotes;
   migration: typeof migration;
   monthlySnapshots: typeof monthlySnapshots;
@@ -77,6 +84,11 @@ declare const fullApi: ApiFromModules<{
   ticketTemplateRoleAssignments: typeof ticketTemplateRoleAssignments;
   tickets: typeof tickets;
   timeEntries: typeof timeEntries;
+  timesheetBreaks: typeof timesheetBreaks;
+  timesheetChangeRequests: typeof timesheetChangeRequests;
+  timesheetEntries: typeof timesheetEntries;
+  timesheetSettings: typeof timesheetSettings;
+  vacationRequests: typeof vacationRequests;
   visitors: typeof visitors;
 }>;
 

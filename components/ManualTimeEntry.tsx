@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 interface ManualTimeEntryProps {
-  ticketId: number;
+  ticketId: string;
   onAdded: () => void;
   onCancel: () => void;
 }

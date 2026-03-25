@@ -28,17 +28,17 @@ const GROUP_COLORS: Record<string, string> = {
 interface KanbanBoardProps {
   groups: GroupedTickets[];
   groupBy: GroupBy;
-  projectId?: number;
+  projectId?: string;
   teamMembers: TeamMember[];
   projectGroups: ProjectGroup[];
-  onDragStart: (ticketId: number, groupKey: string) => void;
-  onDragOver: (e: React.DragEvent, ticketId: number, groupKey: string) => void;
+  onDragStart: (ticketId: string, groupKey: string) => void;
+  onDragOver: (e: React.DragEvent, ticketId: string, groupKey: string) => void;
   onGroupDragOver: (e: React.DragEvent, groupKey: string) => void;
-  onDrop: (targetId: number | null, groupKey: string) => void;
+  onDrop: (targetId: string | null, groupKey: string) => void;
   onDragEnd: () => void;
-  dragId: number | null;
-  dragOverId: number | null;
-  onTicketClick: (ticketId: number) => void;
+  dragId: string | null;
+  dragOverId: string | null;
+  onTicketClick: (ticketId: string) => void;
   onTicketCreated: () => void;
   isPersonal?: boolean;
 }
@@ -60,7 +60,7 @@ function formatDate(dateStr: string): string {
 function KanbanQuickAdd({ status, onCreated, projectId, isPersonal }: {
   status: TicketStatus;
   onCreated: () => void;
-  projectId?: number;
+  projectId?: string;
   isPersonal?: boolean;
 }) {
   const [active, setActive] = useState(false);
@@ -339,7 +339,7 @@ export default function KanbanBoard({
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const dragSourceColumn = useRef<string | null>(null);
 
-  function handleCardDragStart(ticketId: number, groupKey: string) {
+  function handleCardDragStart(ticketId: string, groupKey: string) {
     dragSourceColumn.current = groupKey;
     onDragStart(ticketId, groupKey);
   }

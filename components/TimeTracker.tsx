@@ -5,7 +5,7 @@ import { TimeEntry } from "@/types";
 import TimePopup from "./TimePopup";
 
 interface TimeTrackerProps {
-  ticketId: number;
+  ticketId: string;
   onTimerChange?: () => void;
 }
 
@@ -29,12 +29,13 @@ function formatTotalHours(seconds: number): string {
 
 export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProps) {
   const [running, setRunning] = useState(false);
-  const [runningEntryId, setRunningEntryId] = useState<number | null>(null);
+  const [runningEntryId, setRunningEntryId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [clockInRequired, setClockInRequired] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -126,6 +127,10 @@ export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProp
         onTimerChange?.();
       } else {
         const err = await res.json().catch(() => ({}));
+        if (res.status === 403 && err.error?.includes("clock in")) {
+          setClockInRequired(true);
+          setTimeout(() => setClockInRequired(false), 5000);
+        }
         console.error("Timer start failed:", res.status, err);
       }
     } catch (e) {
@@ -160,6 +165,14 @@ export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProp
 
   return (
     <div className="relative" ref={wrapperRef}>
+      {/* Clock-in required toast */}
+      {clockInRequired && (
+        <div className="absolute bottom-full left-0 mb-2 z-50 whitespace-nowrap">
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium px-3 py-2 rounded-lg shadow-lg">
+            Clock in first to start tracking time
+          </div>
+        </div>
+      )}
       <div className="flex items-center gap-1">
         {/* Play/Stop + label — single button */}
         <button

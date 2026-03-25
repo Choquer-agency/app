@@ -4,7 +4,7 @@ import { TicketAttachment } from "@/types";
 
 interface AttachmentListProps {
   attachments: TicketAttachment[];
-  onDelete?: (id: number) => void;
+  onDelete?: (id: string) => void;
 }
 
 function formatFileSize(bytes: number): string {

@@ -15,10 +15,10 @@ export default function AssigneeDropdown({
   teamMembers,
   onToggle,
 }: {
-  ticketId: number;
+  ticketId: string;
   assignees: TicketAssignee[];
   teamMembers: TeamMember[];
-  onToggle: (ticketId: number, memberId: number, action: "add" | "remove") => void;
+  onToggle: (ticketId: string, memberId: string, action: "add" | "remove") => void;
 }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);

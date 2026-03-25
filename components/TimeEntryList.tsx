@@ -6,7 +6,7 @@ import { friendlyDate } from "@/lib/date-format";
 import ManualTimeEntry from "./ManualTimeEntry";
 
 interface TimeEntryListProps {
-  ticketId: number;
+  ticketId: string;
   refreshKey?: number;
 }
 
@@ -32,7 +32,7 @@ export default function TimeEntryList({ ticketId, refreshKey }: TimeEntryListPro
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editNote, setEditNote] = useState("");
 
   const fetchEntries = useCallback(async () => {
@@ -51,7 +51,7 @@ export default function TimeEntryList({ ticketId, refreshKey }: TimeEntryListPro
     fetchEntries();
   }, [fetchEntries, refreshKey]);
 
-  async function handleDelete(entryId: number) {
+  async function handleDelete(entryId: string) {
     try {
       const res = await fetch(`/api/admin/tickets/${ticketId}/time/${entryId}`, {
         method: "DELETE",
@@ -63,7 +63,7 @@ export default function TimeEntryList({ ticketId, refreshKey }: TimeEntryListPro
     } catch {}
   }
 
-  async function handleEditNote(entryId: number) {
+  async function handleEditNote(entryId: string) {
     try {
       const res = await fetch(`/api/admin/tickets/${ticketId}/time/${entryId}`, {
         method: "PUT",

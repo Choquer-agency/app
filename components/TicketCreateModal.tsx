@@ -16,11 +16,11 @@ interface TicketCreateModalProps {
   onClose: () => void;
   onCreated: (ticket: Ticket) => void;
   defaultStatus?: TicketStatus;
-  parentTicketId?: number;
+  parentTicketId?: string;
   parentTicketNumber?: string;
-  defaultClientId?: number | null;
+  defaultClientId?: string | null;
   defaultClientName?: string;
-  defaultProjectId?: number;
+  defaultProjectId?: string;
   defaultIsPersonal?: boolean;
   defaultIsMeeting?: boolean;
   defaultServiceCategory?: string;
@@ -44,12 +44,12 @@ export default function TicketCreateModal({
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<TicketStatus>(defaultStatus || "needs_attention");
   const [priority, setPriority] = useState<TicketPriority>("normal");
-  const [clientId, setClientId] = useState<number | null>(defaultClientId ?? null);
+  const [clientId, setClientId] = useState<string | null>(defaultClientId ?? null);
   const [clientName, setClientName] = useState<string | undefined>(defaultClientName);
   const [startDate, setStartDate] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState<string | null>(null);
-  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<Set<number>>(new Set());
-  const [groupId, setGroupId] = useState<number | null>(null);
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<Set<string>>(new Set());
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [projectGroups, setProjectGroups] = useState<ProjectGroup[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -87,7 +87,7 @@ export default function TicketCreateModal({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  function toggleAssignee(memberId: number) {
+  function toggleAssignee(memberId: string) {
     setSelectedAssigneeIds((prev) => {
       const next = new Set(prev);
       if (next.has(memberId)) next.delete(memberId);
@@ -245,7 +245,7 @@ export default function TicketCreateModal({
                 </div>
                 <select
                   value={groupId ?? ""}
-                  onChange={(e) => setGroupId(e.target.value ? Number(e.target.value) : null)}
+                  onChange={(e) => setGroupId(e.target.value || null)}
                   className="text-sm border border-[var(--border)] rounded-lg px-2 py-1 bg-white cursor-pointer"
                 >
                   <option value="">No stage</option>
@@ -378,8 +378,8 @@ function CreateAssigneePicker({
   onToggle,
 }: {
   teamMembers: TeamMember[];
-  selectedIds: Set<number>;
-  onToggle: (memberId: number) => void;
+  selectedIds: Set<string>;
+  onToggle: (memberId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);

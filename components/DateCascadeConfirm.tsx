@@ -5,8 +5,8 @@ import { DateCascadePreview } from "@/types";
 import { friendlyDate, friendlyDateWithDay } from "@/lib/date-format";
 
 interface DateCascadeConfirmProps {
-  projectId: number;
-  ticketId: number;
+  projectId: string;
+  ticketId: string;
   ticketTitle: string;
   field: "startDate" | "dueDate";
   oldDate: string;
@@ -76,7 +76,7 @@ export default function DateCascadeConfirm({
   }
 
   // Deduplicate previews by ticket (show both start and due on same line)
-  const ticketMap = new Map<number, DateCascadePreview[]>();
+  const ticketMap = new Map<string, DateCascadePreview[]>();
   if (previews) {
     for (const p of previews) {
       if (!ticketMap.has(p.ticketId)) ticketMap.set(p.ticketId, []);
