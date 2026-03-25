@@ -100,12 +100,12 @@ export default function VacationRequestForm({
       <div className="h-full md:h-auto w-full md:max-w-md bg-white md:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex-shrink-0 flex justify-between items-center p-4 md:p-6 md:pb-0 bg-white border-b border-[#F6F5F1] md:border-b-0">
-          <h2 className="text-xl font-bold text-[#263926]">
+          <h2 className="text-xl font-bold text-[#1A1A1A]">
             Request Vacation
           </h2>
           <button
             onClick={() => setIsOpen(false)}
-            className="text-[#6B6B6B] hover:text-[#263926] p-2 -mr-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="text-[#6B6B6B] hover:text-[#1A1A1A] p-2 -mr-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <svg
               className="w-8 h-8 md:w-6 md:h-6"
@@ -164,7 +164,7 @@ export default function VacationRequestForm({
                   setError("");
                 }}
                 min={new Date().toISOString().split("T")[0]}
-                className="w-full p-3 bg-white border border-[#F6F5F1] rounded-xl focus:ring-2 focus:ring-[#2CA01C] outline-none text-base text-[#263926]"
+                className="w-full p-3 bg-white border border-[#F6F5F1] rounded-xl focus:ring-2 focus:ring-[#FF9500] outline-none text-base text-[#1A1A1A]"
                 required
               />
             </div>
@@ -181,7 +181,7 @@ export default function VacationRequestForm({
                   setError("");
                 }}
                 min={startDate || new Date().toISOString().split("T")[0]}
-                className="w-full p-3 bg-white border border-[#F6F5F1] rounded-xl focus:ring-2 focus:ring-[#2CA01C] outline-none text-base text-[#263926]"
+                className="w-full p-3 bg-white border border-[#F6F5F1] rounded-xl focus:ring-2 focus:ring-[#FF9500] outline-none text-base text-[#1A1A1A]"
                 required
               />
             </div>
@@ -195,13 +195,13 @@ export default function VacationRequestForm({
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="e.g., Family vacation"
-                className="w-full p-3 bg-white border border-[#F6F5F1] rounded-xl focus:ring-2 focus:ring-[#2CA01C] outline-none text-base text-[#263926] placeholder:text-[#6B6B6B]"
+                className="w-full p-3 bg-white border border-[#F6F5F1] rounded-xl focus:ring-2 focus:ring-[#FF9500] outline-none text-base text-[#1A1A1A] placeholder:text-[#6B6B6B]"
               />
             </div>
 
             {totalDays > 0 && (
               <div className="p-4 bg-[#F6F5F1] rounded-2xl">
-                <p className="text-sm text-[#263926]">
+                <p className="text-sm text-[#1A1A1A]">
                   <span className="font-bold">{totalDays}</span> day
                   {totalDays === 1 ? "" : "s"} requested
                 </p>
@@ -216,7 +216,7 @@ export default function VacationRequestForm({
             type="button"
             onClick={() => setIsOpen(false)}
             disabled={submitting}
-            className="flex-1 min-h-[48px] px-4 py-3 border border-[#F6F5F1] text-[#263926] rounded-2xl font-medium text-sm hover:bg-[#F6F5F1] transition-colors disabled:opacity-50"
+            className="flex-1 min-h-[48px] px-4 py-3 border border-[#F6F5F1] text-[#1A1A1A] rounded-2xl font-medium text-sm hover:bg-[#F6F5F1] transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
@@ -224,7 +224,7 @@ export default function VacationRequestForm({
             type="submit"
             form="vacation-form"
             disabled={submitting || totalDays === 0}
-            className="flex-1 min-h-[48px] px-4 py-3 bg-[#2CA01C] text-white rounded-2xl font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="flex-1 min-h-[48px] px-4 py-3 bg-[#FF9500] text-white rounded-2xl font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {submitting ? "Requesting..." : "Request Vacation"}
           </button>

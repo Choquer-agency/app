@@ -76,7 +76,7 @@ export default function PeriodDetailModal({
         {/* Header */}
         <div className="flex justify-between items-start mb-6">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-[#263926]">{employeeName}</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">{employeeName}</h2>
             <p className="text-[#6B6B6B] font-medium text-sm">
               {employeeRole && <span className="mr-2">{employeeRole} ·</span>}
               {formatPeriod()}
@@ -119,7 +119,7 @@ export default function PeriodDetailModal({
                     onClick={() => onEntryClick(entry, entry.date)}
                     className="hover:bg-[#FAF9F5] cursor-pointer transition-colors"
                   >
-                    <td className="py-4 px-6 font-medium text-[#263926]">
+                    <td className="py-4 px-6 font-medium text-[#1A1A1A]">
                       {formatDateForDisplay(entry.date)}
                     </td>
                     <td className="py-4 px-6 text-[#484848] font-mono text-sm">
@@ -131,7 +131,7 @@ export default function PeriodDetailModal({
                     <td className="py-4 px-6 text-right text-[#6B6B6B] text-sm">
                       {formatDuration(entry.totalBreakMinutes)}
                     </td>
-                    <td className="py-4 px-6 text-right font-medium text-[#263926]">
+                    <td className="py-4 px-6 text-right font-medium text-[#1A1A1A]">
                       {entry.workedMinutes !== null ? formatDuration(entry.workedMinutes) : "—"}
                     </td>
                     <td className="py-4 px-6">

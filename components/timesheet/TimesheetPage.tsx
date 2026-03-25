@@ -48,11 +48,11 @@ export default function TimesheetPage({
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6 md:mb-8">
           <button
             onClick={() => setEmployeeView("clock")}
-            className="text-sm text-[#6B6B6B] hover:text-[#263926] self-start"
+            className="text-sm text-[#6B6B6B] hover:text-[#1A1A1A] self-start"
           >
             &larr; Back
           </button>
-          <h1 className="text-xl md:text-2xl font-bold text-[#263926]">
+          <h1 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">
             My Schedule & History
           </h1>
         </div>
@@ -66,7 +66,7 @@ export default function TimesheetPage({
     <div className="max-w-md mx-auto mt-6 md:mt-12 px-4 md:px-6 pb-20">
       {/* Greeting */}
       <div className="text-center mb-8 md:mb-10">
-        <h2 className="text-2xl md:text-3xl font-bold text-[#263926] mb-2">
+        <h2 className="text-2xl md:text-3xl font-bold text-[#1A1A1A] mb-2">
           {greeting}, {firstName}
         </h2>
         <p className="text-sm md:text-base text-[#6B6B6B] font-medium">
@@ -87,7 +87,7 @@ export default function TimesheetPage({
 
         <button
           onClick={() => setEmployeeView("history")}
-          className="w-full py-3 md:py-4 text-[#263926] bg-[#F6F5F1] hover:bg-[#E5E3DA] border border-[#F6F5F1] rounded-2xl font-medium text-sm min-h-[48px] transition-colors"
+          className="w-full py-3 md:py-4 text-[#1A1A1A] bg-[#F6F5F1] hover:bg-[#E5E3DA] border border-[#F6F5F1] rounded-2xl font-medium text-sm min-h-[48px] transition-colors"
         >
           View Schedule & History
         </button>

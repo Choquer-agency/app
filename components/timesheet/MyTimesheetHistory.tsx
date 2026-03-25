@@ -96,7 +96,7 @@ export default function MyTimesheetHistory({
             type="date"
             value={filterStartDate}
             onChange={(e) => setFilterStartDate(e.target.value)}
-            className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl focus:ring-2 focus:ring-[#2CA01C] outline-none text-sm text-[#263926]"
+            className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl focus:ring-2 focus:ring-[#FF9500] outline-none text-sm text-[#1A1A1A]"
           />
         </div>
         <div className="flex-1 min-w-0">
@@ -107,7 +107,7 @@ export default function MyTimesheetHistory({
             type="date"
             value={filterEndDate}
             onChange={(e) => setFilterEndDate(e.target.value)}
-            className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl focus:ring-2 focus:ring-[#2CA01C] outline-none text-sm text-[#263926]"
+            className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl focus:ring-2 focus:ring-[#FF9500] outline-none text-sm text-[#1A1A1A]"
           />
         </div>
         {isFilterActive && (
@@ -116,7 +116,7 @@ export default function MyTimesheetHistory({
               setFilterStartDate("");
               setFilterEndDate("");
             }}
-            className="text-sm text-[#6B6B6B] hover:text-[#263926] whitespace-nowrap"
+            className="text-sm text-[#6B6B6B] hover:text-[#1A1A1A] whitespace-nowrap"
           >
             Clear Filter
           </button>
@@ -143,7 +143,7 @@ export default function MyTimesheetHistory({
             <span className="text-sm font-normal opacity-70">Days</span>
           </div>
         </div>
-        <div className="bg-white p-4 md:p-6 rounded-2xl border border-[#F6F5F1] text-[#263926] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+        <div className="bg-white p-4 md:p-6 rounded-2xl border border-[#F6F5F1] text-[#1A1A1A] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
           <h3 className="text-xs font-bold uppercase text-[#6B6B6B] mb-1">
             {isFilterActive ? "Hours (Filtered)" : "Total Hours Worked"}
           </h3>
@@ -151,7 +151,7 @@ export default function MyTimesheetHistory({
             {formatDuration(totalWorkedMins)}
           </div>
         </div>
-        <div className="bg-white p-4 md:p-6 rounded-2xl border border-[#F6F5F1] text-[#263926] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+        <div className="bg-white p-4 md:p-6 rounded-2xl border border-[#F6F5F1] text-[#1A1A1A] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
           <h3 className="text-xs font-bold uppercase text-[#6B6B6B] mb-1">
             {isFilterActive ? "Break (Filtered)" : "Total Break Time"}
           </h3>
@@ -173,7 +173,7 @@ export default function MyTimesheetHistory({
                 className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] border border-[#F6F5F1] p-4 cursor-pointer active:bg-[#F6F5F1]/50 transition-colors"
               >
                 <div className="flex justify-between items-start mb-3">
-                  <div className="font-medium text-[#263926]">
+                  <div className="font-medium text-[#1A1A1A]">
                     {formatDateForDisplay(entry.date)}
                   </div>
                   <EntryStatusBadge entry={entry} />
@@ -183,7 +183,7 @@ export default function MyTimesheetHistory({
                     <div className="text-xs text-[#6B6B6B] uppercase mb-1">
                       Clock In
                     </div>
-                    <div className="text-[#263926] font-mono">
+                    <div className="text-[#1A1A1A] font-mono">
                       {entry.isSickDay || entry.isVacation
                         ? "—"
                         : formatTime(entry.clockInTime)}
@@ -193,7 +193,7 @@ export default function MyTimesheetHistory({
                     <div className="text-xs text-[#6B6B6B] uppercase mb-1">
                       Clock Out
                     </div>
-                    <div className="text-[#263926] font-mono">
+                    <div className="text-[#1A1A1A] font-mono">
                       {entry.isSickDay || entry.isVacation
                         ? "—"
                         : formatTime(entry.clockOutTime)}
@@ -211,7 +211,7 @@ export default function MyTimesheetHistory({
                     <div className="text-xs text-[#6B6B6B] uppercase mb-1">
                       Worked
                     </div>
-                    <div className="font-medium text-[#263926]">
+                    <div className="font-medium text-[#1A1A1A]">
                       {entry.workedMinutes !== null
                         ? formatDuration(entry.workedMinutes)
                         : "—"}
@@ -258,15 +258,15 @@ export default function MyTimesheetHistory({
                     key={entry.id}
                     className="hover:bg-[#F6F5F1]/30 cursor-pointer transition-colors"
                   >
-                    <td className="py-4 px-6 font-medium text-[#263926]">
+                    <td className="py-4 px-6 font-medium text-[#1A1A1A]">
                       {formatDateForDisplay(entry.date)}
                     </td>
-                    <td className="py-4 px-6 text-[#263926] font-mono text-sm">
+                    <td className="py-4 px-6 text-[#1A1A1A] font-mono text-sm">
                       {entry.isSickDay || entry.isVacation
                         ? "—"
                         : formatTime(entry.clockInTime)}
                     </td>
-                    <td className="py-4 px-6 text-[#263926] font-mono text-sm">
+                    <td className="py-4 px-6 text-[#1A1A1A] font-mono text-sm">
                       {entry.isSickDay || entry.isVacation
                         ? "—"
                         : formatTime(entry.clockOutTime)}
@@ -274,7 +274,7 @@ export default function MyTimesheetHistory({
                     <td className="py-4 px-6 text-right text-[#6B6B6B] text-sm">
                       {formatDuration(entry.totalBreakMinutes)}
                     </td>
-                    <td className="py-4 px-6 text-right font-medium text-[#263926]">
+                    <td className="py-4 px-6 text-right font-medium text-[#1A1A1A]">
                       {entry.workedMinutes !== null
                         ? formatDuration(entry.workedMinutes)
                         : "—"}

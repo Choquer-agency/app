@@ -65,7 +65,7 @@ export default function TimesheetSettings() {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] border border-[#F6F5F1] p-6">
-        <h3 className="text-base font-bold text-[#263926] mb-4">General</h3>
+        <h3 className="text-base font-bold text-[#1A1A1A] mb-4">General</h3>
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-[#6B6B6B] uppercase mb-1.5">
@@ -76,7 +76,7 @@ export default function TimesheetSettings() {
               value={settings.bookkeeperEmail || ""}
               onChange={(e) => setSettings({ ...settings, bookkeeperEmail: e.target.value })}
               placeholder="payroll@company.com"
-              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none"
+              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
           </div>
           <div>
@@ -90,14 +90,14 @@ export default function TimesheetSettings() {
               min={1}
               max={24}
               step={0.5}
-              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none"
+              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
           </div>
         </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] border border-[#F6F5F1] p-6">
-        <h3 className="text-base font-bold text-[#263926] mb-4">Time Rules</h3>
+        <h3 className="text-base font-bold text-[#1A1A1A] mb-4">Time Rules</h3>
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-[#6B6B6B] uppercase mb-1.5">
@@ -107,7 +107,7 @@ export default function TimesheetSettings() {
               type="time"
               value={settings.halfDaySickCutoffTime}
               onChange={(e) => setSettings({ ...settings, halfDaySickCutoffTime: e.target.value })}
-              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none"
+              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
           </div>
           <div>
@@ -118,7 +118,7 @@ export default function TimesheetSettings() {
               type="number"
               value={settings.overtimeThresholdMinutes}
               onChange={(e) => setSettings({ ...settings, overtimeThresholdMinutes: parseInt(e.target.value) })}
-              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none"
+              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
             <p className="text-xs text-[#6B6B6B] mt-1">Default: 480 (8 hours)</p>
           </div>
@@ -130,7 +130,7 @@ export default function TimesheetSettings() {
               type="number"
               value={settings.longShiftBreakThresholdMinutes}
               onChange={(e) => setSettings({ ...settings, longShiftBreakThresholdMinutes: parseInt(e.target.value) })}
-              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none"
+              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
             <p className="text-xs text-[#6B6B6B] mt-1">Default: 300 (5 hours)</p>
           </div>
@@ -142,7 +142,7 @@ export default function TimesheetSettings() {
               type="number"
               value={settings.defaultVacationDaysPerYear}
               onChange={(e) => setSettings({ ...settings, defaultVacationDaysPerYear: parseInt(e.target.value) })}
-              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none"
+              className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
           </div>
         </div>
@@ -152,7 +152,7 @@ export default function TimesheetSettings() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-3 bg-[#2CA01C] text-white rounded-full font-medium text-sm hover:bg-[#248a17] transition-colors disabled:opacity-50"
+          className="px-6 py-3 bg-[#FF9500] text-white rounded-lg font-medium text-sm hover:bg-[#E68600] transition-colors disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save Settings"}
         </button>

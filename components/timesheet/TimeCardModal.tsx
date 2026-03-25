@@ -99,13 +99,13 @@ function calculateStats(
 // === Button Styles ===
 
 const btnPrimary =
-  "bg-[#2CA01C] hover:bg-[#247D16] text-white rounded-full px-6 py-3 font-bold transition-colors";
+  "bg-[#FF9500] hover:bg-[#E68600] text-white rounded-lg px-6 py-3 font-bold transition-colors";
 const btnOutline =
-  "border border-[#E5E3DA] text-[#484848] rounded-full px-6 py-3 font-bold hover:bg-[#F0EEE6] transition-colors";
+  "border border-[#E5E3DA] text-[#484848] rounded-lg px-6 py-3 font-bold hover:bg-[#F0EEE6] transition-colors";
 const btnDanger =
-  "bg-rose-600 hover:bg-rose-700 text-white rounded-full px-6 py-3 font-bold transition-colors";
+  "bg-rose-600 hover:bg-rose-700 text-white rounded-lg px-6 py-3 font-bold transition-colors";
 const btnApprove =
-  "bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-3 font-bold transition-colors";
+  "bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-6 py-3 font-bold transition-colors";
 
 export default function TimeCardModal({
   isOpen,
@@ -365,7 +365,7 @@ export default function TimeCardModal({
           style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 16px)" }}
         >
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-[#263926]">
+            <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">
               {employeeName}
             </h2>
             <p className="text-[#6B6B6B] font-medium text-sm">
@@ -486,10 +486,10 @@ export default function TimeCardModal({
             entry && (
               <div className="mb-6 p-4 bg-[#FFF7ED] border border-[#FDBA74] rounded-2xl">
                 <div className="mb-3">
-                  <h4 className="font-bold text-[#263926] text-base">
+                  <h4 className="font-bold text-[#1A1A1A] text-base">
                     Change Requested
                   </h4>
-                  <p className="text-sm text-[#263926]">
+                  <p className="text-sm text-[#1A1A1A]">
                     Showing employee&apos;s requested changes. Original values
                     below for reference.
                   </p>
@@ -552,7 +552,7 @@ export default function TimeCardModal({
                             {adjustmentText}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center text-[#263926]">
+                        <div className="flex justify-between items-center text-[#1A1A1A]">
                           <span className="font-bold">
                             Total Hours Worked:
                           </span>
@@ -608,7 +608,7 @@ export default function TimeCardModal({
               >
                 <div>
                   <h3
-                    className={`text-base font-bold ${isSickDay ? "text-rose-900" : "text-[#263926]"}`}
+                    className={`text-base font-bold ${isSickDay ? "text-rose-900" : "text-[#1A1A1A]"}`}
                   >
                     Sick Day
                   </h3>
@@ -634,7 +634,7 @@ export default function TimeCardModal({
               >
                 <div>
                   <h3
-                    className={`text-base font-bold ${isVacation ? "text-sky-900" : "text-[#263926]"}`}
+                    className={`text-base font-bold ${isVacation ? "text-sky-900" : "text-[#1A1A1A]"}`}
                   >
                     Vacation
                   </h3>
@@ -659,10 +659,10 @@ export default function TimeCardModal({
                 {/* Shift Hours Section */}
                 <section className="bg-[#FAF9F5] p-6 rounded-2xl border border-[#E5E3DA]">
                   <div className="flex justify-between items-end mb-4">
-                    <h3 className="text-base font-bold text-[#263926]">
+                    <h3 className="text-base font-bold text-[#1A1A1A]">
                       Shift Hours
                     </h3>
-                    <span className="text-2xl font-bold font-mono text-[#263926]">
+                    <span className="text-2xl font-bold font-mono text-[#1A1A1A]">
                       {formatDuration(stats.totalWorkedMinutes)}
                     </span>
                   </div>
@@ -717,7 +717,7 @@ export default function TimeCardModal({
                 <section className="bg-[#FAF9F5] p-6 rounded-2xl border border-[#E5E3DA]">
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-baseline gap-4">
-                      <h3 className="text-base font-bold text-[#263926]">
+                      <h3 className="text-base font-bold text-[#1A1A1A]">
                         Unpaid Breaks
                       </h3>
                       <span className="text-xs font-medium text-[#6B6B6B] bg-[#F0EEE6] px-3 py-1 rounded-full">
@@ -727,7 +727,7 @@ export default function TimeCardModal({
                     {!readOnly && (
                       <button
                         onClick={addBreak}
-                        className="text-[#484848] border border-[#F6F5F1] hover:bg-[#F0EEE6] rounded-full px-4 py-2 text-sm font-bold transition-colors"
+                        className="text-[#484848] border border-[#F6F5F1] hover:bg-[#F0EEE6] rounded-lg px-4 py-2 text-sm font-bold transition-colors"
                       >
                         + Add
                       </button>
@@ -807,7 +807,7 @@ export default function TimeCardModal({
 
             {/* Notes Section */}
             <section className="bg-[#FAF9F5] p-6 rounded-2xl border border-[#E5E3DA]">
-              <h3 className="text-base font-bold text-[#263926] mb-3">
+              <h3 className="text-base font-bold text-[#1A1A1A] mb-3">
                 {isEmployeeView
                   ? "Reason for Adjustment"
                   : readOnly
@@ -823,7 +823,7 @@ export default function TimeCardModal({
                     ? "I forgot to clock in because..."
                     : "Add internal notes about this shift..."
                 }
-                className={`w-full p-3 text-sm bg-white border border-[#E5E3DA] rounded-2xl focus:ring-2 focus:ring-[#2CA01C] focus:border-[#2CA01C] ${readOnly ? "opacity-75 cursor-default" : ""}`}
+                className={`w-full p-3 text-sm bg-white border border-[#E5E3DA] rounded-2xl focus:ring-2 focus:ring-[#FF9500] focus:border-[#FF9500] ${readOnly ? "opacity-75 cursor-default" : ""}`}
                 readOnly={readOnly}
               />
             </section>

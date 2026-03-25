@@ -231,7 +231,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2CA01C]" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF9500]" />
       </div>
     );
   }
@@ -244,7 +244,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
           {activeTab === "daily" && pendingReviewCount > 0 && (
             <button
               onClick={() => setShowReviewOnly(!showReviewOnly)}
-              className={`relative p-3 rounded-full transition-all ${showReviewOnly ? "bg-red-600 text-white shadow-md" : "bg-white text-[#6B6B6B] hover:text-[#263926] border border-[#F6F5F1] shadow-sm"}`}
+              className={`relative p-3 rounded-full transition-all ${showReviewOnly ? "bg-red-600 text-white shadow-md" : "bg-white text-[#6B6B6B] hover:text-[#1A1A1A] border border-[#F6F5F1] shadow-sm"}`}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -259,13 +259,13 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
           <div className="flex items-center gap-2 bg-white p-1 rounded-full border border-[#F6F5F1] shadow-sm">
             <button
               onClick={() => { setActiveTab("daily"); setShowReviewOnly(false); }}
-              className={`px-4 py-2 text-sm font-medium rounded-full transition-all whitespace-nowrap ${activeTab === "daily" ? "bg-[#2CA01C] text-white shadow-md" : "text-[#6B6B6B] hover:text-[#263926]"}`}
+              className={`px-4 py-2 text-sm font-medium rounded-full transition-all whitespace-nowrap ${activeTab === "daily" ? "bg-[#FF9500] text-white shadow-md" : "text-[#6B6B6B] hover:text-[#1A1A1A]"}`}
             >
               Daily Review
             </button>
             <button
               onClick={() => { setActiveTab("period"); setShowReviewOnly(false); }}
-              className={`px-4 py-2 text-sm font-medium rounded-full transition-all whitespace-nowrap ${activeTab === "period" ? "bg-[#2CA01C] text-white shadow-md" : "text-[#6B6B6B] hover:text-[#263926]"}`}
+              className={`px-4 py-2 text-sm font-medium rounded-full transition-all whitespace-nowrap ${activeTab === "period" ? "bg-[#FF9500] text-white shadow-md" : "text-[#6B6B6B] hover:text-[#1A1A1A]"}`}
             >
               Pay Period
             </button>
@@ -279,14 +279,14 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
           {/* Date Navigator */}
           {!showReviewOnly && (
             <div className="flex items-center justify-center gap-6 mb-8">
-              <button onClick={() => handleDateChange(-1)} className="p-2 text-[#9CA3AF] hover:text-[#263926] hover:bg-[#F0EEE6] rounded-full transition-colors">
+              <button onClick={() => handleDateChange(-1)} className="p-2 text-[#9CA3AF] hover:text-[#1A1A1A] hover:bg-[#F0EEE6] rounded-full transition-colors">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               </button>
               <div className="text-center w-48">
-                <span className="block text-lg font-semibold text-[#263926]">{formatDateForDisplay(viewDate)}</span>
+                <span className="block text-lg font-semibold text-[#1A1A1A]">{formatDateForDisplay(viewDate)}</span>
                 {viewDate === today && <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Today</span>}
               </div>
-              <button onClick={() => handleDateChange(1)} className="p-2 text-[#9CA3AF] hover:text-[#263926] hover:bg-[#F0EEE6] rounded-full transition-colors">
+              <button onClick={() => handleDateChange(1)} className="p-2 text-[#9CA3AF] hover:text-[#1A1A1A] hover:bg-[#F0EEE6] rounded-full transition-colors">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
             </div>
@@ -294,7 +294,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
 
           {showReviewOnly && (
             <div className="mb-8 text-center">
-              <h2 className="text-2xl font-bold text-[#263926] mb-2">Pending Reviews</h2>
+              <h2 className="text-2xl font-bold text-[#1A1A1A] mb-2">Pending Reviews</h2>
               <p className="text-[#6B6B6B] text-sm">Showing all pending time card changes and vacation requests</p>
             </div>
           )}
@@ -324,8 +324,8 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
             <div className="space-y-3 mb-6">
               {pendingChanges.map((req) => (
                 <div key={req.id} className="bg-[#FFF7ED] border border-[#FDBA74] rounded-2xl p-4">
-                  <h4 className="font-bold text-[#263926] text-base">{getMemberName(req.teamMemberId)} — Change Request</h4>
-                  <p className="text-sm text-[#263926]">{req.reason}</p>
+                  <h4 className="font-bold text-[#1A1A1A] text-base">{getMemberName(req.teamMemberId)} — Change Request</h4>
+                  <p className="text-sm text-[#1A1A1A]">{req.reason}</p>
                   <div className="space-y-1 text-xs text-[#6B6B6B] mt-2">
                     <div className="flex justify-between"><span>Original:</span><span className="font-mono">{formatTime(req.originalClockIn)} – {formatTime(req.originalClockOut)}</span></div>
                     <div className="flex justify-between"><span>Proposed:</span><span className="font-mono">{formatTime(req.proposedClockIn)} – {formatTime(req.proposedClockOut)}</span></div>
@@ -354,12 +354,12 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
               >
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <div className="font-bold text-[#263926]">{member.name}</div>
+                    <div className="font-bold text-[#1A1A1A]">{member.name}</div>
                     <div className="text-xs text-[#6B6B6B]">{member.role}</div>
                   </div>
                   {entry?.clockInTime && !entry.isSickDay && !entry.isVacation ? (
                     <div className="text-right">
-                      <div className="text-lg font-bold text-[#263926]">{formatDuration(entry.workedMinutes ?? 0)}</div>
+                      <div className="text-lg font-bold text-[#1A1A1A]">{formatDuration(entry.workedMinutes ?? 0)}</div>
                       <div className="text-xs text-[#9CA3AF] font-mono">
                         {formatTime(entry.clockInTime)} – {formatTime(entry.clockOutTime)}
                       </div>
@@ -402,7 +402,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
                     onClick={() => openTimeCard(entry, viewDate, member.name)}
                   >
                     <td className="py-4 px-5">
-                      <div className="font-medium text-[#263926]">{member.name}</div>
+                      <div className="font-medium text-[#1A1A1A]">{member.name}</div>
                       <div className="text-xs text-[#6B6B6B]">{member.role}</div>
                     </td>
                     <td className="py-4 px-4 font-mono text-sm text-[#484848]">
@@ -412,7 +412,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
                       : entry?.isVacation ? <span className="text-sky-400">Vacation</span>
                       : <span className="text-[#E5E3DA]">--:--</span>}
                     </td>
-                    <td className="py-4 px-4 text-right font-medium text-[#263926]">{entry?.workedMinutes ? formatDuration(entry.workedMinutes) : "—"}</td>
+                    <td className="py-4 px-4 text-right font-medium text-[#1A1A1A]">{entry?.workedMinutes ? formatDuration(entry.workedMinutes) : "—"}</td>
                     <td className="py-4 px-4 text-right text-[#6B6B6B] text-sm">{entry?.totalBreakMinutes ? formatDuration(entry.totalBreakMinutes) : "—"}</td>
                     <td className="py-4 px-4">
                       {entry ? <EntryBadge entry={entry} /> : <span className="text-[#E5E3DA] italic text-xs">No Entry</span>}
@@ -434,12 +434,12 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
               <div>
                 <label className="block text-xs font-bold text-[#6B6B6B] mb-1.5">Start date</label>
                 <input type="date" value={dateRange.start} onChange={(e) => setDateRange((r) => ({ ...r, start: e.target.value }))}
-                  className="px-4 py-2.5 bg-[#F0EEE6] border border-[#E5E3DA] rounded-full text-sm text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none" />
+                  className="px-4 py-2.5 bg-[#F0EEE6] border border-[#E5E3DA] rounded-full text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-[#6B6B6B] mb-1.5">End date</label>
                 <input type="date" value={dateRange.end} onChange={(e) => setDateRange((r) => ({ ...r, end: e.target.value }))}
-                  className="px-4 py-2.5 bg-[#F0EEE6] border border-[#E5E3DA] rounded-full text-sm text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none" />
+                  className="px-4 py-2.5 bg-[#F0EEE6] border border-[#E5E3DA] rounded-full text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none" />
               </div>
             </div>
             <button
@@ -469,7 +469,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
                   alert("Failed to send report.");
                 }
               }}
-              className="px-6 py-2.5 bg-[#2CA01C] text-white rounded-full text-sm font-medium hover:bg-[#248a17] transition-colors flex items-center gap-2 whitespace-nowrap"
+              className="px-6 py-2.5 bg-[#FF9500] text-white rounded-lg text-sm font-medium hover:bg-[#E68600] transition-colors flex items-center gap-2 whitespace-nowrap"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
               Send to Bookkeeper
@@ -480,15 +480,15 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
             <div className="bg-white p-6 rounded-2xl border border-[#F6F5F1] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
               <h3 className="text-xs font-bold uppercase text-[#6B6B6B] mb-2">Total hours</h3>
-              <div className="text-2xl md:text-3xl font-bold text-[#263926]">{formatDuration(totalPeriodMinutes)}</div>
+              <div className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">{formatDuration(totalPeriodMinutes)}</div>
             </div>
             <div className="bg-white p-6 rounded-2xl border border-[#F6F5F1] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
               <h3 className="text-xs font-bold uppercase text-[#6B6B6B] mb-2">Total payroll</h3>
-              <div className="text-2xl md:text-3xl font-bold text-[#2CA01C]">{formatCurrency(totalPayroll)}</div>
+              <div className="text-2xl md:text-3xl font-bold text-[#FF9500]">{formatCurrency(totalPayroll)}</div>
             </div>
             <div className="bg-white p-6 rounded-2xl border border-[#F6F5F1] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
               <h3 className="text-xs font-bold uppercase text-[#6B6B6B] mb-2">Team members</h3>
-              <div className="text-2xl md:text-3xl font-bold text-[#263926]">{periodSummaries.length}</div>
+              <div className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">{periodSummaries.length}</div>
             </div>
           </div>
 
@@ -513,14 +513,14 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
                     onClick={() => openPeriodDetail(s.employee, findAllEntriesForMember(s.employee))}
                   >
                     <td className="py-4 px-5">
-                      <div className="font-medium text-[#263926]">{s.employee.name}</div>
+                      <div className="font-medium text-[#1A1A1A]">{s.employee.name}</div>
                       <div className="text-xs text-[#6B6B6B]">{s.employee.role}</div>
                     </td>
-                    <td className="py-4 px-4 font-medium text-[#263926]">{formatDuration(s.totalMinutes)}</td>
-                    <td className="py-4 px-4 text-center text-[#263926]">{s.daysWorked}</td>
-                    <td className="py-4 px-4 text-center text-[#263926]">{s.sickDays}</td>
-                    <td className="py-4 px-4 text-center text-[#263926]">{s.vacationDays}</td>
-                    <td className="py-4 px-4 text-right font-bold text-[#2CA01C]">{formatCurrency(s.totalPay)}</td>
+                    <td className="py-4 px-4 font-medium text-[#1A1A1A]">{formatDuration(s.totalMinutes)}</td>
+                    <td className="py-4 px-4 text-center text-[#1A1A1A]">{s.daysWorked}</td>
+                    <td className="py-4 px-4 text-center text-[#1A1A1A]">{s.sickDays}</td>
+                    <td className="py-4 px-4 text-center text-[#1A1A1A]">{s.vacationDays}</td>
+                    <td className="py-4 px-4 text-right font-bold text-[#FF9500]">{formatCurrency(s.totalPay)}</td>
                   </tr>
                 ))}
                 {periodSummaries.length === 0 && (
@@ -546,7 +546,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
             <div className="p-6 md:p-8">
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h2 className="text-xl md:text-2xl font-bold text-[#263926]">{selectedEmployeeName}</h2>
+                  <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">{selectedEmployeeName}</h2>
                   <p className="text-[#6B6B6B] font-medium text-sm">
                     {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
                   </p>
@@ -577,11 +577,11 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <div className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Clock In</div>
-                          <div className="text-lg font-mono text-[#263926]">{formatTime(selectedEntry.clockInTime)}</div>
+                          <div className="text-lg font-mono text-[#1A1A1A]">{formatTime(selectedEntry.clockInTime)}</div>
                         </div>
                         <div>
                           <div className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Clock Out</div>
-                          <div className="text-lg font-mono text-[#263926]">{formatTime(selectedEntry.clockOutTime)}</div>
+                          <div className="text-lg font-mono text-[#1A1A1A]">{formatTime(selectedEntry.clockOutTime)}</div>
                         </div>
                       </div>
                     </div>
@@ -589,7 +589,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <div className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Worked</div>
-                          <div className="text-lg font-bold text-[#263926]">{selectedEntry.workedMinutes !== null ? formatDuration(selectedEntry.workedMinutes) : "—"}</div>
+                          <div className="text-lg font-bold text-[#1A1A1A]">{selectedEntry.workedMinutes !== null ? formatDuration(selectedEntry.workedMinutes) : "—"}</div>
                         </div>
                         <div>
                           <div className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Break</div>
@@ -603,7 +603,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
                 {selectedEntry.note && (
                   <div className="bg-white p-4 rounded-2xl border border-[#F6F5F1]">
                     <div className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Notes</div>
-                    <p className="text-sm text-[#263926]">{selectedEntry.note}</p>
+                    <p className="text-sm text-[#1A1A1A]">{selectedEntry.note}</p>
                   </div>
                 )}
 

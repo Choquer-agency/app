@@ -232,9 +232,9 @@ export default function ClockInOutCard({
       return (
         <div className="fixed inset-0 z-50 bg-[#484848]/90 backdrop-blur-sm flex items-center justify-center p-4 md:p-6">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 md:p-8 animate-slide-in-right">
-            <h2 className="text-xl font-bold text-[#263926] mb-2">Fix Your Timecard</h2>
+            <h2 className="text-xl font-bold text-[#1A1A1A] mb-2">Fix Your Timecard</h2>
             <p className="text-sm text-[#6B6B6B] mb-4">
-              Enter your clock-out time for <span className="font-bold text-[#263926]">{formatDateForDisplay(issueEntry.date)}</span>.
+              Enter your clock-out time for <span className="font-bold text-[#1A1A1A]">{formatDateForDisplay(issueEntry.date)}</span>.
             </p>
             <p className="text-xs text-[#9CA3AF] mb-4">
               Clocked in at {new Date(issueEntry.clockInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()}
@@ -246,14 +246,14 @@ export default function ClockInOutCard({
                 type="time"
                 value={fixClockOut}
                 onChange={(e) => setFixClockOut(e.target.value)}
-                className="w-full p-3 bg-white border border-[#E5E3DA] rounded-2xl text-base text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none"
+                className="w-full p-3 bg-white border border-[#E5E3DA] rounded-2xl text-base text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
               />
             </div>
 
             <div className="flex gap-3">
               <button
                 onClick={() => setShowFixModal(false)}
-                className="flex-1 py-3 border border-[#E5E3DA] text-[#484848] rounded-full font-medium text-sm hover:bg-[#F0EEE6] transition-colors"
+                className="flex-1 py-3 border border-[#E5E3DA] text-[#484848] rounded-lg font-medium text-sm hover:bg-[#F0EEE6] transition-colors"
               >
                 Cancel
               </button>
@@ -287,7 +287,7 @@ export default function ClockInOutCard({
                   }
                 }}
                 disabled={!fixClockOut || fixSubmitting}
-                className="flex-1 py-3 bg-[#2CA01C] text-white rounded-full font-medium text-sm hover:bg-[#248a17] transition-colors disabled:opacity-50"
+                className="flex-1 py-3 bg-[#FF9500] text-white rounded-lg font-medium text-sm hover:bg-[#E68600] transition-colors disabled:opacity-50"
               >
                 {fixSubmitting ? "Submitting..." : "Submit Fix"}
               </button>
@@ -305,14 +305,14 @@ export default function ClockInOutCard({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h2 className="text-xl md:text-2xl font-bold text-[#263926] mb-2">Action Required</h2>
+          <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A] mb-2">Action Required</h2>
           <p className="text-[#6B6B6B] mb-6 text-sm md:text-base">
-            You didn&apos;t clock out on <span className="font-bold text-[#263926]">{formatDateForDisplay(issueEntry.date)}</span>.
+            You didn&apos;t clock out on <span className="font-bold text-[#1A1A1A]">{formatDateForDisplay(issueEntry.date)}</span>.
             Please update your time card.
           </p>
           <button
             onClick={() => setShowFixModal(true)}
-            className="w-full min-h-[48px] py-3 bg-[#2CA01C] text-white rounded-full font-bold text-base hover:bg-[#248a17] transition-colors"
+            className="w-full min-h-[48px] py-3 bg-[#FF9500] text-white rounded-lg font-bold text-base hover:bg-[#E68600] transition-colors"
           >
             Review & Fix Now
           </button>
@@ -336,7 +336,7 @@ export default function ClockInOutCard({
         <button
           onClick={handleEndBreak}
           disabled={actionLoading}
-          className="bg-rose-600 text-white text-2xl font-bold py-8 px-16 rounded-full shadow-2xl shadow-rose-600/30 hover:bg-rose-700 hover:scale-105 transition-all transform active:scale-95 disabled:opacity-50"
+          className="bg-rose-600 text-white text-2xl font-bold py-8 px-16 rounded-lg shadow-2xl shadow-rose-600/30 hover:bg-rose-700 hover:scale-105 transition-all transform active:scale-95 disabled:opacity-50"
         >
           End Break
         </button>
@@ -355,20 +355,20 @@ export default function ClockInOutCard({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h2 className="text-lg font-bold text-[#263926] mb-2">Welcome Back!</h2>
+          <h2 className="text-lg font-bold text-[#1A1A1A] mb-2">Welcome Back!</h2>
           <p className="text-sm text-[#6B6B6B] mb-6">
             Your ticket timer was paused when you went on break. Resume where you left off?
           </p>
           <div className="flex gap-3">
             <button
               onClick={handleDismissResume}
-              className="flex-1 py-3 border border-[#E5E3DA] text-[#484848] rounded-full font-medium text-sm hover:bg-[#F0EEE6] transition-colors"
+              className="flex-1 py-3 border border-[#E5E3DA] text-[#484848] rounded-lg font-medium text-sm hover:bg-[#F0EEE6] transition-colors"
             >
               No Thanks
             </button>
             <button
               onClick={handleResumeTimer}
-              className="flex-1 py-3 bg-[#2CA01C] text-white rounded-full font-medium text-sm hover:bg-[#248a17] transition-colors"
+              className="flex-1 py-3 bg-[#FF9500] text-white rounded-lg font-medium text-sm hover:bg-[#E68600] transition-colors"
             >
               Resume Timer
             </button>
@@ -381,7 +381,7 @@ export default function ClockInOutCard({
   if (loading) {
     return (
       <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] p-6 md:p-8 border border-[#F6F5F1] text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2CA01C] mx-auto mb-4" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF9500] mx-auto mb-4" />
         <p className="text-[#6B6B6B]">Loading...</p>
       </div>
     );
@@ -415,7 +415,7 @@ export default function ClockInOutCard({
               <div className="text-center mb-2">
                 <div className="text-xl mb-1">🤒</div>
                 <h3
-                  className={`text-xs font-bold ${clockStatus === "sick" ? "text-rose-900" : "text-[#263926]"}`}
+                  className={`text-xs font-bold ${clockStatus === "sick" ? "text-rose-900" : "text-[#1A1A1A]"}`}
                 >
                   Sick Day
                 </h3>
@@ -454,7 +454,7 @@ export default function ClockInOutCard({
               <div className="text-center mb-2">
                 <div className="text-xl mb-1">✈️</div>
                 <h3
-                  className={`text-xs font-bold ${clockStatus === "vacation" ? "text-sky-900" : "text-[#263926]"}`}
+                  className={`text-xs font-bold ${clockStatus === "vacation" ? "text-sky-900" : "text-[#1A1A1A]"}`}
                 >
                   Vacation
                 </h3>
@@ -504,7 +504,7 @@ export default function ClockInOutCard({
                     : "Clocked In"}
           </span>
 
-          <div className="mt-4 text-4xl md:text-5xl font-mono text-[#263926] tracking-tight">
+          <div className="mt-4 text-4xl md:text-5xl font-mono text-[#1A1A1A] tracking-tight">
             {clockStatus === "sick" || clockStatus === "vacation"
               ? "OFF"
               : new Date()
@@ -522,7 +522,7 @@ export default function ClockInOutCard({
             <button
               onClick={handleClockIn}
               disabled={actionLoading}
-              className="w-full py-4 md:py-5 bg-[#2CA01C] text-white rounded-2xl font-bold text-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="w-full py-4 md:py-5 bg-[#FF9500] text-white rounded-2xl font-bold text-xl hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {actionLoading ? "..." : "Clock In"}
             </button>
@@ -533,7 +533,7 @@ export default function ClockInOutCard({
               <button
                 onClick={handleStartBreak}
                 disabled={actionLoading}
-                className="h-16 md:h-20 bg-[#F6F5F1] text-[#263926] rounded-2xl font-medium text-sm md:text-base hover:bg-[#E5E3DA] transition-colors disabled:opacity-50 border border-[#F6F5F1]"
+                className="h-16 md:h-20 bg-[#F6F5F1] text-[#1A1A1A] rounded-2xl font-medium text-sm md:text-base hover:bg-[#E5E3DA] transition-colors disabled:opacity-50 border border-[#F6F5F1]"
               >
                 Start Break
               </button>
@@ -577,13 +577,13 @@ export default function ClockInOutCard({
         !status.activeShift.isSickDay &&
         !status.activeShift.isVacation && (
           <div className="mt-8 border-t border-[#F6F5F1] pt-6">
-            <h3 className="text-base font-bold text-[#263926] mb-4">
+            <h3 className="text-base font-bold text-[#1A1A1A] mb-4">
               Today&apos;s Activity
             </h3>
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-[#6B6B6B]">Clock In</span>
-                <span className="font-mono text-[#263926]">
+                <span className="font-mono text-[#1A1A1A]">
                   {new Date(
                     status.activeShift.clockInTime
                   ).toLocaleTimeString("en-US", {
@@ -595,7 +595,7 @@ export default function ClockInOutCard({
               {status.activeShift.totalBreakMinutes > 0 && (
                 <div className="flex justify-between text-sm pl-4 border-l-2 border-amber-100">
                   <span className="text-[#6B6B6B]">Breaks</span>
-                  <span className="font-mono text-[#263926]">
+                  <span className="font-mono text-[#1A1A1A]">
                     {status.activeShift.totalBreakMinutes}m
                   </span>
                 </div>
@@ -603,7 +603,7 @@ export default function ClockInOutCard({
               {status.activeShift.clockOutTime && (
                 <div className="flex justify-between text-sm">
                   <span className="text-[#6B6B6B]">Clock Out</span>
-                  <span className="font-mono text-[#263926]">
+                  <span className="font-mono text-[#1A1A1A]">
                     {new Date(
                       status.activeShift.clockOutTime
                     ).toLocaleTimeString("en-US", {

@@ -71,15 +71,15 @@ export default function PayrollReport() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         <div className="bg-white p-4 md:p-6 rounded-2xl border border-[#F6F5F1] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
           <h3 className="text-xs font-bold uppercase text-[#6B6B6B] mb-1">Total Hours</h3>
-          <div className="text-2xl md:text-3xl font-bold text-[#263926]">{formatDuration(totalHours)}</div>
+          <div className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">{formatDuration(totalHours)}</div>
         </div>
         <div className="bg-white p-4 md:p-6 rounded-2xl border border-[#F6F5F1] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
           <h3 className="text-xs font-bold uppercase text-[#6B6B6B] mb-1">Team Members</h3>
-          <div className="text-2xl md:text-3xl font-bold text-[#263926]">{report.length}</div>
+          <div className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">{report.length}</div>
         </div>
         <div className="bg-white p-4 md:p-6 rounded-2xl border border-[#F6F5F1] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
           <h3 className="text-xs font-bold uppercase text-[#6B6B6B] mb-1">Est. Payroll</h3>
-          <div className="text-2xl md:text-3xl font-bold text-[#263926]">
+          <div className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">
             ${report.reduce((sum, r) => sum + (r.hourlyRate ?? 0) * r.totalWorkedDecimalHours, 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
@@ -90,12 +90,12 @@ export default function PayrollReport() {
         <div className="flex-1">
           <label className="block text-xs font-bold text-[#6B6B6B] uppercase mb-1.5">From</label>
           <input type="date" value={dateRange.start} onChange={(e) => setDateRange((r) => ({ ...r, start: e.target.value }))}
-            className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none" />
+            className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none" />
         </div>
         <div className="flex-1">
           <label className="block text-xs font-bold text-[#6B6B6B] uppercase mb-1.5">To</label>
           <input type="date" value={dateRange.end} onChange={(e) => setDateRange((r) => ({ ...r, end: e.target.value }))}
-            className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#263926] focus:ring-2 focus:ring-[#2CA01C] outline-none" />
+            className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none" />
         </div>
       </div>
 
@@ -107,7 +107,7 @@ export default function PayrollReport() {
           </button>
         ))}
         <button onClick={handleExport} disabled={exporting || report.length === 0}
-          className="ml-auto px-4 py-1.5 text-xs bg-[#2CA01C] text-white rounded-full font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
+          className="ml-auto px-4 py-1.5 text-xs bg-[#FF9500] text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
           {exporting ? "Exporting..." : "Export CSV"}
         </button>
       </div>
@@ -135,24 +135,24 @@ export default function PayrollReport() {
               <tbody className="divide-y divide-[#F6F5F1]">
                 {report.map((row) => (
                   <tr key={row.teamMemberId} className="hover:bg-[#F6F5F1]/30 transition-colors">
-                    <td className="py-4 px-6 font-medium text-[#263926]">{row.memberName}</td>
-                    <td className="py-4 px-6 text-[#263926]">{row.hourlyRate ? `$${row.hourlyRate}/hr` : "—"}</td>
-                    <td className="py-4 px-6 text-right font-medium text-[#263926]">{formatDuration(row.totalWorkedMinutes)}</td>
+                    <td className="py-4 px-6 font-medium text-[#1A1A1A]">{row.memberName}</td>
+                    <td className="py-4 px-6 text-[#1A1A1A]">{row.hourlyRate ? `$${row.hourlyRate}/hr` : "—"}</td>
+                    <td className="py-4 px-6 text-right font-medium text-[#1A1A1A]">{formatDuration(row.totalWorkedMinutes)}</td>
                     <td className="py-4 px-6 text-right text-[#6B6B6B] font-mono">{row.totalWorkedDecimalHours}</td>
-                    <td className="py-4 px-6 text-right text-[#263926]">{row.sickDays + row.halfSickDays * 0.5}</td>
-                    <td className="py-4 px-6 text-right text-[#263926]">{row.vacationDays}</td>
+                    <td className="py-4 px-6 text-right text-[#1A1A1A]">{row.sickDays + row.halfSickDays * 0.5}</td>
+                    <td className="py-4 px-6 text-right text-[#1A1A1A]">{row.vacationDays}</td>
                     <td className="py-4 px-6 text-right">{row.overtimeDays > 0 ? <span className="text-amber-600 font-bold">{row.overtimeDays}</span> : <span className="text-[#6B6B6B]">0</span>}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-[#F6F5F1] bg-[#F6F5F1]/30">
-                  <td className="py-4 px-6 font-bold text-[#263926]">Total</td>
+                  <td className="py-4 px-6 font-bold text-[#1A1A1A]">Total</td>
                   <td className="py-4 px-6" />
-                  <td className="py-4 px-6 text-right font-bold text-[#263926]">{formatDuration(totalHours)}</td>
-                  <td className="py-4 px-6 text-right font-bold text-[#263926] font-mono">{Math.round((totalHours / 60) * 100) / 100}</td>
-                  <td className="py-4 px-6 text-right font-bold text-[#263926]">{totalSick}</td>
-                  <td className="py-4 px-6 text-right font-bold text-[#263926]">{totalVacation}</td>
+                  <td className="py-4 px-6 text-right font-bold text-[#1A1A1A]">{formatDuration(totalHours)}</td>
+                  <td className="py-4 px-6 text-right font-bold text-[#1A1A1A] font-mono">{Math.round((totalHours / 60) * 100) / 100}</td>
+                  <td className="py-4 px-6 text-right font-bold text-[#1A1A1A]">{totalSick}</td>
+                  <td className="py-4 px-6 text-right font-bold text-[#1A1A1A]">{totalVacation}</td>
                   <td className="py-4 px-6" />
                 </tr>
               </tfoot>

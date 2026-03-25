@@ -31,7 +31,7 @@ export default function MyVacationRequests({
 
   return (
     <div className="mt-8 border-t border-[#F6F5F1] pt-6">
-      <h3 className="text-base font-bold text-[#263926] mb-4">
+      <h3 className="text-base font-bold text-[#1A1A1A] mb-4">
         My Vacation Requests
       </h3>
       <div className="space-y-3">
@@ -60,7 +60,7 @@ export default function MyVacationRequests({
             >
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm font-medium text-[#263926]">
+                  <p className="text-sm font-medium text-[#1A1A1A]">
                     {startLabel} – {endLabel}
                   </p>
                   <p className="text-xs text-[#6B6B6B] mt-0.5">

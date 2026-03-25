@@ -120,9 +120,9 @@ export default function TimePicker({ value, onChange, label }: TimePickerProps) 
 
   // Button styles
   const btnClass =
-    "w-full min-h-[44px] h-10 flex items-center justify-center bg-[#F7F6F3] text-[#C5C1B8] hover:bg-[#F0EEE6] hover:text-[#263926] rounded-lg transition-colors active:bg-[#E5E3DA]";
+    "w-full min-h-[44px] h-10 flex items-center justify-center bg-[#F7F6F3] text-[#C5C1B8] hover:bg-[#F0EEE6] hover:text-[#1A1A1A] rounded-lg transition-colors active:bg-[#E5E3DA]";
   const inputClass =
-    "w-full text-center text-2xl md:text-3xl font-bold font-mono bg-transparent border-none focus:ring-0 p-0 text-[#263926] placeholder-[#F0EEE6]";
+    "w-full text-center text-2xl md:text-3xl font-bold font-mono bg-transparent border-none focus:ring-0 p-0 text-[#1A1A1A] placeholder-[#F0EEE6]";
 
   return (
     <div className="flex flex-col w-full">
@@ -248,7 +248,7 @@ export default function TimePicker({ value, onChange, label }: TimePickerProps) 
         <div className="flex flex-col justify-center flex-shrink-0">
           <button
             onClick={toggleAMPM}
-            className="px-3 md:px-4 py-2 md:py-3 min-h-[44px] bg-[#F7F6F3] hover:bg-[#F0EEE6] rounded-lg transition-colors text-sm md:text-base font-bold font-mono text-[#263926]"
+            className="px-3 md:px-4 py-2 md:py-3 min-h-[44px] bg-[#F7F6F3] hover:bg-[#F0EEE6] rounded-lg transition-colors text-sm md:text-base font-bold font-mono text-[#1A1A1A]"
           >
             {isPM ? "PM" : "AM"}
           </button>
