@@ -2,6 +2,13 @@ import { v } from "convex/values";
 import { query, mutation, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
+export const getById = query({
+  args: { id: v.id("clientPackages") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
 export const listByClient = query({
   args: { clientId: v.id("clients") },
   handler: async (ctx, args) => {

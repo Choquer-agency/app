@@ -8,28 +8,75 @@ export const list = query({
     clientId: v.optional(v.id("clients")),
   },
   handler: async (ctx, args) => {
+    let entries;
     if (args.category && args.month) {
-      return await ctx.db
+      entries = await ctx.db
         .query("serviceBoardEntries")
         .withIndex("by_category_month", (q) =>
           q.eq("category", args.category!).eq("month", args.month!)
         )
         .collect();
-    }
-    if (args.clientId) {
-      return await ctx.db
+    } else if (args.clientId) {
+      entries = await ctx.db
         .query("serviceBoardEntries")
         .withIndex("by_client", (q) => q.eq("clientId", args.clientId!))
         .collect();
+    } else {
+      entries = await ctx.db.query("serviceBoardEntries").collect();
     }
-    return await ctx.db.query("serviceBoardEntries").collect();
+
+    // Join with clients, packages, clientPackages, and teamMembers
+    const enriched = await Promise.all(
+      entries.map(async (entry) => {
+        const client = await ctx.db.get(entry.clientId);
+        const clientPkg = await ctx.db.get(entry.clientPackageId);
+        const pkg = clientPkg ? await ctx.db.get(clientPkg.packageId) : null;
+        const specialist = entry.specialistId
+          ? await ctx.db.get(entry.specialistId)
+          : null;
+
+        return {
+          ...entry,
+          clientName: client?.name ?? "",
+          clientSlug: client?.slug ?? "",
+          clientNotionPageUrl: client?.notionPageUrl ?? "",
+          packageName: pkg?.name ?? "",
+          includedHours: clientPkg?.customHours ?? pkg?.hoursIncluded ?? 0,
+          specialistName: specialist?.name ?? undefined,
+          specialistColor: specialist?.color ?? undefined,
+          specialistProfilePicUrl: specialist?.profilePicUrl ?? undefined,
+        };
+      })
+    );
+
+    return enriched;
   },
 });
 
 export const getById = query({
   args: { id: v.id("serviceBoardEntries") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const entry = await ctx.db.get(args.id);
+    if (!entry) return null;
+
+    const client = await ctx.db.get(entry.clientId);
+    const clientPkg = await ctx.db.get(entry.clientPackageId);
+    const pkg = clientPkg ? await ctx.db.get(clientPkg.packageId) : null;
+    const specialist = entry.specialistId
+      ? await ctx.db.get(entry.specialistId)
+      : null;
+
+    return {
+      ...entry,
+      clientName: client?.name ?? "",
+      clientSlug: client?.slug ?? "",
+      clientNotionPageUrl: client?.notionPageUrl ?? "",
+      packageName: pkg?.name ?? "",
+      includedHours: clientPkg?.customHours ?? pkg?.hoursIncluded ?? 0,
+      specialistName: specialist?.name ?? undefined,
+      specialistColor: specialist?.color ?? undefined,
+      specialistProfilePicUrl: specialist?.profilePicUrl ?? undefined,
+    };
   },
 });
 

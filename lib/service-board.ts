@@ -83,6 +83,45 @@ export async function getServiceBoardEntries(
 
   const entries = docs.map(docToEntry);
 
+  // Enrich with client/package/specialist data if not already joined
+  for (const entry of entries) {
+    if (!entry.clientName) {
+      try {
+        const client = await convex.query(api.clients.getById, { id: entry.clientId as any });
+        if (client) {
+          entry.clientName = (client as any).name ?? "";
+          entry.clientSlug = (client as any).slug ?? "";
+          entry.clientNotionPageUrl = (client as any).notionPageUrl ?? "";
+        }
+      } catch {}
+    }
+    if (!entry.packageName) {
+      try {
+        const clientPkg = await convex.query(api.clientPackages.getById, { id: entry.clientPackageId as any });
+        if (clientPkg) {
+          entry.includedHours = (clientPkg as any).customHours ?? undefined;
+          const pkg = await convex.query(api.packages.getById, { id: (clientPkg as any).packageId });
+          if (pkg) {
+            entry.packageName = (pkg as any).name ?? "";
+            if (!entry.includedHours) {
+              entry.includedHours = (pkg as any).hoursIncluded ?? 0;
+            }
+          }
+        }
+      } catch {}
+    }
+    if (!entry.specialistName && entry.specialistId) {
+      try {
+        const specialist = await convex.query(api.teamMembers.getById, { id: entry.specialistId as any });
+        if (specialist) {
+          entry.specialistName = (specialist as any).name ?? "";
+          entry.specialistColor = (specialist as any).color ?? "";
+          entry.specialistProfilePicUrl = (specialist as any).profilePicUrl ?? "";
+        }
+      } catch {}
+    }
+  }
+
   // Compute hours for each entry
   for (const entry of entries) {
     try {
