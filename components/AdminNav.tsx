@@ -1,19 +1,18 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import NotificationBell from "./NotificationBell";
 import { useKeyboardShortcuts } from "./KeyboardShortcutProvider";
-import { hasPermission, type RoleLevel, type Permission } from "@/lib/permissions";
+import { hasPermission, hasMinRole, type RoleLevel, type Permission } from "@/lib/permissions";
+import { useClockStatusPoll } from "@/hooks/useClockStatusPoll";
 
 const NAV_LINKS: { href: string; label: string; exact?: boolean; permission: Permission }[] = [
   { href: "/admin", label: "Home", exact: true, permission: "nav:home" },
-  { href: "/admin/clients", label: "Clients", permission: "nav:clients" },
-  { href: "/admin/leads", label: "Leads", permission: "nav:leads" },
+  { href: "/admin/crm", label: "CRM", permission: "nav:clients" },
   { href: "/admin/tickets", label: "Tickets", permission: "nav:tickets" },
-  { href: "/admin/reports", label: "Reports", exact: true, permission: "nav:reports" },
-  { href: "/admin/meetings", label: "Meetings", exact: true, permission: "nav:reports" },
+  { href: "/admin/reports", label: "Reports", permission: "nav:reports" },
   { href: "/admin/timesheet", label: "Timesheet", permission: "nav:timesheet" },
 ];
 
@@ -26,7 +25,31 @@ export default function AdminNav({ userName, roleLevel }: { userName?: string; r
   const [searchResults, setSearchResults] = useState<Array<{ id: number; ticketNumber: string; title: string }>>([]);
   const [searching, setSearching] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  // Clock features only for employees/interns (not admins/bookkeepers)
+  const isClockUser = roleLevel ? !hasMinRole(roleLevel, "bookkeeper") : false;
+  const { clockStatus, refetch } = useClockStatusPoll();
+  const [clockActionLoading, setClockActionLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const handleNavClockAction = useCallback(async (action: "break" | "clockOut") => {
+    setClockActionLoading(true);
+    try {
+      const url = action === "break"
+        ? "/api/admin/timesheet/break/start"
+        : "/api/admin/timesheet/clock-out";
+      const res = await fetch(url, { method: "POST" });
+      if (res.ok && action === "break") {
+        window.dispatchEvent(new CustomEvent("timerChange"));
+      }
+      window.dispatchEvent(new CustomEvent("clockStatusChange"));
+      refetch();
+    } catch {
+      // silent
+    } finally {
+      setClockActionLoading(false);
+      setUserMenuOpen(false);
+    }
+  }, [refetch]);
   const inputRef = useRef<HTMLInputElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -98,7 +121,12 @@ export default function AdminNav({ userName, roleLevel }: { userName?: string; r
             />
           </a>
           <div className="flex items-center gap-5">
-            {NAV_LINKS.filter((link) => !roleLevel || hasPermission(roleLevel, link.permission)).map((link) => {
+            {NAV_LINKS.filter((link) => {
+              if (!roleLevel || !hasPermission(roleLevel, link.permission)) return false;
+              // Hide Timesheet from employee nav — clock is on homepage, history in Settings
+              if (link.href === "/admin/timesheet" && roleLevel && !hasMinRole(roleLevel, "bookkeeper")) return false;
+              return true;
+            }).map((link) => {
               const isActive = link.exact
                 ? pathname === link.href
                 : pathname.startsWith(link.href);
@@ -192,7 +220,24 @@ export default function AdminNav({ userName, roleLevel }: { userName?: string; r
             )}
           </div>
 
-          <NotificationBell />
+          {/* Meeting Notes shortcut */}
+          {(!roleLevel || hasPermission(roleLevel, "nav:reports")) && (
+            <a
+              href="/admin/meeting-notes"
+              className={`p-1.5 rounded-lg transition ${
+                pathname.startsWith("/admin/meeting-notes")
+                  ? "text-[var(--foreground)] bg-gray-100"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-100"
+              }`}
+              title="Meeting Notes"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+              </svg>
+            </a>
+          )}
+
+          <NotificationBell canDelete={roleLevel ? hasMinRole(roleLevel, "owner") : false} />
 
           {/* Settings gear + User name dropdown */}
           <div className="flex items-center gap-2">
@@ -217,20 +262,47 @@ export default function AdminNav({ userName, roleLevel }: { userName?: string; r
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition"
+                  className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition flex items-center gap-1.5"
                 >
+                  {isClockUser && clockStatus === "working" && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" title="Clocked In" />
+                  )}
+                  {isClockUser && clockStatus === "break" && (
+                    <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse flex-shrink-0" title="On Break" />
+                  )}
                   {userName}
                 </button>
                 {userMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 bg-white border border-[var(--border)] rounded-lg shadow-lg py-1 z-50 min-w-[120px]">
-                    <form action="/api/admin/logout" method="POST">
-                      <button
-                        type="submit"
-                        className="w-full text-left px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-50 transition"
-                      >
-                        Logout
-                      </button>
-                    </form>
+                  <div className="absolute right-0 top-full mt-2 bg-white border border-[var(--border)] rounded-xl shadow-lg z-50 min-w-[180px] overflow-hidden">
+                    {/* Clock actions — employees only, when clocked in */}
+                    {isClockUser && clockStatus === "working" && (
+                      <div className="p-2 border-b border-[var(--border)]">
+                        <button
+                          onClick={() => handleNavClockAction("break")}
+                          disabled={clockActionLoading}
+                          className="w-full text-left px-3 py-2.5 text-sm font-medium text-[#1A1A1A] bg-[#F6F5F1] hover:bg-[#E5E3DA] rounded-lg transition-colors disabled:opacity-50 mb-1.5"
+                        >
+                          {clockActionLoading ? "..." : "Start Break"}
+                        </button>
+                        <button
+                          onClick={() => handleNavClockAction("clockOut")}
+                          disabled={clockActionLoading}
+                          className="w-full text-left px-3 py-2.5 text-sm font-medium text-white bg-rose-900 hover:bg-rose-800 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {clockActionLoading ? "..." : "Clock Out"}
+                        </button>
+                      </div>
+                    )}
+                    <div className="py-1">
+                      <form action="/api/admin/logout" method="POST">
+                        <button
+                          type="submit"
+                          className="w-full text-left px-4 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-50 transition"
+                        >
+                          Logout
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 )}
               </div>

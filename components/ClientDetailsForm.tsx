@@ -178,7 +178,7 @@ export default function ClientDetailsForm({
         const data = await res.json();
         throw new Error(data.error || "Failed to delete");
       }
-      window.location.href = "/admin/clients";
+      window.location.href = "/admin/crm";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete client");
       setDeleting(false);

@@ -5,7 +5,9 @@ import {
   getUnreadCount,
   markRead,
   markAllRead,
+  deleteNotification,
 } from "@/lib/notifications";
+import { hasMinRole } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   const session = getSession(request);
@@ -28,6 +30,35 @@ export async function GET(request: NextRequest) {
     console.error("[notifications] GET error:", err);
     return NextResponse.json(
       { error: "Failed to fetch notifications" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const session = getSession(request);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Owner-only: delete any notification
+  if (!hasMinRole(session.roleLevel, "owner")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const body = await request.json();
+    const { id } = body;
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    }
+
+    await deleteNotification(id);
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("[notifications] DELETE error:", err);
+    return NextResponse.json(
+      { error: "Failed to delete notification" },
       { status: 500 }
     );
   }

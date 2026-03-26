@@ -537,7 +537,11 @@ export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: R
             No team members yet. Click &quot;+ Add Member&quot; to get started.
           </p>
         ) : (
-          members.map((member, index) => {
+          [...members].sort((a, b) => {
+            const aOnLeave = a.employeeStatus && a.employeeStatus !== "active" ? 1 : 0;
+            const bOnLeave = b.employeeStatus && b.employeeStatus !== "active" ? 1 : 0;
+            return aOnLeave - bOnLeave;
+          }).map((member, index) => {
             // Bryce is always first (from query) and always orange
             // Everyone else gets a unique color from the palette
             const teamColors = [
@@ -573,7 +577,24 @@ export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: R
                   </div>
                 )}
                 <div>
-                  <p className="font-semibold text-[var(--foreground)]">{member.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-[var(--foreground)]">{member.name}</p>
+                    {member.employeeStatus && member.employeeStatus !== "active" && (
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                        member.employeeStatus === "maternity_leave" ? "bg-pink-50 text-pink-600" :
+                        member.employeeStatus === "leave" ? "bg-amber-50 text-amber-600" :
+                        member.employeeStatus === "terminated" ? "bg-red-50 text-red-600" :
+                        member.employeeStatus === "past_employee" ? "bg-gray-100 text-gray-500" :
+                        "bg-gray-100 text-gray-500"
+                      }`}>
+                        {member.employeeStatus === "maternity_leave" ? "Maternity Leave" :
+                         member.employeeStatus === "leave" ? "On Leave" :
+                         member.employeeStatus === "terminated" ? "Terminated" :
+                         member.employeeStatus === "past_employee" ? "Past Employee" :
+                         member.employeeStatus}
+                      </span>
+                    )}
+                  </div>
                   {member.role && (
                     <p className="text-xs text-[var(--muted)]">{member.role}</p>
                   )}

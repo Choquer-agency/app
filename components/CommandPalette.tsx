@@ -31,7 +31,7 @@ interface ResultItem {
 const QUICK_ACTIONS: ResultItem[] = [
   { type: "action", id: "new-ticket", label: "New Ticket", subtitle: "Create a new ticket", url: "__action:new-ticket" },
   { type: "action", id: "go-reports", label: "Go to Reports", subtitle: "View reporting dashboard", url: "/admin/reports" },
-  { type: "action", id: "go-clients", label: "Go to Clients", subtitle: "View all clients", url: "/admin/clients" },
+  { type: "action", id: "go-clients", label: "Go to CRM", subtitle: "View clients and leads", url: "/admin/crm" },
   { type: "action", id: "go-projects", label: "Go to Projects", subtitle: "View all projects", url: "/admin/tickets/projects" },
 ];
 
@@ -142,7 +142,7 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
           id: String(c.id),
           label: c.name,
           subtitle: c.clientStatus,
-          url: `/admin/clients/${c.id}`,
+          url: `/admin/crm/${c.id}`,
         });
       }
     }
@@ -204,7 +204,7 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
           id: `note-${n.id}`,
           label: preview || "Note",
           subtitle: `Note on ${n.clientName} · by ${n.author}`,
-          url: `/admin/clients/${n.clientId}`,
+          url: `/admin/crm/${n.clientId}`,
         });
       }
     }

@@ -1,17 +1,5 @@
-import { cookies } from "next/headers";
-import { getSessionFromCookies } from "@/lib/admin-auth";
-import MeetingsPageClient from "@/components/MeetingsPageClient";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function MeetingsPage() {
-  const cookieStore = await cookies();
-  const session = getSessionFromCookies(cookieStore);
-
-  return (
-    <MeetingsPageClient
-      roleLevel={session?.roleLevel || "employee"}
-      teamMemberId={session?.teamMemberId}
-    />
-  );
+export default function MeetingsRedirect() {
+  redirect("/admin/reports");
 }

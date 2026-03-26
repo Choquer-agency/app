@@ -44,7 +44,15 @@ export async function GET(request: NextRequest) {
   // Build status per member
   const teamStatus: TeamMemberStatusEntry[] = [];
 
-  for (const member of members as any[]) {
+  // Filter out members on leave/terminated/past and bookkeepers
+  const eligibleMembers = (members as any[]).filter((member) => {
+    const status = member.employeeStatus || "active";
+    if (status !== "active") return false;
+    if (member.roleLevel === "bookkeeper") return false;
+    return true;
+  });
+
+  for (const member of eligibleMembers) {
     const shift = (timesheetEntries as any[]).find(
       (e) => e.teamMemberId === member._id && !e.clockOutTime
     );

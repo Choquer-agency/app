@@ -11,6 +11,7 @@ import {
 } from "@/types";
 import { hasMinRole, type RoleLevel } from "@/lib/permissions";
 import WhosInWidget from "./WhosInWidget";
+import QuickClockBar from "./timesheet/QuickClockBar";
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -148,9 +149,8 @@ function CalendarList({ entries }: { entries: CalendarEntry[] }) {
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
 
-  // Filter to today and future, limit to ~3 months out
-  // Current month + 2 months ahead
-  const endDate = new Date(today.getFullYear(), today.getMonth() + 3, 0).toISOString().split("T")[0];
+  // Show this month + next month only
+  const endDate = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().split("T")[0];
   const startOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
   const filtered = entries.filter((e) => e.date >= startOfMonth && e.date <= endDate);
 
@@ -433,6 +433,11 @@ export default function HomeDashboard({
         )}
       </div>
 
+      {/* Quick Clock Bar — employees/interns only */}
+      {!hasMinRole(roleLevel as RoleLevel, "bookkeeper") && (
+        <QuickClockBar teamMemberId={String(teamMemberId)} />
+      )}
+
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
@@ -587,8 +592,8 @@ export default function HomeDashboard({
         </div>
       </div>
 
-      {/* Who's In — purple theme */}
-      <WhosInWidget />
+      {/* Hidden: co-located team, low value — kept for future use */}
+      {false && <WhosInWidget />}
 
       {/* Project Status — blue theme */}
       <div className="rounded-2xl bg-[#F0F6FF] overflow-hidden">

@@ -5,11 +5,19 @@ import { useState, useEffect } from "react";
 export default function VacationRequestForm({
   teamMemberId,
   onSubmit,
+  defaultOpen = false,
+  onClose,
 }: {
   teamMemberId: string;
   onSubmit: () => void;
+  defaultOpen?: boolean;
+  onClose?: () => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpenRaw] = useState(defaultOpen);
+  const setIsOpen = (open: boolean) => {
+    setIsOpenRaw(open);
+    if (!open) onClose?.();
+  };
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");

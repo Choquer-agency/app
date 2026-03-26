@@ -58,6 +58,13 @@ export const markRead = mutation({
   },
 });
 
+export const remove = mutation({
+  args: { id: v.id("notifications") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});
+
 export const markAllRead = mutation({
   args: { recipientId: v.id("teamMembers") },
   handler: async (ctx, args) => {

@@ -358,8 +358,8 @@ export async function notifyVacationRequested(
     null,
     "vacation_requested",
     `${memberName} requested vacation`,
-    "Review in timesheet settings",
-    "/admin/settings/timesheet"
+    "Review in timesheet",
+    "/admin/timesheet"
   );
 }
 
@@ -376,7 +376,7 @@ export async function notifyVacationResolved(
     "vacation_resolved",
     `Vacation request ${status}`,
     `${reviewerName} ${status} your vacation request`,
-    "/admin/settings/timesheet"
+    "/admin/timesheet"
   );
 }
 
@@ -395,8 +395,8 @@ export async function notifyTimeAdjustmentRequested(
     null,
     "time_adjustment_requested",
     `${memberName} requested a time adjustment`,
-    "Review in timesheet settings",
-    "/admin/settings/timesheet"
+    "Review in timesheet",
+    "/admin/timesheet"
   );
 }
 
@@ -413,7 +413,7 @@ export async function notifyTimeAdjustmentResolved(
     "time_adjustment_resolved",
     `Time adjustment ${status}`,
     `${reviewerName} ${status} your time adjustment`,
-    "/admin/settings/timesheet"
+    "/admin/timesheet"
   );
 }
 

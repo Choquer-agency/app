@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Notification } from "@/types";
 import NotificationList from "./NotificationList";
 
-export default function NotificationBell() {
+export default function NotificationBell({ canDelete = false }: { canDelete?: boolean }) {
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -75,7 +75,7 @@ export default function NotificationBell() {
     }
   }
 
-  async function handleMarkRead(id: number) {
+  async function handleMarkRead(id: string) {
     // Optimistic update
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
@@ -88,6 +88,20 @@ export default function NotificationBell() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "markRead", id }),
       });
+    } catch {}
+  }
+
+  async function handleDelete(id: string) {
+    // Optimistic remove
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+
+    try {
+      await fetch("/api/admin/notifications", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      fetchCount();
     } catch {}
   }
 
@@ -132,6 +146,8 @@ export default function NotificationBell() {
             notifications={notifications}
             onMarkRead={handleMarkRead}
             onMarkAllRead={handleMarkAllRead}
+            canDelete={canDelete}
+            onDelete={handleDelete}
           />
         </div>
       )}

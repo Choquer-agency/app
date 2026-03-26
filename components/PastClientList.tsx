@@ -67,7 +67,7 @@ export default function PastClientList() {
                   <tr
                     key={client.id}
                     onClick={() => {
-                      window.location.href = `/admin/clients/${client.id}`;
+                      window.location.href = `/admin/crm/${client.id}`;
                     }}
                     className="border-b border-[var(--border)] hover:bg-[var(--accent-light)] cursor-pointer transition"
                   >

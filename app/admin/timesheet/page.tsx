@@ -17,6 +17,13 @@ export default async function TimesheetRoute() {
     redirect("/admin");
   }
 
+  // Employees clock in from the homepage — redirect them there
+  const canViewAll = hasPermission(session.roleLevel, "timesheet:view_all");
+  const canManage = hasPermission(session.roleLevel, "timesheet:manage");
+  if (!canViewAll && !canManage) {
+    redirect("/admin");
+  }
+
   return (
     <TimesheetPage
       roleLevel={session.roleLevel}

@@ -1,23 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import type { TimesheetEntry } from "@/types";
-
-interface ShiftStatus {
-  isClockedIn: boolean;
-  isOnBreak: boolean;
-  activeShift: {
-    id: string;
-    clockInTime: string;
-    totalBreakMinutes: number;
-    isSickDay?: boolean;
-    isVacation?: boolean;
-    clockOutTime?: string;
-  } | null;
-  activeBreak: { id: string; startTime: string } | null;
-}
-
-type ClockStatus = "idle" | "working" | "break" | "done" | "sick" | "vacation";
+import { useClockStatus } from "@/hooks/useClockStatus";
 
 function formatDateForDisplay(dateStr: string) {
   const d = new Date(dateStr + "T12:00:00");
@@ -31,200 +14,29 @@ export default function ClockInOutCard({
   teamMemberId: string;
   onStatusChange: () => void;
 }) {
-  const [status, setStatus] = useState<ShiftStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [breakTimer, setBreakTimer] = useState("00:00:00");
-  const [pausedTicketId, setPausedTicketId] = useState<string | null>(null);
-  const [showResumePrompt, setShowResumePrompt] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
-
-  // Blocking issue: missing clock-out from a past day
-  const [issueEntry, setIssueEntry] = useState<TimesheetEntry | null>(null);
-  const [showFixModal, setShowFixModal] = useState(false);
-  const [fixClockOut, setFixClockOut] = useState("");
-  const [fixSubmitting, setFixSubmitting] = useState(false);
-
-  async function fetchStatus() {
-    try {
-      const res = await fetch("/api/admin/timesheet/status");
-      if (res.ok) {
-        const data = await res.json();
-        setStatus(data);
-      }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Check for unresolved past-day missing clock-outs
-  useEffect(() => {
-    async function checkIssues() {
-      try {
-        const res = await fetch("/api/admin/timesheet/history");
-        if (!res.ok) return;
-        const entries: TimesheetEntry[] = await res.json();
-        const today = new Date().toISOString().split("T")[0];
-
-        const issue = entries.find((e) => {
-          if (e.date >= today) return false;
-          if (e.isSickDay || e.isVacation) return false;
-          if (e.changeRequest) return false; // already submitted a fix
-          if (!e.clockOutTime) return true; // missing clock out
-          return false;
-        });
-
-        setIssueEntry(issue ?? null);
-      } catch {
-        // silent
-      }
-    }
-    checkIssues();
-  }, []);
-
-  useEffect(() => {
-    fetchStatus();
-  }, []);
-
-  // Determine clock status
-  let clockStatus: ClockStatus = "idle";
-  if (status?.activeShift) {
-    const shift = status.activeShift;
-    if (shift.isSickDay) clockStatus = "sick";
-    else if (shift.isVacation) clockStatus = "vacation";
-    else if (shift.clockOutTime) clockStatus = "done";
-    else if (status.isOnBreak) clockStatus = "break";
-    else clockStatus = "working";
-  }
-
-  // Break timer
-  useEffect(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    if (clockStatus === "break" && status?.activeBreak) {
-      const update = () => {
-        const start = new Date(status.activeBreak!.startTime).getTime();
-        const now = Date.now();
-        const diff = Math.max(0, now - start);
-        const hrs = Math.floor(diff / (1000 * 60 * 60));
-        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const secs = Math.floor((diff % (1000 * 60)) / 1000);
-        setBreakTimer(
-          `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-        );
-      };
-      update();
-      intervalRef.current = setInterval(update, 1000);
-    }
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [clockStatus, status]);
-
-  async function handleClockIn() {
-    setActionLoading(true);
-    try {
-      const res = await fetch("/api/admin/timesheet/clock-in", { method: "POST" });
-      const data = await res.json();
-      console.log("Clock-in response:", res.status, data);
-      if (!res.ok) {
-        alert("Clock-in failed: " + (data.error || "Unknown error"));
-      }
-      await fetchStatus();
-      onStatusChange();
-    } catch (err) {
-      console.error("Clock-in error:", err);
-      alert("Clock-in failed. Check console.");
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleClockOut() {
-    setActionLoading(true);
-    try {
-      await fetch("/api/admin/timesheet/clock-out", { method: "POST" });
-      await fetchStatus();
-      onStatusChange();
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleStartBreak() {
-    setActionLoading(true);
-    try {
-      const res = await fetch("/api/admin/timesheet/break/start", { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        // If a ticket timer was auto-stopped, remember it for resume prompt
-        if (data.stoppedTimerTicketId) {
-          setPausedTicketId(data.stoppedTimerTicketId);
-        }
-        // Notify FloatingTimerBar that the timer was stopped
-        window.dispatchEvent(new CustomEvent("timerChange"));
-      }
-      await fetchStatus();
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleEndBreak() {
-    if (!status?.activeBreak) return;
-    setActionLoading(true);
-    try {
-      await fetch("/api/admin/timesheet/break/end", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ breakId: status.activeBreak.id }),
-      });
-      await fetchStatus();
-      // Show resume prompt if a ticket timer was paused when break started
-      if (pausedTicketId) {
-        setShowResumePrompt(true);
-      }
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleResumeTimer() {
-    if (!pausedTicketId) return;
-    try {
-      await fetch(`/api/admin/tickets/${pausedTicketId}/time`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "start" }),
-      });
-      window.dispatchEvent(new CustomEvent("timerChange"));
-    } catch {}
-    setPausedTicketId(null);
-    setShowResumePrompt(false);
-  }
-
-  function handleDismissResume() {
-    setPausedTicketId(null);
-    setShowResumePrompt(false);
-  }
-
-  async function handleSickDay(isHalf: boolean) {
-    setActionLoading(true);
-    try {
-      await fetch("/api/admin/timesheet/sick-day", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isHalf }),
-      });
-      await fetchStatus();
-      onStatusChange();
-    } finally {
-      setActionLoading(false);
-    }
-  }
+  const {
+    status,
+    clockStatus,
+    loading,
+    actionLoading,
+    breakTimer,
+    showResumePrompt,
+    pausedTicketId,
+    issueEntry,
+    showFixModal,
+    setShowFixModal,
+    fixClockOut,
+    setFixClockOut,
+    fixSubmitting,
+    handleClockIn,
+    handleClockOut,
+    handleStartBreak,
+    handleEndBreak,
+    handleResumeTimer,
+    handleDismissResume,
+    handleSickDay,
+    handleFixSubmit,
+  } = useClockStatus(teamMemberId, onStatusChange);
 
   // ── Blocking "Action Required" modal for missing clock-out ──
   if (issueEntry) {
@@ -258,34 +70,7 @@ export default function ClockInOutCard({
                 Cancel
               </button>
               <button
-                onClick={async () => {
-                  if (!fixClockOut) return;
-                  setFixSubmitting(true);
-                  try {
-                    // Build the proposed clock-out ISO string
-                    const [h, m] = fixClockOut.split(":").map(Number);
-                    const clockOutDate = new Date(issueEntry.date + "T00:00:00");
-                    clockOutDate.setHours(h, m, 0, 0);
-
-                    await fetch("/api/admin/timesheet/change-request", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        timesheetEntryId: issueEntry.id,
-                        proposedClockIn: issueEntry.clockInTime,
-                        proposedClockOut: clockOutDate.toISOString(),
-                        reason: "Forgot to clock out",
-                      }),
-                    });
-                    setIssueEntry(null);
-                    setShowFixModal(false);
-                    onStatusChange();
-                  } catch {
-                    alert("Failed to submit. Please try again.");
-                  } finally {
-                    setFixSubmitting(false);
-                  }
-                }}
+                onClick={handleFixSubmit}
                 disabled={!fixClockOut || fixSubmitting}
                 className="flex-1 py-3 bg-[#FF9500] text-white rounded-lg font-medium text-sm hover:bg-[#E68600] transition-colors disabled:opacity-50"
               >
@@ -321,7 +106,7 @@ export default function ClockInOutCard({
     );
   }
 
-  // Full screen break overlay (matches Ollie exactly)
+  // Full screen break overlay
   if (clockStatus === "break") {
     return (
       <div className="fixed inset-0 z-50 bg-rose-50 flex flex-col items-center justify-center p-6 text-center">
@@ -387,7 +172,7 @@ export default function ClockInOutCard({
     );
   }
 
-  // --- Sick/Vacation Toggle Buttons (matches Ollie's 2-column grid) ---
+  // --- Sick/Vacation Toggle Buttons ---
   const showToggles =
     clockStatus === "idle" ||
     clockStatus === "sick" ||
@@ -476,7 +261,7 @@ export default function ClockInOutCard({
         </div>
       )}
 
-      {/* Main Clock Card (matches Ollie's centered card) */}
+      {/* Main Clock Card */}
       <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] p-6 md:p-8 border border-[#F6F5F1] text-center relative overflow-hidden">
         {/* Status pill + time display */}
         <div className="mb-6 md:mb-8 mt-2 md:mt-4">
@@ -572,7 +357,7 @@ export default function ClockInOutCard({
         </div>
       </div>
 
-      {/* Today's Activity (matches Ollie's mini history) */}
+      {/* Today's Activity */}
       {status?.activeShift &&
         !status.activeShift.isSickDay &&
         !status.activeShift.isVacation && (

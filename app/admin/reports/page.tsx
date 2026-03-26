@@ -24,7 +24,7 @@ export default async function AdminReportsPage() {
         <span className="text-gray-300">/</span>
         <span className="text-[var(--foreground)] font-medium">Reports</span>
       </div>
-      <ReportsPage roleLevel={session.roleLevel} />
+      <ReportsPage roleLevel={session.roleLevel} teamMemberId={session.teamMemberId} />
     </>
   );
 }

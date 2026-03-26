@@ -93,7 +93,7 @@ export default function AdminClientList() {
           </p>
         </div>
         <button
-          onClick={() => { window.location.href = '/admin/clients/new'; }}
+          onClick={() => { window.location.href = '/admin/crm/new'; }}
           className="px-4 py-2 text-sm font-medium text-white bg-[var(--accent)] rounded-lg hover:opacity-90 transition"
         >
           + Add Client
@@ -142,7 +142,7 @@ export default function AdminClientList() {
                   <tr
                     key={client.id}
                     onClick={() => {
-                      window.location.href = `/admin/clients/${client.id}`;
+                      window.location.href = `/admin/crm/${client.id}`;
                     }}
                     className="border-b border-[var(--border)] hover:bg-[var(--accent-light)] cursor-pointer transition"
                   >

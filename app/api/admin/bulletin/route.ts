@@ -305,15 +305,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Sort by date
-    calendarEntries.sort((a, b) => a.date.localeCompare(b.date));
+    // Deduplicate and sort by date
+    const seen = new Set<string>();
+    const dedupedCalendar = calendarEntries.filter((e) => {
+      const key = `${e.date}|${e.title}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    dedupedCalendar.sort((a, b) => a.date.localeCompare(b.date));
 
     return NextResponse.json({
       personalNote,
       weeklyQuote,
       announcements: allAnnouncements,
       projects: activeProjects,
-      calendar: calendarEntries,
+      calendar: dedupedCalendar,
     });
   } catch (error) {
     console.error("Bulletin fetch error:", error);
