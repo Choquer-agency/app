@@ -37,10 +37,5 @@ export function useClockStatusPoll(pollInterval = 30000) {
     return () => window.removeEventListener("clockStatusChange", handler);
   }, [fetchStatus]);
 
-  // ═══ TEMPORARY DEMO MODE — remove after review ═══
-  const DEMO_MODE = true;
-  if (DEMO_MODE) return { clockStatus: "working" as ClockStatus, loading: false, refetch: fetchStatus };
-  // ═══ END DEMO MODE ═══
-
   return { clockStatus, loading, refetch: fetchStatus };
 }

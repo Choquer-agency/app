@@ -240,10 +240,10 @@ function ReactionBar({
   currentUserId,
   onReact,
 }: {
-  reactions: Array<{ emoji: string; memberName: string; memberId: number }>;
-  announcementId: number;
-  currentUserId: number;
-  onReact: (announcementId: number, emoji: string) => void;
+  reactions: Array<{ emoji: string; memberName: string; memberId: string }>;
+  announcementId: string;
+  currentUserId: string;
+  onReact: (announcementId: string, emoji: string) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
 
@@ -313,7 +313,7 @@ export default function HomeDashboard({
 }: {
   roleLevel: string;
   userName: string;
-  teamMemberId: number;
+  teamMemberId: string;
 }) {
   const [data, setData] = useState<BulletinData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -360,7 +360,7 @@ export default function HomeDashboard({
     }
   }
 
-  function handleReaction(announcementId: number, emoji: string) {
+  function handleReaction(announcementId: string, emoji: string) {
     if (!data) return;
 
     // Optimistic update
@@ -388,7 +388,7 @@ export default function HomeDashboard({
     }).catch(() => {});
   }
 
-  async function handleDeleteAnnouncement(id: number) {
+  async function handleDeleteAnnouncement(id: string) {
     try {
       const res = await fetch(`/api/admin/bulletin/announcements?id=${id}`, { method: "DELETE" });
       if (res.ok) fetchBulletin();

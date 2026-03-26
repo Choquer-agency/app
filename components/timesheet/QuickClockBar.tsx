@@ -41,31 +41,6 @@ export default function QuickClockBar({
   const [now, setNow] = useState(new Date());
   const [showVacationForm, setShowVacationForm] = useState(false);
 
-  // ═══ TEMPORARY DEMO MODE — remove after review ═══
-  // Overrides real status to preview "clocked in with 2 breaks (32m)"
-  const DEMO_MODE = true;
-  let _status = status;
-  let _clockStatus = clockStatus;
-  let _loading = loading;
-  if (DEMO_MODE) {
-    const demoClockIn = new Date();
-    demoClockIn.setHours(demoClockIn.getHours() - 4, demoClockIn.getMinutes() - 23, 0, 0);
-    _status = {
-      isClockedIn: true,
-      isOnBreak: false,
-      activeShift: {
-        id: "demo",
-        clockInTime: demoClockIn.toISOString(),
-        totalBreakMinutes: 32,
-        breakCount: 2,
-      },
-      activeBreak: null,
-    } as any;
-    _clockStatus = "working";
-    _loading = false;
-  }
-  // ═══ END DEMO MODE ═══
-
   // Live clock
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -203,9 +178,9 @@ export default function QuickClockBar({
     );
   }
 
-  // ── The bar itself (uses _status/_clockStatus/_loading for demo mode) ──
+  // ── The bar itself ──
 
-  if (_loading) {
+  if (loading) {
     return (
       <div className="rounded-2xl bg-white border border-[#F6F5F1] shadow-[0_1px_4px_rgba(0,0,0,0.04)] p-4 mb-5">
         <div className="flex items-center justify-center gap-3">
@@ -225,15 +200,15 @@ export default function QuickClockBar({
     vacation: { label: "Vacation", bg: "bg-sky-100", text: "text-sky-700" },
     break: { label: "On Break", bg: "bg-rose-100", text: "text-rose-700" },
   };
-  const pill = statusConfig[_clockStatus] || statusConfig.idle;
+  const pill = statusConfig[clockStatus] || statusConfig.idle;
 
   // Today's summary
-  const clockInTime = _status?.activeShift?.clockInTime
-    ? new Date(_status.activeShift.clockInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()
+  const clockInTime = status?.activeShift?.clockInTime
+    ? new Date(status.activeShift.clockInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()
     : null;
-  const breakMins = _status?.activeShift?.totalBreakMinutes || 0;
+  const breakMins = status?.activeShift?.totalBreakMinutes || 0;
 
-  const isDone = _clockStatus === "done" || _clockStatus === "sick" || _clockStatus === "vacation";
+  const isDone = clockStatus === "done" || clockStatus === "sick" || clockStatus === "vacation";
 
   return (
     <div className="rounded-2xl bg-white border border-[#F6F5F1] shadow-[0_1px_4px_rgba(0,0,0,0.04)] p-4 md:p-5 mb-5">
@@ -241,7 +216,7 @@ export default function QuickClockBar({
       <div className="hidden md:flex items-center gap-4">
         {/* Status pill */}
         <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase whitespace-nowrap ${pill.bg} ${pill.text}`}>
-          {_clockStatus === "working" && (
+          {clockStatus === "working" && (
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
           )}
           {pill.label}
@@ -249,7 +224,7 @@ export default function QuickClockBar({
 
         {/* Live clock */}
         <span className="font-mono text-lg text-[#1A1A1A] tracking-tight tabular-nums">
-          {_clockStatus === "sick" || _clockStatus === "vacation" ? "OFF" : timeStr}
+          {clockStatus === "sick" || clockStatus === "vacation" ? "OFF" : timeStr}
         </span>
 
         {/* Divider */}
@@ -257,7 +232,7 @@ export default function QuickClockBar({
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
-          {_clockStatus === "idle" && (
+          {clockStatus === "idle" && (
             <button
               onClick={handleClockIn}
               disabled={actionLoading}
@@ -267,7 +242,7 @@ export default function QuickClockBar({
             </button>
           )}
 
-          {_clockStatus === "working" && (
+          {clockStatus === "working" && (
             <>
               <button
                 onClick={handleStartBreak}
@@ -286,7 +261,7 @@ export default function QuickClockBar({
             </>
           )}
 
-          {_clockStatus === "idle" && (
+          {clockStatus === "idle" && (
             <>
               <button
                 onClick={() => handleSickDay(false)}
@@ -307,7 +282,7 @@ export default function QuickClockBar({
             </>
           )}
 
-          {_clockStatus === "sick" && (
+          {clockStatus === "sick" && (
             <button
               onClick={() => handleSickDay(false)}
               disabled={actionLoading}
@@ -322,7 +297,7 @@ export default function QuickClockBar({
         <div className="flex-1" />
 
         {/* Today's summary */}
-        {clockInTime && _clockStatus !== "sick" && _clockStatus !== "vacation" && (
+        {clockInTime && clockStatus !== "sick" && clockStatus !== "vacation" && (
           <div className="flex items-center gap-4 text-xs text-[#6B6B6B]">
             <span>
               In: <span className="font-mono text-[#1A1A1A]">{clockInTime}</span>
@@ -332,17 +307,17 @@ export default function QuickClockBar({
                 Break: <span className="font-mono text-[#1A1A1A]">{breakMins}m</span>
               </span>
             )}
-            {_status?.activeShift?.clockOutTime && (
+            {status?.activeShift?.clockOutTime && (
               <span>
                 Out: <span className="font-mono text-[#1A1A1A]">
-                  {new Date(_status.activeShift.clockOutTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()}
+                  {new Date(status.activeShift.clockOutTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()}
                 </span>
               </span>
             )}
           </div>
         )}
 
-        {_clockStatus === "done" && _status?.activeShift?.clockOutTime && (
+        {clockStatus === "done" && status?.activeShift?.clockOutTime && (
           <span className="text-xs text-emerald-600 font-medium">
             Done for the day
           </span>
@@ -354,19 +329,19 @@ export default function QuickClockBar({
         {/* Row 1: Status + Time + Summary */}
         <div className="flex items-center justify-between">
           <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase ${pill.bg} ${pill.text}`}>
-            {_clockStatus === "working" && (
+            {clockStatus === "working" && (
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
             )}
             {pill.label}
           </span>
           <span className="font-mono text-base text-[#1A1A1A] tracking-tight tabular-nums">
-            {_clockStatus === "sick" || _clockStatus === "vacation" ? "OFF" : timeStr}
+            {clockStatus === "sick" || clockStatus === "vacation" ? "OFF" : timeStr}
           </span>
         </div>
 
         {/* Row 2: Action buttons */}
         <div className="flex items-center gap-2">
-          {_clockStatus === "idle" && (
+          {clockStatus === "idle" && (
             <>
               <button
                 onClick={handleClockIn}
@@ -394,7 +369,7 @@ export default function QuickClockBar({
             </>
           )}
 
-          {_clockStatus === "working" && (
+          {clockStatus === "working" && (
             <>
               <button
                 onClick={handleStartBreak}
@@ -413,7 +388,7 @@ export default function QuickClockBar({
             </>
           )}
 
-          {_clockStatus === "sick" && (
+          {clockStatus === "sick" && (
             <button
               onClick={() => handleSickDay(false)}
               disabled={actionLoading}
@@ -423,7 +398,7 @@ export default function QuickClockBar({
             </button>
           )}
 
-          {_clockStatus === "done" && (
+          {clockStatus === "done" && (
             <span className="text-xs text-emerald-600 font-medium">
               Done for the day
             </span>
@@ -431,15 +406,15 @@ export default function QuickClockBar({
         </div>
 
         {/* Row 3: Today's summary (mobile) */}
-        {clockInTime && _clockStatus !== "sick" && _clockStatus !== "vacation" && (
+        {clockInTime && clockStatus !== "sick" && clockStatus !== "vacation" && (
           <div className="flex items-center gap-3 text-[10px] text-[#6B6B6B] border-t border-[#F6F5F1] pt-2">
             <span>In: <span className="font-mono text-[#1A1A1A]">{clockInTime}</span></span>
             {breakMins > 0 && (
               <span>Break: <span className="font-mono text-[#1A1A1A]">{breakMins}m</span></span>
             )}
-            {_status?.activeShift?.clockOutTime && (
+            {status?.activeShift?.clockOutTime && (
               <span>Out: <span className="font-mono text-[#1A1A1A]">
-                {new Date(_status.activeShift.clockOutTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()}
+                {new Date(status.activeShift.clockOutTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()}
               </span></span>
             )}
           </div>
