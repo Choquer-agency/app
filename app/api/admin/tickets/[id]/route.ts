@@ -4,15 +4,15 @@ import { getTicketById, updateTicket, archiveTicket } from "@/lib/tickets";
 import { notifyMention } from "@/lib/notification-triggers";
 
 // Extract @mention IDs from tiptap JSON content
-function extractMentionIds(description: string): number[] {
+function extractMentionIds(description: string): string[] {
   try {
     const doc = JSON.parse(description);
-    const ids: number[] = [];
+    const ids: string[] = [];
     function walk(node: Record<string, unknown>) {
       if (node.type === "mention" && node.attrs) {
         const id = (node.attrs as Record<string, unknown>).id;
-        if (typeof id === "number") ids.push(id);
-        else if (typeof id === "string" && !isNaN(id)) ids.push(id);
+        if (typeof id === "string") ids.push(id);
+        else if (typeof id === "number") ids.push(String(id));
       }
       if (Array.isArray(node.content)) {
         for (const child of node.content) walk(child as Record<string, unknown>);
@@ -61,7 +61,7 @@ export async function PUT(
     const actor = { id: session.teamMemberId, name: session.name };
 
     // Capture old mentions before update
-    let oldMentionIds: number[] = [];
+    let oldMentionIds: string[] = [];
     if (body.description) {
       const oldTicket = await getTicketById(id);
       if (oldTicket) oldMentionIds = extractMentionIds(oldTicket.description || "");

@@ -37,7 +37,7 @@ export class CalendarEventHandler implements IntentHandler {
     }
 
     const convex = getConvexClient();
-    await convex.mutation(api.calendarEvents.create, {
+    await convex.mutation(api.bulletin.createCalendarEvent, {
       title: title!,
       eventDate: date!,
       eventType: type || "custom",

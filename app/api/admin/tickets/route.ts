@@ -27,13 +27,13 @@ export async function GET(request: NextRequest) {
     const offset = Number(url.searchParams.get("offset") || "0");
 
     const tickets = await getTickets({
-      clientId: clientId ? Number(clientId) : undefined,
-      projectId: projectId ? Number(projectId) : undefined,
+      clientId: clientId || undefined,
+      projectId: projectId || undefined,
       status: status ? (status.includes(",") ? status.split(",") as TicketStatus[] : status as TicketStatus) : undefined,
       priority: priority ? (priority.includes(",") ? priority.split(",") as TicketPriority[] : priority as TicketPriority) : undefined,
-      assigneeId: assigneeId ? Number(assigneeId) : undefined,
-      createdById: createdById ? Number(createdById) : undefined,
-      parentTicketId: parentTicketId ? Number(parentTicketId) : undefined,
+      assigneeId: assigneeId || undefined,
+      createdById: createdById || undefined,
+      parentTicketId: parentTicketId || undefined,
       archived,
       isPersonal: isPersonalParam === "true" ? true : isPersonalParam === "false" ? false : undefined,
       startDateActive,
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(tickets);
   } catch (error) {
     console.error("Failed to fetch tickets:", error);
-    return NextResponse.json({ error: "Failed to fetch tickets" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed" }, { status: 500 });
   }
 }
 
@@ -98,6 +98,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(ticket, { status: 201 });
   } catch (error) {
     console.error("Failed to create ticket:", error);
-    return NextResponse.json({ error: "Failed to create ticket" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed" }, { status: 500 });
   }
 }

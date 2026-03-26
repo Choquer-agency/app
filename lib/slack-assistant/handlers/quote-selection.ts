@@ -8,6 +8,15 @@ import { api } from "@/convex/_generated/api";
 import { IntentHandler, HandlerContext, QuoteSelectionData } from "../types";
 import { sendSlackDM } from "@/lib/slack";
 
+function getWeekStart(): string {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + mondayOffset);
+  return monday.toISOString().split("T")[0];
+}
+
 export class QuoteSelectionHandler implements IntentHandler {
   async handle(ctx: HandlerContext): Promise<void> {
     const { owner, classification } = ctx;
@@ -21,19 +30,19 @@ export class QuoteSelectionHandler implements IntentHandler {
 
 export async function handleQuoteSelection(
   quoteNumber: number,
-  owner: { id: number; slackUserId: string }
+  owner: { id: number | string; slackUserId: string }
 ): Promise<void> {
   const convex = getConvexClient();
-  const quotes = await convex.query(api.weeklyQuotes.listCurrentWeek, {}) as any[];
+  const weekStart = getWeekStart();
+  const quotes = await convex.query(api.bulletin.listQuotesForWeek, { weekStart }) as any[];
 
   if (quoteNumber < 1 || quoteNumber > quotes.length) return;
 
   const selectedQuote = quotes[quoteNumber - 1];
   if (!selectedQuote) return;
 
-  // Deselect all quotes for this week, then select the chosen one
-  await convex.mutation(api.weeklyQuotes.selectQuote, {
-    quoteId: selectedQuote._id as any,
+  await convex.mutation(api.bulletin.selectQuote, {
+    id: selectedQuote._id as any,
   });
 
   try {

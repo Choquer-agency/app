@@ -6,7 +6,7 @@ import MeetingNotesIngestion from "@/components/MeetingNotesIngestion";
 
 const TABS = [
   { id: "prep", label: "Meeting Prep" },
-  { id: "notes", label: "Meeting Notes" },
+  { id: "notes", label: "Notes" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];

@@ -28,6 +28,8 @@ export const create = mutation({
     rawExtraction: v.optional(v.any()),
     meetingDate: v.string(),
     source: v.optional(v.string()),
+    interactionType: v.optional(v.string()),
+    clientId: v.optional(v.id("clients")),
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("meetingNotes", {
@@ -38,6 +40,8 @@ export const create = mutation({
       rawExtraction: args.rawExtraction,
       meetingDate: args.meetingDate,
       source: args.source ?? "manual",
+      interactionType: args.interactionType,
+      clientId: args.clientId,
     });
     return await ctx.db.get(id);
   },
@@ -64,6 +68,17 @@ export const remove = mutation({
   args: { id: v.id("meetingNotes") },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.id);
+  },
+});
+
+export const listByClient = query({
+  args: { clientId: v.id("clients"), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("meetingNotes")
+      .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+      .order("desc")
+      .take(args.limit ?? 50);
   },
 });
 

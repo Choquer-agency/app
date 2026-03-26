@@ -11,14 +11,31 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { teamMemberIds, teamMemberId, transcript, meetingDate, source } = await request.json();
+    const { teamMemberIds, teamMemberId, transcript, meetingDate, source, interactionType, clientId } = await request.json();
+
+    const iType = interactionType || "team_meeting";
+    const isClientType = ["client_meeting", "client_email", "client_phone_call"].includes(iType);
+    const isGeneral = iType === "general_notes";
 
     // Support both single ID and array of IDs
-    const memberIds: string[] = teamMemberIds || (teamMemberId ? [teamMemberId] : []);
+    let memberIds: string[];
+    if (isClientType || isGeneral) {
+      // For client-based and general types, use the session user as the team member
+      memberIds = [session.teamMemberId as string];
+    } else {
+      memberIds = teamMemberIds || (teamMemberId ? [teamMemberId] : []);
+    }
 
     if (memberIds.length === 0 || !transcript?.trim()) {
       return NextResponse.json(
         { error: "At least one team member and transcript are required" },
+        { status: 400 }
+      );
+    }
+
+    if (isClientType && !clientId) {
+      return NextResponse.json(
+        { error: "Client is required for this interaction type" },
         { status: 400 }
       );
     }
@@ -38,6 +55,8 @@ export async function POST(request: NextRequest) {
         transcript: text,
         meetingDate: date,
         source: src,
+        interactionType: iType,
+        clientId: clientId ? (clientId as any) : undefined,
       });
       created.push(note);
     }
@@ -71,10 +90,16 @@ export async function GET(request: NextRequest) {
 
   try {
     const memberId = request.nextUrl.searchParams.get("memberId");
+    const clientIdParam = request.nextUrl.searchParams.get("clientId");
     const convex = getConvexClient();
 
     let notes: any[];
-    if (memberId) {
+    if (clientIdParam) {
+      notes = await convex.query(api.meetingNotes.listByClient, {
+        clientId: clientIdParam as any,
+        limit: 50,
+      });
+    } else if (memberId) {
       notes = await convex.query(api.meetingNotes.listByMember, {
         teamMemberId: memberId as any,
         limit: 50,
@@ -83,11 +108,17 @@ export async function GET(request: NextRequest) {
       notes = await convex.query(api.meetingNotes.listAll, { limit: 50 });
     }
 
-    // Fetch team member names for display
+    // Fetch team member names and client names for display
     const allMembers = await convex.query(api.teamMembers.list, {});
     const memberMap = new Map<string, string>();
     for (const m of allMembers as any[]) {
       memberMap.set(m._id, m.name);
+    }
+
+    const allClients = await convex.query(api.clients.list, {});
+    const clientMap = new Map<string, string>();
+    for (const c of allClients as any[]) {
+      clientMap.set(c._id, c.name);
     }
 
     const rows = (notes as any[]).map((n: any) => ({
@@ -99,6 +130,9 @@ export async function GET(request: NextRequest) {
       raw_extraction: n.rawExtraction || null,
       meeting_date: n.meetingDate,
       source: n.source,
+      interaction_type: n.interactionType || "team_meeting",
+      client_id: n.clientId || null,
+      client_name: n.clientId ? (clientMap.get(n.clientId) || null) : null,
       created_at: n._creationTime ? new Date(n._creationTime).toISOString() : null,
       member_name: memberMap.get(n.teamMemberId) || "Unknown",
     }));

@@ -136,6 +136,16 @@ export const getQuoteForWeek = query({
   },
 });
 
+export const listQuotesForWeek = query({
+  args: { weekStart: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("weeklyQuotes")
+      .withIndex("by_week", (q) => q.eq("weekStart", args.weekStart))
+      .collect();
+  },
+});
+
 export const createQuote = mutation({
   args: {
     quote: v.string(),

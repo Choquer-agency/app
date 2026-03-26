@@ -29,10 +29,13 @@ export interface LegacyExtractedItem {
 
 export type ExpansionLevel = "none" | "light" | "full";
 
+export type InteractionType = "team_meeting" | "client_meeting" | "client_email" | "client_phone_call" | "general_notes";
+
 export interface ExtractionOptions {
   inputType?: "transcript" | "direct_task" | "task_with_expansion";
   expansionLevel?: ExpansionLevel;
   source?: "slack" | "web";
+  interactionType?: InteractionType;
 }
 
 /**
@@ -50,6 +53,7 @@ export async function extractActionItems(
     inputType = "transcript",
     expansionLevel = "none",
     source = "web",
+    interactionType = "team_meeting",
   } = options;
 
   const langfuse = getLangfuse();
@@ -61,14 +65,38 @@ export async function extractActionItems(
   const today = new Date().toISOString().split("T")[0];
   const dayOfWeek = new Date().toLocaleDateString("en-US", { weekday: "long" });
 
-  // Build adaptive context based on source and input type
+  // Build adaptive context based on source, input type, and interaction type
   let contextBlock: string;
   if (source === "slack") {
     contextBlock = `- This is a message from the agency owner sent via Slack (possibly voice-to-text).
 - The input type is: ${inputType === "transcript" ? "a meeting transcript or detailed briefing" : inputType === "task_with_expansion" ? "a task request where the owner wants YOU to expand and add detail" : "a direct task assignment"}`;
   } else {
-    contextBlock = `- This is a weekly 1-on-1 meeting between a manager and a team member.
+    switch (interactionType) {
+      case "client_meeting":
+        contextBlock = `- This is a transcript or notes from a meeting with a client.
+- The client is: ${meetingWith}
+- Extract action items the agency needs to do for this client. Pay attention to commitments made, deliverables promised, and follow-ups needed.`;
+        break;
+      case "client_email":
+        contextBlock = `- This is an email exchange with a client.
+- The client is: ${meetingWith}
+- Extract action items from requests, questions, and commitments in the email. Distinguish between what the client is asking for vs. what the agency committed to.`;
+        break;
+      case "client_phone_call":
+        contextBlock = `- These are notes or transcription from a phone call with a client.
+- The client is: ${meetingWith}
+- This may be rough notes or voice-to-text transcription. Extract action items, follow-ups, and commitments discussed on the call.`;
+        break;
+      case "general_notes":
+        contextBlock = `- These are internal notes, brainstorm, or a voice memo.
+- Extract any actionable items, tasks, or follow-ups from the notes.`;
+        break;
+      case "team_meeting":
+      default:
+        contextBlock = `- This is a weekly 1-on-1 meeting between a manager and a team member.
 - The meeting was with: ${meetingWith}`;
+        break;
+    }
   }
 
   // Build expansion instructions

@@ -20,6 +20,7 @@ import type * as leads from "../leads.js";
 import type * as meetingNotes from "../meetingNotes.js";
 import type * as migration from "../migration.js";
 import type * as monthlySnapshots from "../monthlySnapshots.js";
+import type * as notificationPreferences from "../notificationPreferences.js";
 import type * as notifications from "../notifications.js";
 import type * as packages from "../packages.js";
 import type * as projectGroups from "../projectGroups.js";
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   meetingNotes: typeof meetingNotes;
   migration: typeof migration;
   monthlySnapshots: typeof monthlySnapshots;
+  notificationPreferences: typeof notificationPreferences;
   notifications: typeof notifications;
   packages: typeof packages;
   projectGroups: typeof projectGroups;

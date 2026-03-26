@@ -112,8 +112,32 @@ const PERMISSION_MAP: Record<Permission, RoleLevel> = {
   "timesheet:settings": "owner",
 };
 
+// Bookkeepers only see CRM + Timesheet — explicit allowlist
+const BOOKKEEPER_PERMISSIONS: Set<Permission> = new Set([
+  "nav:clients",
+  "clients:view",
+  "clients:edit",
+  "nav:timesheet",
+  "timesheet:clock_self",
+  "timesheet:view_own",
+  "timesheet:view_all",
+  "timesheet:manage",
+  "timesheet:export",
+  "team:view",
+  "team:edit",
+  "team:view_wages",
+  "report:profitability",
+  "report:revenue",
+  "report:forecasting",
+  "report:accountability",
+]);
+
 /** Check if a role has a specific permission */
 export function hasPermission(userRole: RoleLevel, permission: Permission): boolean {
+  // Bookkeepers use an explicit allowlist
+  if (userRole === "bookkeeper") {
+    return BOOKKEEPER_PERMISSIONS.has(permission);
+  }
   const requiredTier = ROLE_TIER[PERMISSION_MAP[permission]];
   const userTier = ROLE_TIER[userRole];
   return userTier >= requiredTier;

@@ -502,7 +502,10 @@ export default defineSchema({
     rawExtraction: v.optional(v.any()),
     meetingDate: v.string(), // DATE
     source: v.optional(v.string()), // "manual"
-  }).index("by_member", ["teamMemberId"]),
+    interactionType: v.optional(v.string()), // "team_meeting" | "client_meeting" | "client_email" | "client_phone_call" | "general_notes"
+    clientId: v.optional(v.id("clients")),
+  }).index("by_member", ["teamMemberId"])
+    .index("by_client", ["clientId"]),
 
   // === TIMESHEET (Payroll clock in/out — separate from ticket time tracking) ===
   timesheetEntries: defineTable({

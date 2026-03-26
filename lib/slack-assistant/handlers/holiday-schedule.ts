@@ -30,7 +30,7 @@ export class HolidayScheduleHandler implements IntentHandler {
     let matchingEvents: Array<{ id: string; title: string; eventDate: string; eventType: string }> = [];
 
     if (data?.title) {
-      const allEvents = await convex.query(api.calendarEvents.list, {}) as any[];
+      const allEvents = await convex.query(api.bulletin.listCalendarEvents, {}) as any[];
       matchingEvents = allEvents
         .filter((e: any) => (e.title as string).toLowerCase().includes(data.title!.toLowerCase()))
         .slice(0, 5)
@@ -38,7 +38,7 @@ export class HolidayScheduleHandler implements IntentHandler {
     }
 
     if (matchingEvents.length === 0 && data?.originalDate) {
-      const allEvents = await convex.query(api.calendarEvents.list, {}) as any[];
+      const allEvents = await convex.query(api.bulletin.listCalendarEvents, {}) as any[];
       matchingEvents = allEvents
         .filter((e: any) => e.eventDate === data.originalDate)
         .slice(0, 5)
@@ -48,7 +48,7 @@ export class HolidayScheduleHandler implements IntentHandler {
     if (matchingEvents.length === 0) {
       // List upcoming events so user can specify
       const today = new Date().toISOString().split("T")[0];
-      const allEvents = await convex.query(api.calendarEvents.list, {}) as any[];
+      const allEvents = await convex.query(api.bulletin.listCalendarEvents, {}) as any[];
       const upcoming = allEvents
         .filter((e: any) => e.eventDate >= today)
         .sort((a: any, b: any) => a.eventDate.localeCompare(b.eventDate))
@@ -135,7 +135,7 @@ export class HolidayScheduleHandler implements IntentHandler {
       }
 
       const convex = getConvexClient();
-      await convex.mutation(api.calendarEvents.update, {
+      await convex.mutation(api.bulletin.updateCalendarEvent, {
         id: data.eventId as any,
         eventDate: data.newDate,
       });

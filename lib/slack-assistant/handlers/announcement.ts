@@ -28,7 +28,7 @@ export class AnnouncementHandler implements IntentHandler {
 
     // Create the announcement
     const convex = getConvexClient();
-    await convex.mutation(api.announcements.create, {
+    await convex.mutation(api.bulletin.createAnnouncement, {
       authorId: owner.id as any,
       title: cleanedText,
       content: "",

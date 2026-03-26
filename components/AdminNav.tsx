@@ -147,8 +147,8 @@ export default function AdminNav({ userName, roleLevel }: { userName?: string; r
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {/* Command Palette trigger */}
-          <button
+          {/* Command Palette trigger — hidden from bookkeepers */}
+          {(!roleLevel || roleLevel !== "bookkeeper") && <button
             onClick={openCommandPalette}
             className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--muted)] hover:text-[var(--foreground)] hover:border-gray-300 transition"
             title="Search everything"
@@ -158,10 +158,10 @@ export default function AdminNav({ userName, roleLevel }: { userName?: string; r
             </svg>
             <span className="text-xs">Search...</span>
             <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200 font-mono">&#8984;K</kbd>
-          </button>
+          </button>}
 
-          {/* Quick ticket search */}
-          <div className="relative" ref={searchRef}>
+          {/* Quick ticket search — hidden from bookkeepers */}
+          {(!roleLevel || roleLevel !== "bookkeeper") && <div className="relative" ref={searchRef}>
             <button
               onClick={() => setSearchOpen(!searchOpen)}
               className={`sm:hidden p-1.5 rounded-lg transition ${
@@ -218,7 +218,7 @@ export default function AdminNav({ userName, roleLevel }: { userName?: string; r
                 </div>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Meeting Notes shortcut */}
           {(!roleLevel || hasPermission(roleLevel, "nav:reports")) && (

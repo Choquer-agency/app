@@ -11,5 +11,10 @@ export default async function AdminPage() {
     redirect("/admin/login");
   }
 
+  // Bookkeepers land on timesheet, not the home dashboard
+  if (session.roleLevel === "bookkeeper") {
+    redirect("/admin/timesheet");
+  }
+
   return <HomeDashboard roleLevel={session.roleLevel} userName={session.name} teamMemberId={session.teamMemberId} />;
 }
