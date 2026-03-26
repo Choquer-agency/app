@@ -403,7 +403,7 @@ export default function HomeDashboard({
     );
   }
 
-  const isOwner = hasMinRole(roleLevel as RoleLevel, "owner");
+  const canDeleteAnnouncements = hasMinRole(roleLevel as RoleLevel, "c_suite");
   const firstName = userName.split(" ")[0];
   const greeting = getGreeting(firstName);
 
@@ -546,7 +546,7 @@ export default function HomeDashboard({
                               <p className="text-[10px] text-[var(--muted)] shrink-0">
                                 {a.authorName !== "System" ? `${a.authorName} · ` : ""}{timeAgo(a.createdAt)}
                               </p>
-                              {a.id > 0 && (
+                              {a.source !== "auto" && (
                                 <ReactionBar
                                   reactions={a.reactions || []}
                                   announcementId={a.id}
@@ -557,7 +557,7 @@ export default function HomeDashboard({
                             </div>
                           </div>
                           {/* Only owner can delete */}
-                          {isOwner && a.id > 0 && (
+                          {canDeleteAnnouncements && a.source !== "auto" && (
                             <button
                               onClick={() => handleDeleteAnnouncement(a.id)}
                               className="text-xs text-[var(--muted)] hover:text-red-500 shrink-0 p-1"
