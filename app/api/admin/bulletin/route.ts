@@ -29,10 +29,10 @@ export async function GET(request: NextRequest) {
       convex.query(api.bulletin.getQuoteForWeek, { weekStart: weekStartStr }),
       convex.query(api.bulletin.listCalendarEvents, {}),
       getTeamMembers(),
-      convex.query(api.changelog.list, {
-        limit: 10,
-        visibility: (session.roleLevel === "owner" || session.roleLevel === "c_suite") ? undefined : "team",
-      }),
+      convex.query(api.changelog.list, (session.roleLevel === "owner" || session.roleLevel === "c_suite")
+        ? { limit: 10 }
+        : { limit: 10, visibility: "team" }
+      ),
     ]);
 
     const personalNoteDoc = results[0].status === "fulfilled" ? results[0].value : null;
