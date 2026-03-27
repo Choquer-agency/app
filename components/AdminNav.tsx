@@ -16,7 +16,7 @@ const NAV_LINKS: { href: string; label: string; exact?: boolean; permission: Per
   { href: "/admin/timesheet", label: "Timesheet", permission: "nav:timesheet" },
 ];
 
-export default function AdminNav({ userName, roleLevel }: { userName?: string; roleLevel?: RoleLevel }) {
+export default function AdminNav({ userName, roleLevel, profilePicUrl }: { userName?: string; roleLevel?: RoleLevel; profilePicUrl?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const { openCommandPalette } = useKeyboardShortcuts();
@@ -31,12 +31,14 @@ export default function AdminNav({ userName, roleLevel }: { userName?: string; r
   const [clockActionLoading, setClockActionLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  const handleNavClockAction = useCallback(async (action: "break" | "clockOut") => {
+  const handleNavClockAction = useCallback(async (action: "clockIn" | "break" | "clockOut") => {
     setClockActionLoading(true);
     try {
-      const url = action === "break"
-        ? "/api/admin/timesheet/break/start"
-        : "/api/admin/timesheet/clock-out";
+      const url = action === "clockIn"
+        ? "/api/admin/timesheet/clock-in"
+        : action === "break"
+          ? "/api/admin/timesheet/break/start"
+          : "/api/admin/timesheet/clock-out";
       const res = await fetch(url, { method: "POST" });
       if (res.ok && action === "break") {
         window.dispatchEvent(new CustomEvent("timerChange"));
@@ -146,21 +148,40 @@ export default function AdminNav({ userName, roleLevel }: { userName?: string; r
             })}
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Meeting Notes shortcut */}
+          {(!roleLevel || hasPermission(roleLevel, "nav:reports")) && (
+            <a
+              href="/admin/meeting-notes"
+              className={`p-1.5 rounded-lg transition ${
+                pathname.startsWith("/admin/meeting-notes")
+                  ? "text-[var(--foreground)] bg-gray-100"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-100"
+              }`}
+              title="Meeting Notes"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+              </svg>
+            </a>
+          )}
+
+          <NotificationBell canDelete={roleLevel ? hasMinRole(roleLevel, "owner") : false} />
+
           {/* Command Palette trigger — hidden from bookkeepers */}
           {(!roleLevel || roleLevel !== "bookkeeper") && <button
             onClick={openCommandPalette}
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--muted)] hover:text-[var(--foreground)] hover:border-gray-300 transition"
-            title="Search everything"
+            className="hidden sm:flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[var(--accent)] text-white text-sm font-medium hover:opacity-90 transition shadow-sm"
+            title="Quick actions & search"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 256 256">
+              <path d="M223.85,47.12a16,16,0,0,0-15-15c-12.58-.75-44.73.4-71.41,27.07L132.69,64H74.36A15.91,15.91,0,0,0,63,68.68L28.7,103a16,16,0,0,0,9.07,27.16l38.47,5.37,44.21,44.21,5.37,38.49a15.94,15.94,0,0,0,10.78,12.92,16.11,16.11,0,0,0,5.1.83A15.91,15.91,0,0,0,153,227.3L187.32,193A15.91,15.91,0,0,0,192,181.64V123.31l4.77-4.77C223.45,91.86,224.6,59.71,223.85,47.12ZM74.36,80h42.33L77.16,119.52,40,114.34Zm74.41-9.45a76.65,76.65,0,0,1,59.11-22.47,76.46,76.46,0,0,1-22.42,59.16L128,164.68,91.32,128ZM176,181.64,141.67,216l-5.19-37.17L176,139.31Zm-74.16,9.5C97.34,201,82.29,224,40,224a8,8,0,0,1-8-8c0-42.29,23-57.34,32.86-61.85a8,8,0,0,1,6.64,14.56c-6.43,2.93-20.62,12.36-23.12,38.91,26.55-2.5,36-16.69,38.91-23.12a8,8,0,1,1,14.56,6.64Z" />
             </svg>
-            <span className="text-xs">Search...</span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200 font-mono">&#8984;K</kbd>
+            <span className="text-xs">Quick Action</span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-white/20 font-mono">&#8984;K</kbd>
           </button>}
 
-          {/* Quick ticket search — hidden from bookkeepers */}
+          {/* Mobile search trigger — hidden from bookkeepers */}
           {(!roleLevel || roleLevel !== "bookkeeper") && <div className="relative" ref={searchRef}>
             <button
               onClick={() => setSearchOpen(!searchOpen)}
@@ -220,94 +241,99 @@ export default function AdminNav({ userName, roleLevel }: { userName?: string; r
             )}
           </div>}
 
-          {/* Meeting Notes shortcut */}
-          {(!roleLevel || hasPermission(roleLevel, "nav:reports")) && (
-            <a
-              href="/admin/meeting-notes"
-              className={`p-1.5 rounded-lg transition ${
-                pathname.startsWith("/admin/meeting-notes")
-                  ? "text-[var(--foreground)] bg-gray-100"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-100"
-              }`}
-              title="Meeting Notes"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-              </svg>
-            </a>
-          )}
-
-          <NotificationBell canDelete={roleLevel ? hasMinRole(roleLevel, "owner") : false} />
-
-          {/* Settings gear + User name dropdown */}
-          <div className="flex items-center gap-2">
-            {(!roleLevel || hasPermission(roleLevel, "nav:settings")) && (
-              <a
-                href="/admin/settings"
-                className={`p-1.5 rounded-lg transition ${
-                  pathname.startsWith("/admin/settings")
-                    ? "text-[var(--foreground)] bg-gray-100"
-                    : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-100"
-                }`}
-                title="Settings"
+          {/* User avatar dropdown */}
+          {userName && (
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="relative flex items-center justify-center w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-[var(--accent)] transition"
+                title={userName}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                </svg>
-              </a>
-            )}
-
-            {userName && (
-              <div className="relative" ref={userMenuRef}>
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition flex items-center gap-1.5"
-                >
-                  {isClockUser && clockStatus === "working" && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" title="Clocked In" />
-                  )}
-                  {isClockUser && clockStatus === "break" && (
-                    <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse flex-shrink-0" title="On Break" />
-                  )}
-                  {userName}
-                </button>
-                {userMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 bg-white border border-[var(--border)] rounded-xl shadow-lg z-50 min-w-[180px] overflow-hidden">
-                    {/* Clock actions — employees only, when clocked in */}
+                {profilePicUrl ? (
+                  <Image src={profilePicUrl} alt={userName} width={32} height={32} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-[var(--accent)] flex items-center justify-center text-white text-xs font-semibold">
+                    {userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                {isClockUser && clockStatus === "working" && (
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
+                )}
+                {isClockUser && clockStatus === "break" && (
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-rose-400 animate-pulse border-2 border-white" />
+                )}
+              </button>
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 bg-white border border-[var(--border)] rounded-xl shadow-lg z-50 min-w-[200px] overflow-hidden">
+                  <div className="py-1">
+                    {/* Settings */}
+                    {(!roleLevel || hasPermission(roleLevel, "nav:settings")) && (
+                      <a
+                        href="/admin/settings"
+                        className="w-full text-left px-4 py-2 text-sm text-[var(--foreground)] hover:bg-gray-50 transition flex items-center gap-2.5"
+                      >
+                        <svg className="w-4 h-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        </svg>
+                        Settings
+                      </a>
+                    )}
+                    {/* Clock actions — employees only */}
+                    {isClockUser && (clockStatus === "idle" || clockStatus === "done") && (
+                      <button
+                        onClick={() => handleNavClockAction("clockIn")}
+                        disabled={clockActionLoading}
+                        className="w-full text-left px-4 py-2 text-sm text-emerald-600 hover:bg-gray-50 transition flex items-center gap-2.5 disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        {clockActionLoading ? "..." : "Clock In"}
+                      </button>
+                    )}
                     {isClockUser && clockStatus === "working" && (
-                      <div className="p-2 border-b border-[var(--border)]">
+                      <>
                         <button
                           onClick={() => handleNavClockAction("break")}
                           disabled={clockActionLoading}
-                          className="w-full text-left px-3 py-2.5 text-sm font-medium text-[#1A1A1A] bg-[#F6F5F1] hover:bg-[#E5E3DA] rounded-lg transition-colors disabled:opacity-50 mb-1.5"
+                          className="w-full text-left px-4 py-2 text-sm text-[var(--foreground)] hover:bg-gray-50 transition flex items-center gap-2.5 disabled:opacity-50"
                         >
+                          <svg className="w-4 h-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                          </svg>
                           {clockActionLoading ? "..." : "Start Break"}
                         </button>
                         <button
                           onClick={() => handleNavClockAction("clockOut")}
                           disabled={clockActionLoading}
-                          className="w-full text-left px-3 py-2.5 text-sm font-medium text-white bg-rose-900 hover:bg-rose-800 rounded-lg transition-colors disabled:opacity-50"
+                          className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-gray-50 transition flex items-center gap-2.5 disabled:opacity-50"
                         >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                          </svg>
                           {clockActionLoading ? "..." : "Clock Out"}
                         </button>
-                      </div>
+                      </>
                     )}
-                    <div className="py-1">
-                      <form action="/api/admin/logout" method="POST">
-                        <button
-                          type="submit"
-                          className="w-full text-left px-4 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-50 transition"
-                        >
-                          Logout
-                        </button>
-                      </form>
-                    </div>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+                  <div className="border-t border-[var(--border)] py-1">
+                    <form action="/api/admin/logout" method="POST">
+                      <button
+                        type="submit"
+                        className="w-full text-left px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-50 transition flex items-center gap-2.5"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                        </svg>
+                        Logout
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </nav>

@@ -16,7 +16,7 @@ export async function sendSlackDM(
   slackUserId: string,
   text: string,
   threadTs?: string
-): Promise<{ ok: boolean; ts?: string; error?: string }> {
+): Promise<{ ok: boolean; ts?: string; channel?: string; error?: string }> {
   const token = process.env.SLACK_BOT_TOKEN || process.env.SLACK_USER_TOKEN;
   if (!token) {
     console.error("No Slack token configured (SLACK_BOT_TOKEN or SLACK_USER_TOKEN)");
@@ -47,7 +47,7 @@ export async function sendSlackDM(
     console.error("Slack API error:", data.error);
   }
 
-  return { ok: data.ok, ts: data.ts, error: data.error };
+  return { ok: data.ok, ts: data.ts, channel: data.channel, error: data.error };
 }
 
 /**
@@ -99,7 +99,9 @@ export async function logSlackMessage(
   teamMemberId: string,
   messageType: string,
   messageText: string,
-  slackTs?: string
+  slackTs?: string,
+  channelId?: string,
+  data?: Record<string, unknown>
 ): Promise<void> {
   const { getConvexClient } = await import("./convex-server");
   const { api } = await import("@/convex/_generated/api");
@@ -109,5 +111,7 @@ export async function logSlackMessage(
     messageType,
     messageText,
     slackTs,
+    channelId,
+    data,
   });
 }

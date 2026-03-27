@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Ticket, TicketFilters as Filters, TicketStatus, TicketPriority, SavedView, TeamMember, ProjectGroup } from "@/types";
+import { Ticket, TicketFilters as Filters, TicketStatus, TicketPriority, SavedView, TeamMember, ProjectGroup, isOverdueEligible } from "@/types";
 import { useKeyboardShortcuts } from "./KeyboardShortcutProvider";
 import { useTickets } from "@/hooks/useTickets";
 import { useSubTickets } from "@/hooks/useSubTickets";
@@ -280,7 +280,21 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
   const [filters, setFilters] = useState<Filters>({ archived: false });
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    // "closed" group defaults to collapsed; restore any persisted state
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("ticket-collapsed-groups");
+        if (stored) {
+          const parsed = JSON.parse(stored) as string[];
+          // Always ensure "closed" is in the set unless explicitly removed
+          if (!parsed.includes("closed")) parsed.push("closed");
+          return new Set(parsed);
+        }
+      } catch {}
+    }
+    return new Set(["closed"]);
+  });
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [detailTicketId, setDetailTicketId] = useState<string | null>(null);
@@ -490,6 +504,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      try { localStorage.setItem("ticket-collapsed-groups", JSON.stringify([...next])); } catch {}
       return next;
     });
   }
@@ -805,16 +820,26 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
         </div>
         <div className="relative shrink-0" ref={createMenuRef}>
           <button
-            onClick={() => setShowCreateMenu(!showCreateMenu)}
+            onClick={() => {
+              if (!projectId) {
+                // No project context — directly create a task (no meeting option)
+                setCreateAsMeeting(false);
+                setShowCreateModal(true);
+              } else {
+                setShowCreateMenu(!showCreateMenu);
+              }
+            }}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium text-white bg-[var(--accent)] hover:opacity-90 rounded-lg transition"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             New
-            <svg className="w-3 h-3 ml-0.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-            </svg>
+            {projectId && (
+              <svg className="w-3 h-3 ml-0.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            )}
           </button>
           {showCreateMenu && (
             <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-[var(--border)] rounded-lg shadow-lg z-50 py-1">
@@ -827,15 +852,17 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                 </svg>
                 Task
               </button>
-              <button
-                onClick={() => { setCreateAsMeeting(true); setShowCreateMenu(false); setShowCreateModal(true); }}
-                className="w-full text-left px-3 py-2 text-sm text-[var(--foreground)] hover:bg-gray-50 transition flex items-center gap-2"
-              >
-                <svg className="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
-                </svg>
-                Meeting
-              </button>
+              {projectId && (
+                <button
+                  onClick={() => { setCreateAsMeeting(true); setShowCreateMenu(false); setShowCreateModal(true); }}
+                  className="w-full text-left px-3 py-2 text-sm text-[var(--foreground)] hover:bg-gray-50 transition flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                  </svg>
+                  Meeting
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1361,7 +1388,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                 {ticket.dueDate && (
                                   <span
                                     className={
-                                      isOverdue(ticket.dueDate) && ticket.status !== "closed"
+                                      isOverdue(ticket.dueDate) && isOverdueEligible(ticket.status)
                                         ? "text-red-600 font-semibold"
                                         : "text-[var(--muted)]"
                                     }

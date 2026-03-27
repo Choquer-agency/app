@@ -1,5 +1,6 @@
 import { getConvexClient } from "./convex-server";
 import { api } from "@/convex/_generated/api";
+import { isOverdueEligible } from "@/types";
 
 // === Types ===
 
@@ -403,7 +404,7 @@ export async function getPerformanceReport(start: string, end: string, memberId?
       return t.status === "closed" && t.closedAt && t.closedAt >= start && t.closedAt <= end;
     });
     const open = memberTickets.filter((t) => t.status !== "closed" && !t.archived);
-    const overdue = open.filter((t) => t.dueDate && t.dueDate < today);
+    const overdue = open.filter((t) => t.dueDate && t.dueDate < today && isOverdueEligible(t.status));
 
     // Compute on-time rate for closed tickets
     let onTimeCount = 0;

@@ -15,7 +15,7 @@ function docToConversation(doc: any): ConversationState {
     intent: doc.intent as SlackIntent,
     state: doc.state,
     data: doc.data || {},
-    ownerId: doc.ownerId,
+    userId: doc.userId,
     createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : "",
     updatedAt: doc.updatedAt || "",
     expiresAt: doc.expiresAt || "",
@@ -37,7 +37,7 @@ export async function createConversation(data: {
   intent: SlackIntent;
   state: string;
   data: Record<string, unknown>;
-  ownerId: number;
+  userId: string;
 }): Promise<ConversationState> {
   const convex = getConvexClient();
   const doc = await convex.mutation(api.slackConversations.create, {
@@ -46,7 +46,7 @@ export async function createConversation(data: {
     intent: data.intent,
     state: data.state,
     data: data.data,
-    ownerId: data.ownerId as any,
+    userId: data.userId as any,
   });
   return docToConversation(doc);
 }

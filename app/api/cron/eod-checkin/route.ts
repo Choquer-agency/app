@@ -11,6 +11,7 @@ interface DueItem {
   title: string;
   client_name: string | null;
   source: "commitment" | "due_date";
+  is_commitment_due: boolean;
 }
 
 export async function GET() {
@@ -18,7 +19,7 @@ export async function GET() {
     const convex = getConvexClient();
 
     // Get active team members with Slack configured
-    const allMembers = await convex.query(api.teamMembers.list);
+    const allMembers = await convex.query(api.teamMembers.list, {});
     const members = allMembers.filter(
       (m: any) => m.active && m.slackUserId
     );
@@ -27,8 +28,8 @@ export async function GET() {
       return NextResponse.json({ success: true, sent: 0, reason: "No members with Slack configured" });
     }
 
-    const allTickets = await convex.query(api.tickets.list);
-    const allClients = await convex.query(api.clients.list);
+    const allTickets = await convex.query(api.tickets.list, {});
+    const allClients = await convex.query(api.clients.list, {});
     const todayStr = new Date().toISOString().split("T")[0];
 
     let sentCount = 0;
@@ -71,6 +72,7 @@ export async function GET() {
               title: ticket.title,
               client_name: client ? client.name : null,
               source: "commitment",
+              is_commitment_due: true,
             });
           }
         }
@@ -93,6 +95,7 @@ export async function GET() {
             title: ticket.title,
             client_name: client ? client.name : null,
             source: "due_date",
+            is_commitment_due: false,
           });
         }
       }
@@ -116,19 +119,36 @@ export async function GET() {
       for (const [client, items] of byClient) {
         lines.push(`*${client}*`);
         for (const item of items) {
-          lines.push(`• ${item.ticket_number}: ${item.title}`);
+          const commitmentFlag = item.is_commitment_due ? " (you committed to finishing today)" : "";
+          lines.push(`• ${item.ticket_number}: ${item.title}${commitmentFlag}`);
         }
         lines.push("");
       }
 
-      lines.push("How are things looking?");
+      lines.push("How are things looking? Reply here and I'll help update tickets, flag blockers, or draft client emails.");
 
       const message = lines.join("\n");
 
       // Send via Slack
       const result = await sendSlackDM(slackId, message);
       if (result.ok) {
-        await logSlackMessage(memberId as any, "eod_checkin", message, result.ts);
+        // Store with ticket data so EOD replies can reference the original tickets
+        const ticketData = allItems.map((item) => ({
+          ticketId: item.ticket_id,
+          ticketNumber: item.ticket_number,
+          title: item.title,
+          clientName: item.client_name,
+          isCommitmentDue: item.is_commitment_due,
+        }));
+
+        await logSlackMessage(
+          memberId as any,
+          "eod_checkin",
+          message,
+          result.ts,
+          result.channel,
+          { tickets: ticketData }
+        );
         sentCount++;
       } else {
         console.error(`[eod-checkin] Failed to send to ${memberName}:`, result.error);

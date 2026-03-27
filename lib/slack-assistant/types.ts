@@ -11,7 +11,19 @@ export type SlackIntent =
   | "calendar_event"
   | "holiday_schedule"
   | "quote_selection"
+  | "eod_reply"
+  | "my_tickets"
+  | "log_time"
   | "unknown";
+
+// Identity for any team member interacting with the Slack bot
+export interface SlackUser {
+  id: string;           // Convex teamMembers._id
+  slackUserId: string;
+  name: string;
+  roleLevel: string;    // "owner" | "c_suite" | "bookkeeper" | "employee" | "intern"
+  isOwner: boolean;
+}
 
 export type ExpansionLevel = "none" | "light" | "full";
 
@@ -74,15 +86,40 @@ export interface QuoteSelectionData {
   number: number;
 }
 
+export interface EodReplyData {
+  ticketUpdates: Array<{
+    ticketNumber: string;
+    status?: string;
+    blockedBy?: string;
+    blockerReason?: string;
+    completionDate?: string;
+    needsEmail?: boolean;
+    emailContext?: string;
+    summary: string;
+  }>;
+  hasVagueTimelines: boolean;
+}
+
+export interface MyTicketsData {
+  query: string;
+}
+
+export interface LogTimeData {
+  ticketNumber: string;
+  hours: number;
+  minutes: number;
+  note: string | null;
+}
+
 // Conversation state stored in slack_conversations table
 export interface ConversationState {
-  id: number;
+  id: string;
   threadTs: string;
   channelId: string;
   intent: SlackIntent;
   state: string;
   data: Record<string, unknown>;
-  ownerId: number;
+  userId: string;      // Convex teamMembers._id
   createdAt: string;
   updatedAt: string;
   expiresAt: string;
@@ -95,7 +132,7 @@ export interface HandlerContext {
   messageTs: string;
   threadTs: string | null;
   files: Array<{ mimetype?: string; url_private?: string; name?: string }>;
-  owner: { id: number; slackUserId: string };
+  user: SlackUser;
   conversation: ConversationState | null;
   classification: ClassificationResult | null;
 }

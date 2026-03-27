@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@/convex/_generated/api";
+import { isOverdueEligible } from "@/types";
 import { checkRunawayTimers, getClientHourCap } from "@/lib/time-entries";
 import { deleteOldNotifications } from "@/lib/notifications";
 import {
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
 
     // 2. Overdue — tickets past due date
     const overdueTickets = allTickets.filter(
-      (t: any) => t.dueDate && t.dueDate < todayStr && !t.archived && t.status !== "closed"
+      (t: any) => t.dueDate && t.dueDate < todayStr && !t.archived && isOverdueEligible(t.status)
     );
 
     for (const ticket of overdueTickets) {

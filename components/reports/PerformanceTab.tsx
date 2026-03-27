@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { friendlyDate } from "@/lib/date-format";
 import type { PerformanceReport, PerformanceOpenTicket } from "@/lib/reports";
+import { isOverdueEligible } from "@/types";
 import { TeamMember } from "@/types";
 
 interface PerformanceTabProps {
@@ -228,7 +229,7 @@ export default function PerformanceTab({ start, end }: PerformanceTabProps) {
               <tbody>
                 {data.openTickets.map((t) => {
                   const pri = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.normal;
-                  const isOverdue = t.dueDate && new Date(t.dueDate + "T23:59:59") < new Date();
+                  const isOverdue = t.dueDate && new Date(t.dueDate + "T23:59:59") < new Date() && isOverdueEligible(t.status);
                   const daysUntil = t.dueDate ? Math.ceil((new Date(t.dueDate + "T23:59:59").getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
 
                   return (

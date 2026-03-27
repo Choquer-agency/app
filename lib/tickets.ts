@@ -160,6 +160,11 @@ export async function createTicket(
       createdById,
       data.assigneeIds
     );
+
+    // Slack DM notification to assignees (fire-and-forget)
+    import("@/lib/slack-notifications").then((m) =>
+      m.notifyAssigneesViaSlack(ticketId, doc!.ticketNumber, data, data.assigneeIds!)
+    ).catch((err) => console.error("[tickets] Slack notification failed:", err));
   }
 
   // Return full ticket with joined data

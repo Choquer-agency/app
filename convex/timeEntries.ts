@@ -39,7 +39,24 @@ export const getRunning = query({
       .take(50);
     // Filter in JS for endTime === undefined (running timers)
     const running = entries.find((e) => e.endTime === undefined);
-    return running ?? null;
+    if (!running) return null;
+
+    // Enrich with ticket and client info
+    const ticket = await ctx.db.get(running.ticketId);
+    let clientName: string | undefined;
+    if (ticket?.clientId) {
+      const client = await ctx.db.get(ticket.clientId);
+      clientName = client?.name;
+    }
+
+    return {
+      ...running,
+      ticketNumber: ticket?.ticketNumber ?? "",
+      ticketTitle: ticket?.title ?? "",
+      clientName: clientName ?? null,
+      serviceCategory: ticket?.serviceCategory ?? null,
+      clientId: ticket?.clientId ?? null,
+    };
   },
 });
 

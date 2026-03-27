@@ -2,16 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@/convex/_generated/api";
 import crypto from "crypto";
-import { handleOwnerMessage } from "@/lib/slack-assistant";
+import { handleSlackMessage } from "@/lib/slack-assistant";
 import { handleQuoteSelection } from "@/lib/slack-assistant/handlers/quote-selection";
 import { getConversation } from "@/lib/slack-assistant/conversation";
+import { SlackUser } from "@/lib/slack-assistant/types";
 
 /**
  * Slack Events API endpoint.
  * Verifies signature, processes the message synchronously, returns 200 OK.
- * Slack tolerates up to 3s before retrying — most intents complete well within that,
- * and for longer ones (transcript extraction), Slack's retry is harmless since we
- * deduplicate by checking conversation state.
+ * Supports messages from any team member with a configured slackUserId.
  */
 
 function verifySlackSignature(request: NextRequest, body: string): boolean {
@@ -29,7 +28,6 @@ function verifySlackSignature(request: NextRequest, body: string): boolean {
   const sigBasestring = `v0:${timestamp}:${body}`;
   const mySignature = "v0=" + crypto.createHmac("sha256", signingSecret).update(sigBasestring).digest("hex");
 
-  // timingSafeEqual throws if buffers differ in length — catch that
   try {
     return crypto.timingSafeEqual(Buffer.from(mySignature), Buffer.from(slackSignature));
   } catch {
@@ -37,14 +35,23 @@ function verifySlackSignature(request: NextRequest, body: string): boolean {
   }
 }
 
-async function getOwner(): Promise<{ id: string; slackUserId: string } | null> {
+/**
+ * Look up any active team member by their Slack user ID.
+ */
+async function getTeamMemberBySlackId(slackUserId: string): Promise<SlackUser | null> {
   const convex = getConvexClient();
-  const allMembers = await convex.query(api.teamMembers.list);
-  const owner = allMembers.find(
-    (m: any) => m.roleLevel === "owner" && m.active
+  const allMembers = await convex.query(api.teamMembers.list, {});
+  const member = allMembers.find(
+    (m: any) => m.slackUserId === slackUserId && m.active
   );
-  if (!owner) return null;
-  return { id: owner._id, slackUserId: owner.slackUserId as string };
+  if (!member) return null;
+  return {
+    id: member._id as string,
+    slackUserId: member.slackUserId as string,
+    name: member.name as string,
+    roleLevel: (member.roleLevel as string) || "employee",
+    isOwner: member.roleLevel === "owner",
+  };
 }
 
 // Track processed event IDs to handle Slack retries
@@ -65,12 +72,10 @@ export async function POST(request: NextRequest) {
   }
 
   // Verify signature for all other requests
-  // TODO: Re-enable once correct signing secret is configured
   if (process.env.SLACK_SIGNING_SECRET && process.env.SLACK_SIGNING_SECRET !== "skip") {
     const sigValid = verifySlackSignature(request, rawBody);
     if (!sigValid) {
       console.log("[slack] Signature verification FAILED — allowing through temporarily for debugging");
-      // Don't block — let it through for now so we can debug the pipeline
     } else {
       console.log("[slack] Signature verified OK");
     }
@@ -95,23 +100,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // DM messages from owner → route through intent classifier
-    // Allow thread replies (subtype "message_replied" or thread broadcasts) through for conversation continuations
+    // DM messages from any team member → route through intent classifier
     const isThreadReply = !!event.thread_ts;
     const blockedSubtype = event.subtype && !isThreadReply;
     if (event.type === "message" && event.channel_type === "im" && !event.bot_id && !blockedSubtype) {
       console.log("[slack] DM from user:", event.user, "text:", (event.text || "").slice(0, 50));
       try {
-        const owner = await getOwner();
-        console.log("[slack] Owner lookup:", owner ? `id=${owner.id} slack=${owner.slackUserId}` : "NOT FOUND");
-        if (!owner || event.user !== owner.slackUserId) {
-          console.log("[slack] Not the owner, ignoring. event.user:", event.user);
+        const teamMember = await getTeamMemberBySlackId(event.user);
+        console.log("[slack] Team member lookup:", teamMember ? `id=${teamMember.id} name=${teamMember.name} role=${teamMember.roleLevel}` : "NOT FOUND");
+        if (!teamMember) {
+          console.log("[slack] Not a team member, ignoring. event.user:", event.user);
           return NextResponse.json({ ok: true });
         }
 
-        console.log("[slack] Calling handleOwnerMessage...");
-        await handleOwnerMessage(event, owner);
-        console.log("[slack] handleOwnerMessage completed");
+        console.log("[slack] Calling handleSlackMessage...");
+        await handleSlackMessage(event, teamMember);
+        console.log("[slack] handleSlackMessage completed");
       } catch (err: unknown) {
         const error = err instanceof Error ? err : new Error(String(err));
         console.error("[slack] Slack assistant error:", error.message, error.stack);
@@ -120,11 +124,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // Emoji reactions — quote selection or conversation approval
+    // Emoji reactions — quote selection (owner only) or conversation approval (any team member)
     if (event.type === "reaction_added" && event.item?.type === "message") {
       try {
-        const owner = await getOwner();
-        if (!owner || event.user !== owner.slackUserId) {
+        const teamMember = await getTeamMemberBySlackId(event.user);
+        if (!teamMember) {
           return NextResponse.json({ ok: true });
         }
 
@@ -134,25 +138,27 @@ export async function POST(request: NextRequest) {
         if (conversation) {
           const approvalEmojis = ["+1", "thumbsup", "white_check_mark", "heavy_check_mark"];
           if (approvalEmojis.includes(event.reaction)) {
-            await handleOwnerMessage({
+            await handleSlackMessage({
               text: "approve",
               channel: event.item.channel,
               ts: event.event_ts || itemTs,
               thread_ts: conversation.threadTs,
               user: event.user,
-            }, owner);
+            }, teamMember);
           }
           return NextResponse.json({ ok: true });
         }
 
-        // Otherwise, check for quote selection via emoji
-        const emojiToNumber: Record<string, number> = {
-          one: 1, two: 2, three: 3, four: 4, five: 5,
-          six: 6, seven: 7, eight: 8, nine: 9, keycap_ten: 10,
-        };
-        const quoteNumber = emojiToNumber[event.reaction];
-        if (quoteNumber) {
-          await handleQuoteSelection(quoteNumber, owner);
+        // Quote selection via emoji — owner only
+        if (teamMember.isOwner) {
+          const emojiToNumber: Record<string, number> = {
+            one: 1, two: 2, three: 3, four: 4, five: 5,
+            six: 6, seven: 7, eight: 8, nine: 9, keycap_ten: 10,
+          };
+          const quoteNumber = emojiToNumber[event.reaction];
+          if (quoteNumber) {
+            await handleQuoteSelection(quoteNumber, teamMember);
+          }
         }
       } catch (err) {
         console.error("Slack reaction handler error:", err);
@@ -175,7 +181,6 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const test = request.nextUrl.searchParams.get("test");
 
-  // Check environment
   const env = {
     SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN ? "set (" + process.env.SLACK_BOT_TOKEN.slice(0, 10) + "...)" : "NOT SET",
     SLACK_USER_TOKEN: process.env.SLACK_USER_TOKEN ? "set" : "NOT SET",
@@ -183,14 +188,16 @@ export async function GET(request: NextRequest) {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? "set" : "NOT SET",
   };
 
-  const owner = await getOwner();
+  const convex = getConvexClient();
+  const allMembers = await convex.query(api.teamMembers.list, {});
+  const owner = allMembers.find((m: any) => m.roleLevel === "owner" && m.active);
+  const ownerInfo = owner ? { id: owner._id, slackUserId: owner.slackUserId } : null;
 
-  if (test === "send" && owner) {
-    // Try sending a test DM
+  if (test === "send" && ownerInfo?.slackUserId) {
     const { sendSlackDM } = await import("@/lib/slack");
-    const result = await sendSlackDM(owner.slackUserId, "Slack assistant test — if you see this, the bot can send messages!");
-    return NextResponse.json({ env, owner, testSend: result });
+    const result = await sendSlackDM(ownerInfo.slackUserId, "Slack assistant test — if you see this, the bot can send messages!");
+    return NextResponse.json({ env, owner: ownerInfo, testSend: result });
   }
 
-  return NextResponse.json({ env, owner, hint: "Add ?test=send to send a test DM" });
+  return NextResponse.json({ env, owner: ownerInfo, hint: "Add ?test=send to send a test DM" });
 }

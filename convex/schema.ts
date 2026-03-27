@@ -134,6 +134,8 @@ export default defineSchema({
     sickDaysTotal: v.optional(v.number()), // annual sick day allocation
     // Tags
     tags: v.optional(v.array(v.string())),
+    // Clock-in bypass — when true, member can start ticket timers without clocking in
+    bypassClockIn: v.optional(v.boolean()),
   })
     .index("by_email", ["email"])
     .index("by_active", ["active"]),
@@ -488,10 +490,41 @@ export default defineSchema({
   // === SLACK ===
   slackMessages: defineTable({
     teamMemberId: v.id("teamMembers"),
-    messageType: v.string(), // "eod_checkin" | "weekly_summary"
+    messageType: v.string(), // "eod_checkin" | "eod_reply" | "team_dm" | "weekly_summary"
     messageText: v.string(),
     slackTs: v.optional(v.string()),
-  }).index("by_member", ["teamMemberId"]),
+    channelId: v.optional(v.string()),
+    data: v.optional(v.any()), // e.g. { ticketIds: [...] } for EOD check-ins
+  })
+    .index("by_member", ["teamMemberId"])
+    .index("by_slackTs", ["slackTs"]),
+
+  slackConversations: defineTable({
+    threadTs: v.string(),
+    channelId: v.string(),
+    intent: v.string(),
+    state: v.string(),
+    data: v.any(),
+    userId: v.id("teamMembers"),
+    expiresAt: v.optional(v.string()),
+    updatedAt: v.optional(v.string()),
+  })
+    .index("by_threadTs", ["threadTs"])
+    .index("by_userId", ["userId"]),
+
+  blockerEscalations: defineTable({
+    ticketId: v.id("tickets"),
+    reportedById: v.id("teamMembers"),
+    blockedById: v.optional(v.id("teamMembers")),
+    blockerDescription: v.string(),
+    acknowledged: v.boolean(),
+    acknowledgedAt: v.optional(v.string()),
+    escalatedToOwner: v.boolean(),
+    escalatedAt: v.optional(v.string()),
+    resolvedAt: v.optional(v.string()),
+  })
+    .index("by_ticket", ["ticketId"])
+    .index("by_acknowledged", ["acknowledged"]),
 
   // === MEETINGS ===
   meetingNotes: defineTable({
@@ -580,4 +613,14 @@ export default defineSchema({
     standardWorkDayHours: v.optional(v.number()), // default 8
     sickHoursTotal: v.optional(v.number()), // per employee per year
   }).index("by_key", ["key"]),
+
+  changelog: defineTable({
+    title: v.string(),
+    description: v.string(),
+    category: v.string(), // "feature" | "improvement" | "fix" | "design" | "moved"
+    icon: v.optional(v.string()), // emoji or small visual cue shown left of the entry
+    imageUrl: v.optional(v.string()),
+    authorName: v.optional(v.string()),
+    visibility: v.optional(v.string()), // "team" (default, everyone) | "internal" (owner/c_suite only)
+  }),
 });

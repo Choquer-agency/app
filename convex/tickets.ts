@@ -102,10 +102,11 @@ export const list = query({
           return false;
       }
       // Service category filter
+      // When viewing a personal board (assigneeId set), show ALL assigned tickets
       if (args.serviceCategory !== undefined) {
         if (t.serviceCategory !== args.serviceCategory) return false;
-      } else {
-        // Default: exclude service tickets (except retainer)
+      } else if (!args.assigneeId) {
+        // Default: exclude service tickets (except retainer) — but not on personal boards
         if (t.serviceCategory && t.serviceCategory !== "retainer") return false;
       }
       // isPersonal filter

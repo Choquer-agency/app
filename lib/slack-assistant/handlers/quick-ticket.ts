@@ -34,7 +34,7 @@ export class QuickTicketHandler implements IntentHandler {
   }
 
   private async handleNew(ctx: HandlerContext): Promise<void> {
-    const { messageText, channelId, messageTs, owner, classification } = ctx;
+    const { messageText, channelId, messageTs, user, classification } = ctx;
     const data = classification?.data as QuickTicketData | undefined;
 
     // Resolve names to IDs
@@ -90,7 +90,7 @@ export class QuickTicketHandler implements IntentHandler {
       intent: "quick_ticket",
       state: missing.length > 0 ? "awaiting_info" : "awaiting_approval",
       data: { draft } as unknown as Record<string, unknown>,
-      ownerId: owner.id,
+      userId: user.id,
     });
 
     if (missing.length > 0) {
@@ -113,7 +113,7 @@ export class QuickTicketHandler implements IntentHandler {
   }
 
   private async handleContinuation(ctx: HandlerContext): Promise<void> {
-    const { messageText, channelId, conversation, owner } = ctx;
+    const { messageText, channelId, conversation, user } = ctx;
     if (!conversation) return;
 
     const convData = conversation.data as { draft: TicketDraft };
@@ -257,12 +257,12 @@ Only include fields that the user is updating. Use null for unchanged fields. Us
   }
 
   private async createTheTicket(ctx: HandlerContext, draft: TicketDraft): Promise<void> {
-    const { channelId, conversation, owner } = ctx;
+    const { channelId, conversation, user } = ctx;
     if (!conversation) return;
 
     await updateConversation(conversation.threadTs, { state: "creating" });
 
-    const actor = { id: owner.id as any, name: "Slack Assistant" };
+    const actor = { id: user.id as any, name: "Slack Assistant" };
 
     try {
       const ticket = await createTicket(
@@ -274,7 +274,7 @@ Only include fields that the user is updating. Use null for unchanged fields. Us
           priority: draft.priority || "normal",
           assigneeIds: draft.assigneeId ? [draft.assigneeId] : [],
         },
-        owner.id as any,
+        user.id as any,
         actor
       );
 
@@ -283,7 +283,7 @@ Only include fields that the user is updating. Use null for unchanged fields. Us
           ticketId: ticket.id,
           teamMemberId: draft.assigneeId as any,
           committedDate: draft.dueDate,
-          committedById: owner.id as any,
+          committedById: user.id as any,
           notes: "Created from Slack",
         });
       }

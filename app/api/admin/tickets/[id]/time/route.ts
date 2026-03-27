@@ -61,13 +61,23 @@ export async function POST(
       return NextResponse.json(entry, { status: 201 });
     }
 
-    // Enforce: must be clocked in to start a ticket timer
-    const activeShift = await getActiveShift(session.teamMemberId);
-    if (!activeShift) {
-      return NextResponse.json(
-        { error: "You must clock in before tracking time on tickets." },
-        { status: 403 }
-      );
+    // Enforce: must be clocked in to start a ticket timer (owners + bypassClockIn exempt)
+    if (session.roleLevel !== "owner") {
+      // Check if member has clock-in bypass
+      const convex = (await import("@/lib/convex-server")).getConvexClient();
+      const { api } = await import("@/convex/_generated/api");
+      const member = await convex.query(api.teamMembers.getById, { id: session.teamMemberId as any });
+      const bypass = member && (member as any).bypassClockIn === true;
+
+      if (!bypass) {
+        const activeShift = await getActiveShift(session.teamMemberId);
+        if (!activeShift) {
+          return NextResponse.json(
+            { error: "You must clock in before tracking time on tickets." },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     // Start timer

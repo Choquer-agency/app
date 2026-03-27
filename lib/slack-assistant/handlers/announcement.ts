@@ -10,7 +10,7 @@ import { addSlackReaction } from "@/lib/slack";
 
 export class AnnouncementHandler implements IntentHandler {
   async handle(ctx: HandlerContext): Promise<void> {
-    const { messageText, channelId, messageTs, files, owner } = ctx;
+    const { messageText, channelId, messageTs, files, user } = ctx;
 
     // Polish the announcement with Claude AI
     const { text: cleanedText, expiresAt } = messageText
@@ -29,7 +29,7 @@ export class AnnouncementHandler implements IntentHandler {
     // Create the announcement
     const convex = getConvexClient();
     await convex.mutation(api.bulletin.createAnnouncement, {
-      authorId: owner.id as any,
+      authorId: user.id as any,
       title: cleanedText,
       content: "",
       source: "slack",

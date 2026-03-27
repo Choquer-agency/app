@@ -1,6 +1,6 @@
 import { getConvexClient } from "./convex-server";
 import { api } from "@/convex/_generated/api";
-import { TicketCommitment, CommitmentStatus, ReliabilityScore } from "@/types";
+import { TicketCommitment, CommitmentStatus, ReliabilityScore, isOverdueEligible } from "@/types";
 
 // === Doc Mapper ===
 
@@ -217,7 +217,7 @@ export async function getMemberMeetingData(teamMemberId: number | string): Promi
   });
 
   const open = (ticketDocs as any[]).filter((t) => t.status !== "closed");
-  const overdue = open.filter((t) => t.dueDate && t.dueDate < today).map(toMeetingTicket);
+  const overdue = open.filter((t) => t.dueDate && t.dueDate < today && isOverdueEligible(t.status)).map(toMeetingTicket);
   const dueThisWeek = open.filter((t) => t.dueDate && t.dueDate >= today && t.dueDate <= weekEndStr).map(toMeetingTicket);
   const inProgress = open.filter((t) => t.status === "in_progress").map(toMeetingTicket);
   const needsAttention = open.filter((t) => t.status === "needs_attention" || t.status === "stuck").map(toMeetingTicket);

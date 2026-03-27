@@ -22,7 +22,7 @@ export class ModifyTicketHandler implements IntentHandler {
   }
 
   private async handleNew(ctx: HandlerContext): Promise<void> {
-    const { channelId, messageTs, owner, classification } = ctx;
+    const { channelId, messageTs, user, classification } = ctx;
     const data = classification?.data as ModifyTicketData | undefined;
 
     if (!data?.ticketNumber) {
@@ -36,9 +36,28 @@ export class ModifyTicketHandler implements IntentHandler {
       return;
     }
 
+    // Non-owner users can only modify tickets assigned to them
+    if (!user.isOwner) {
+      const convex = getConvexClient();
+      const assignees = await convex.query(api.ticketAssignees.listByTicket, { ticketId: ticket.id as any });
+      const isAssigned = (assignees as any[]).some((a: any) => a.teamMemberId === user.id);
+      if (!isAssigned) {
+        await replyInThread(channelId, messageTs, `You can only modify tickets assigned to you. *${data.ticketNumber}* isn't assigned to you.`);
+        return;
+      }
+
+      // Restrict which fields non-owners can change
+      const allowedFields = ["status", "due_date"];
+      const restricted = data.changes?.filter((c) => !allowedFields.includes(c.field));
+      if (restricted && restricted.length > 0) {
+        await replyInThread(channelId, messageTs, `You can change the status or due date of your tickets. For other changes, ask your team lead.`);
+        return;
+      }
+    }
+
     const changes = data.changes || [];
     if (changes.length === 0) {
-      await replyInThread(channelId, messageTs, `Found *${ticket.ticketNumber}*: ${ticket.title}\n\nWhat would you like to change? (due date, status, priority, assignee, title)`);
+      await replyInThread(channelId, messageTs, `Found *${ticket.ticketNumber}*: ${ticket.title}\n\nWhat would you like to change? (${user.isOwner ? "due date, status, priority, assignee, title" : "status, due date"})`);
       return;
     }
 
@@ -54,7 +73,7 @@ export class ModifyTicketHandler implements IntentHandler {
       intent: "modify_ticket",
       state: "awaiting_approval",
       data: { ticketId: ticket.id, ticketNumber: ticket.ticketNumber, title: ticket.title, changes },
-      ownerId: owner.id,
+      userId: user.id,
     });
 
     await replyInThread(
@@ -65,7 +84,7 @@ export class ModifyTicketHandler implements IntentHandler {
   }
 
   private async handleApproval(ctx: HandlerContext): Promise<void> {
-    const { messageText, channelId, conversation, owner } = ctx;
+    const { messageText, channelId, conversation, user } = ctx;
     if (!conversation) return;
 
     const text = messageText.toLowerCase().trim();
@@ -81,7 +100,7 @@ export class ModifyTicketHandler implements IntentHandler {
       changes: Array<{ field: string; newValue: string }>;
     };
 
-    const actor = { id: owner.id as any, name: "Slack Assistant" };
+    const actor = { id: user.id as any, name: "Slack Assistant" };
     const updateData: Record<string, unknown> = {};
 
     for (const change of changes) {

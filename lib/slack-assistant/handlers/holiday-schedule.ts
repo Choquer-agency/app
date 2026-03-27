@@ -21,7 +21,7 @@ export class HolidayScheduleHandler implements IntentHandler {
   }
 
   private async handleNew(ctx: HandlerContext): Promise<void> {
-    const { channelId, messageTs, owner, classification } = ctx;
+    const { channelId, messageTs, user, classification } = ctx;
     const data = classification?.data as HolidayScheduleData | undefined;
 
     const convex = getConvexClient();
@@ -72,7 +72,7 @@ export class HolidayScheduleHandler implements IntentHandler {
           intent: "holiday_schedule",
           state: "awaiting_approval",
           data: { eventId: event.id, eventTitle: event.title, oldDate: event.eventDate, newDate: data.newDate },
-          ownerId: owner.id,
+          userId: user.id,
         });
 
         await replyInThread(
@@ -88,7 +88,7 @@ export class HolidayScheduleHandler implements IntentHandler {
           intent: "holiday_schedule",
           state: "awaiting_new_date",
           data: { eventId: event.id, eventTitle: event.title, oldDate: event.eventDate },
-          ownerId: owner.id,
+          userId: user.id,
         });
       }
     } else {

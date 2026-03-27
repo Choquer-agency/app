@@ -29,6 +29,10 @@ export async function GET(request: NextRequest) {
       convex.query(api.bulletin.getQuoteForWeek, { weekStart: weekStartStr }),
       convex.query(api.bulletin.listCalendarEvents, {}),
       getTeamMembers(),
+      convex.query(api.changelog.list, {
+        limit: 10,
+        visibility: (session.roleLevel === "owner" || session.roleLevel === "c_suite") ? undefined : "team",
+      }),
     ]);
 
     const personalNoteDoc = results[0].status === "fulfilled" ? results[0].value : null;
@@ -37,6 +41,21 @@ export async function GET(request: NextRequest) {
     const quoteDoc = results[3].status === "fulfilled" ? results[3].value : null;
     const calendarEvents = results[4].status === "fulfilled" ? (results[4].value as any[]) : [];
     const teamMembers = results[5].status === "fulfilled" ? (results[5].value as any[]) : [];
+    const changelogRaw = results[6].status === "fulfilled" ? (results[6].value as any[]) : [];
+
+    const changelog = changelogRaw.map((e: any) => ({
+      id: e._id,
+      title: e.title,
+      description: e.description,
+      category: e.category,
+      icon: e.icon || undefined,
+      imageUrl: e.imageUrl || undefined,
+      authorName: e.authorName || "Bryce",
+      visibility: e.visibility || "team",
+      createdAt: e._creationTime
+        ? new Date(e._creationTime).toISOString()
+        : new Date().toISOString(),
+    }));
 
     const personalNote = personalNoteDoc?.content || "";
 
@@ -321,6 +340,7 @@ export async function GET(request: NextRequest) {
       announcements: allAnnouncements,
       projects: activeProjects,
       calendar: dedupedCalendar,
+      changelog,
     });
   } catch (error) {
     console.error("Bulletin fetch error:", error);

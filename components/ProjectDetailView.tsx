@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Project, ProjectStatus, Ticket, ProjectGroup } from "@/types";
+import { Project, ProjectStatus, Ticket, ProjectGroup, isOverdueEligible } from "@/types";
 import TicketListView from "./TicketListView";
 import TemplateEditorView from "./TemplateEditorView";
 import GanttView from "./GanttView";
@@ -22,7 +22,7 @@ function getProjectHealth(tickets: Ticket[]): { health: ProjectHealth; overdueDa
   let overdueCount = 0;
 
   for (const t of tickets) {
-    if (t.status === "closed" || !t.dueDate) continue;
+    if (!t.dueDate || !isOverdueEligible(t.status)) continue;
     const due = new Date(t.dueDate + "T00:00:00");
     if (due < now) {
       overdueCount++;

@@ -59,6 +59,24 @@ External analytics data is fetched server-side and passed down. Convex data (app
 
 `@/*` maps to project root — use `@/lib/...`, `@/components/...`, `@/convex/...`.
 
+## Changelog (What's New)
+
+After completing any user-facing feature, UI change, or structural change (moving pages, renaming sections, adding new functionality, etc.), **always** create a changelog entry by calling `POST /api/admin/changelog` with:
+- `title`: Short name (e.g. "Timesheet moved to Settings")
+- `description`: Detailed, employee-focused explanation. Over-communicate — explain what they can do, not the technical details. Use markdown links like `[Settings > Notifications](/admin/settings/notifications)` for clickable navigation. Use bullet points (lines starting with `- `) to list multiple examples or capabilities. Give examples of how to use new features.
+- `category`: One of `"feature"`, `"improvement"`, `"fix"`, `"design"`, `"moved"`
+- `imageUrl` (optional): Screenshot or image of the actual UI element you built (a new button, a new page section, a new icon). Shown below the title so employees can see exactly what to look for. Do NOT use generic emojis — only real screenshots of the UI change.
+- `visibility`: `"team"` (default — shown to everyone) or `"internal"` (only owner/c_suite see it). Use `"internal"` for backend fixes, infrastructure changes, and technical updates that don't affect the employee experience.
+
+**Writing good descriptions:**
+- Write from the employee's perspective — what can they do now? Not what was broken technically.
+- Include examples: "Try telling the Slack bot 'I'm stuck on CHQ-142' and it will flag the ticket for you"
+- Include clickable links to the relevant page when applicable
+- One-liners are fine when the change is self-explanatory
+- Never use technical jargon (Convex, API, migration, etc.) — translate to user impact
+
+This is non-negotiable — the team relies on this feed to stay current. A PostToolUse hook also auto-creates entries from git commits, but manual entries from Claude are higher quality since they can include context the commit message lacks.
+
 ## Conventions
 
 ### Convex Functions (`convex/*.ts`)

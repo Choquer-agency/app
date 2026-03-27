@@ -167,6 +167,7 @@ export interface TeamMember {
   payType: "hourly" | "salary";
   sickDaysTotal?: number;
   tags: string[];
+  bypassClockIn?: boolean;
   createdAt?: string;
 }
 
@@ -180,6 +181,16 @@ export type TicketStatus =
   | "client_review"
   | "approved_go_live"
   | "closed";
+
+export type TicketStage = "not_done" | "in_review" | "done";
+
+/** Statuses where the employee's work is not yet done — only these can be "overdue" */
+const NOT_DONE_STATUSES: Set<string> = new Set(["needs_attention", "stuck", "in_progress"]);
+
+/** Whether a ticket in this status can be considered overdue */
+export function isOverdueEligible(status: string): boolean {
+  return NOT_DONE_STATUSES.has(status);
+}
 
 export type TicketPriority = "low" | "normal" | "high" | "urgent";
 
@@ -821,6 +832,23 @@ export interface BulletinData {
   announcements: Announcement[];
   projects: BulletinProject[];
   calendar: CalendarEntry[];
+  changelog: ChangelogEntry[];
+}
+
+export type ChangelogCategory = "feature" | "improvement" | "fix" | "design" | "moved";
+
+export type ChangelogVisibility = "team" | "internal";
+
+export interface ChangelogEntry {
+  id: string;
+  title: string;
+  description: string;
+  category: ChangelogCategory;
+  icon?: string;
+  imageUrl?: string;
+  authorName?: string;
+  visibility?: ChangelogVisibility;
+  createdAt: string;
 }
 
 // === Service Board Types ===

@@ -34,7 +34,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
   }
 
   private async handleNew(ctx: HandlerContext): Promise<void> {
-    const { messageText, channelId, messageTs, owner, classification } = ctx;
+    const { messageText, channelId, messageTs, user, classification } = ctx;
 
     // Get team member and client names for extraction
     const convex = getConvexClient();
@@ -47,8 +47,8 @@ export class MeetingTranscriptHandler implements IntentHandler {
 
     // Save as meeting note
     const meetingNoteDoc = await convex.mutation(api.meetingNotes.create, {
-      teamMemberId: owner.id as any,
-      createdById: owner.id as any,
+      teamMemberId: user.id as any,
+      createdById: user.id as any,
       transcript: messageText,
       source: "slack",
       meetingDate: new Date().toISOString().split("T")[0],
@@ -132,7 +132,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
       intent: "meeting_transcript",
       state: "awaiting_review",
       data: conversationData as unknown as Record<string, unknown>,
-      ownerId: owner.id,
+      userId: user.id,
     });
 
     // Format and send for review
@@ -390,11 +390,11 @@ export class MeetingTranscriptHandler implements IntentHandler {
   }
 
   private async createTickets(ctx: HandlerContext, data: TranscriptConversationData): Promise<void> {
-    const { channelId, conversation, owner } = ctx;
+    const { channelId, conversation, user } = ctx;
     if (!conversation) return;
 
     await updateConversation(conversation.threadTs, { state: "creating_tickets" });
-    const actor = { id: owner.id as any, name: "Slack Assistant" };
+    const actor = { id: user.id as any, name: "Slack Assistant" };
     const created: Array<{ ticketNumber: string; title: string }> = [];
 
     for (const item of data.items) {
@@ -408,7 +408,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
             priority: item.priority || "normal",
             assigneeIds: item.assigneeIds,
           },
-          owner.id as any,
+          user.id as any,
           actor
         );
 
@@ -419,7 +419,7 @@ export class MeetingTranscriptHandler implements IntentHandler {
               ticketId: ticket.id,
               teamMemberId: assigneeId as any,
               committedDate: item.dueDate,
-              committedById: owner.id as any,
+              committedById: user.id as any,
               notes: "Created from Slack",
             });
           }

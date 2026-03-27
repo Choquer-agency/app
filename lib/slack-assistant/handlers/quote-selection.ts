@@ -19,12 +19,12 @@ function getWeekStart(): string {
 
 export class QuoteSelectionHandler implements IntentHandler {
   async handle(ctx: HandlerContext): Promise<void> {
-    const { owner, classification } = ctx;
+    const { user, classification } = ctx;
     const data = classification?.data as QuoteSelectionData | undefined;
     const quoteNumber = data?.number;
     if (!quoteNumber) return;
 
-    await handleQuoteSelection(quoteNumber, owner);
+    await handleQuoteSelection(quoteNumber, user);
   }
 }
 

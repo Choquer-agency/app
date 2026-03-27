@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Ticket, TicketStatus, TicketPriority, TeamMember, ProjectGroup } from "@/types";
+import { Ticket, TicketStatus, TicketPriority, TeamMember, ProjectGroup, isOverdueEligible } from "@/types";
 import TicketStatusBadge, { StatusDot, getStatusDotColor } from "./TicketStatusBadge";
 import TicketPriorityBadge, { getPriorityLabel } from "./TicketPriorityBadge";
 import TicketAssigneeAvatars from "./TicketAssigneeAvatars";
@@ -213,7 +213,7 @@ function KanbanCard({
 
         {ticket.dueDate && (
           <span className={`text-[11px] font-medium ${
-            isOverdue(ticket.dueDate) && ticket.status !== "closed"
+            isOverdue(ticket.dueDate) && isOverdueEligible(ticket.status)
               ? "text-red-500"
               : "text-[var(--muted)]"
           }`}>

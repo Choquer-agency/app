@@ -10,7 +10,9 @@
 
 import type * as activityLog from "../activityLog.js";
 import type * as approvals from "../approvals.js";
+import type * as blockerEscalations from "../blockerEscalations.js";
 import type * as bulletin from "../bulletin.js";
+import type * as changelog from "../changelog.js";
 import type * as clientNotes from "../clientNotes.js";
 import type * as clientPackages from "../clientPackages.js";
 import type * as clients from "../clients.js";
@@ -30,6 +32,7 @@ import type * as projects from "../projects.js";
 import type * as recurringTickets from "../recurringTickets.js";
 import type * as savedViews from "../savedViews.js";
 import type * as serviceBoardEntries from "../serviceBoardEntries.js";
+import type * as slackConversations from "../slackConversations.js";
 import type * as slackMessages from "../slackMessages.js";
 import type * as teamMembers from "../teamMembers.js";
 import type * as ticketActivity from "../ticketActivity.js";
@@ -56,7 +59,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   activityLog: typeof activityLog;
   approvals: typeof approvals;
+  blockerEscalations: typeof blockerEscalations;
   bulletin: typeof bulletin;
+  changelog: typeof changelog;
   clientNotes: typeof clientNotes;
   clientPackages: typeof clientPackages;
   clients: typeof clients;
@@ -76,6 +81,7 @@ declare const fullApi: ApiFromModules<{
   recurringTickets: typeof recurringTickets;
   savedViews: typeof savedViews;
   serviceBoardEntries: typeof serviceBoardEntries;
+  slackConversations: typeof slackConversations;
   slackMessages: typeof slackMessages;
   teamMembers: typeof teamMembers;
   ticketActivity: typeof ticketActivity;

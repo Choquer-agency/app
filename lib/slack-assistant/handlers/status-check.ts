@@ -7,6 +7,7 @@ import { getConvexClient } from "../../convex-server";
 import { api } from "@/convex/_generated/api";
 import { IntentHandler, HandlerContext, StatusCheckData } from "../types";
 import { replyInThread, addSlackReaction } from "@/lib/slack";
+import { isOverdueEligible } from "@/types";
 import { getTicketByNumber, getTickets } from "@/lib/tickets";
 
 export class StatusCheckHandler implements IntentHandler {
@@ -83,7 +84,7 @@ export class StatusCheckHandler implements IntentHandler {
     }
 
     const today = new Date().toISOString().split("T")[0];
-    const overdue = tickets.filter((t) => t.dueDate && t.dueDate < today && t.status !== "closed");
+    const overdue = tickets.filter((t) => t.dueDate && t.dueDate < today && isOverdueEligible(t.status));
     const dueThisWeek = tickets.filter((t) => {
       if (!t.dueDate || t.status === "closed") return false;
       const due = new Date(t.dueDate);

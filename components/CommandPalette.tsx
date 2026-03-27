@@ -30,9 +30,8 @@ interface ResultItem {
 
 const QUICK_ACTIONS: ResultItem[] = [
   { type: "action", id: "new-ticket", label: "New Ticket", subtitle: "Create a new ticket", url: "__action:new-ticket" },
-  { type: "action", id: "go-reports", label: "Go to Reports", subtitle: "View reporting dashboard", url: "/admin/reports" },
-  { type: "action", id: "go-clients", label: "Go to CRM", subtitle: "View clients and leads", url: "/admin/crm" },
-  { type: "action", id: "go-projects", label: "Go to Projects", subtitle: "View all projects", url: "/admin/tickets/projects" },
+  { type: "action", id: "meeting-notes", label: "Meeting Notes", subtitle: "Turn your meeting into tasks", url: "/admin/meetings" },
+  { type: "action", id: "timesheet", label: "Timesheet", subtitle: "Manage your time and request vacations", url: "__action:timesheet" },
 ];
 
 const STORAGE_KEY = "cp_recent_searches";
@@ -57,7 +56,7 @@ function saveRecentSearch(item: RecentItem) {
 }
 
 // Icons per type
-function TypeIcon({ type }: { type: string }) {
+function TypeIcon({ type, actionId }: { type: string; actionId?: string }) {
   if (type === "ticket") {
     return (
       <svg className="w-4 h-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -86,11 +85,41 @@ function TypeIcon({ type }: { type: string }) {
       </svg>
     );
   }
-  // action
+  // Action icons — unique per action
+  if (actionId === "new-ticket") {
+    return (
+      <div className="w-8 h-8 rounded-lg bg-[var(--accent)] flex items-center justify-center shrink-0">
+        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      </div>
+    );
+  }
+  if (actionId === "meeting-notes") {
+    return (
+      <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center shrink-0">
+        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+        </svg>
+      </div>
+    );
+  }
+  if (actionId === "timesheet") {
+    return (
+      <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center shrink-0">
+        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+      </div>
+    );
+  }
+  // fallback action
   return (
-    <svg className="w-4 h-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
-    </svg>
+    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+      <svg className="w-4 h-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+      </svg>
+    </div>
   );
 }
 
@@ -208,11 +237,8 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
         });
       }
     }
-  } else if (!query.trim()) {
-    // Show recent searches + quick actions
-    for (const r of recentSearches) {
-      flatItems.push({ ...r, id: `recent-${r.id}` });
-    }
+  } else {
+    // No query, or query but results not yet loaded — keep showing quick actions
     for (const a of QUICK_ACTIONS) {
       flatItems.push(a);
     }
@@ -255,6 +281,12 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
     if (item.url === "__action:new-ticket") {
       onClose();
       window.dispatchEvent(new CustomEvent("command-palette:new-ticket"));
+      return;
+    }
+    if (item.url === "__action:timesheet") {
+      onClose();
+      // Try /admin/timesheet first — it redirects employees to /admin automatically
+      router.push("/admin/timesheet");
       return;
     }
     // Save to recent
@@ -307,14 +339,12 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
   // Compute section headers for rendering
   const sections: Array<{ title: string; items: Array<ResultItem & { globalIndex: number }> }> = [];
   if (query.trim() && results) {
-    let idx = 0;
-    const addSection = (title: string, type: string) => {
-      const items = flatItems.filter((item) => item.type === type).map((item) => ({ ...item, globalIndex: idx++ }));
-      // Fix: need correct global indices
-      if (items.length > 0) sections.push({ title, items });
-    };
-    // Recompute with correct indices
     let gIdx = 0;
+    // Show recent searches above results when typing
+    if (recentSearches.length > 0) {
+      const recentItems = recentSearches.map((r) => ({ ...r, id: `recent-${r.id}`, globalIndex: gIdx++ }));
+      sections.push({ title: "Recent", items: recentItems });
+    }
     const ticketItems = flatItems.filter((i) => i.type === "ticket").map((i) => ({ ...i, globalIndex: gIdx++ }));
     const projectItems = flatItems.filter((i) => i.type === "project").map((i) => ({ ...i, globalIndex: gIdx++ }));
     const clientItems = flatItems.filter((i) => i.type === "client").map((i) => ({ ...i, globalIndex: gIdx++ }));
@@ -323,11 +353,9 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
     if (projectItems.length > 0) sections.push({ title: "Projects", items: projectItems });
     if (clientItems.length > 0) sections.push({ title: "Clients", items: clientItems });
     if (memberItems.length > 0) sections.push({ title: "Team Members", items: memberItems });
-  } else if (!query.trim()) {
+  } else {
     let gIdx = 0;
-    const recentItems = flatItems.filter((i) => i.type !== "action").map((i) => ({ ...i, globalIndex: gIdx++ }));
     const actionItems = flatItems.filter((i) => i.type === "action").map((i) => ({ ...i, globalIndex: gIdx++ }));
-    if (recentItems.length > 0) sections.push({ title: "Recent", items: recentItems });
     if (actionItems.length > 0) sections.push({ title: "Quick Actions", items: actionItems });
   }
 
@@ -380,31 +408,40 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
               <div className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)] bg-gray-50/80">
                 {section.title}
               </div>
-              {section.items.map((item) => (
-                <button
-                  key={`${item.type}-${item.id}`}
-                  data-index={item.globalIndex}
-                  onClick={() => handleSelect(item)}
-                  className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition text-sm ${
-                    selectedIndex === item.globalIndex
-                      ? "bg-[var(--accent-light)] text-[var(--accent)]"
-                      : "text-[var(--foreground)] hover:bg-gray-50"
-                  }`}
-                >
-                  <TypeIcon type={item.type} />
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate font-medium">{item.label}</div>
-                    {item.subtitle && (
-                      <div className="text-xs text-[var(--muted)] truncate">{item.subtitle}</div>
+              {section.items.map((item) => {
+                const isAction = item.type === "action";
+                return (
+                  <button
+                    key={`${item.type}-${item.id}`}
+                    data-index={item.globalIndex}
+                    onClick={() => handleSelect(item)}
+                    className={`w-full text-left px-4 flex items-center gap-3 transition text-sm ${
+                      isAction ? "py-3" : "py-2.5"
+                    } ${
+                      selectedIndex === item.globalIndex
+                        ? "bg-[var(--accent-light)]"
+                        : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <TypeIcon type={item.type} actionId={isAction ? item.id : undefined} />
+                    <div className="flex-1 min-w-0">
+                      <div className={`truncate font-semibold ${
+                        isAction && item.id === "new-ticket"
+                          ? "text-[var(--accent)]"
+                          : "text-[var(--foreground)]"
+                      }`}>{item.label}</div>
+                      {item.subtitle && (
+                        <div className="text-xs text-[var(--muted)] truncate">{item.subtitle}</div>
+                      )}
+                    </div>
+                    {selectedIndex === item.globalIndex && (
+                      <kbd className="text-[10px] px-1 py-0.5 rounded bg-white/80 border border-gray-200 font-mono text-[var(--muted)]">
+                        ↵
+                      </kbd>
                     )}
-                  </div>
-                  {selectedIndex === item.globalIndex && (
-                    <kbd className="text-[10px] px-1 py-0.5 rounded bg-white/80 border border-gray-200 font-mono text-[var(--muted)]">
-                      ↵
-                    </kbd>
-                  )}
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           ))}
 

@@ -8,6 +8,8 @@ import {
   ProjectStatus,
   AnnouncementType,
   CalendarEntry,
+  ChangelogEntry,
+  ChangelogCategory,
 } from "@/types";
 import { hasMinRole, type RoleLevel } from "@/lib/permissions";
 import WhosInWidget from "./WhosInWidget";
@@ -27,6 +29,69 @@ function timeAgo(dateStr: string): string {
 
 function isNew(dateStr: string): boolean {
   return Date.now() - new Date(dateStr).getTime() < 48 * 60 * 60 * 1000;
+}
+
+function renderLinkedText(text: string) {
+  const parts = text.split(/(\[[^\]]+\]\([^)]+\))/g);
+  return parts.map((part, i) => {
+    const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (match) {
+      return (
+        <a key={i} href={match[2]} className="text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9]">
+          {match[1]}
+        </a>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+function renderDescription(text: string) {
+  // Split on newlines to detect bullet lines (starting with "- " or "• ")
+  const lines = text.split("\n");
+  const blocks: Array<{ type: "text" | "bullets"; content: string[] }> = [];
+  let currentBullets: string[] = [];
+  let currentText: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+      if (currentText.length > 0) {
+        blocks.push({ type: "text", content: currentText });
+        currentText = [];
+      }
+      currentBullets.push(trimmed.replace(/^[-•]\s*/, ""));
+    } else {
+      if (currentBullets.length > 0) {
+        blocks.push({ type: "bullets", content: currentBullets });
+        currentBullets = [];
+      }
+      if (trimmed) currentText.push(trimmed);
+    }
+  }
+  if (currentBullets.length > 0) blocks.push({ type: "bullets", content: currentBullets });
+  if (currentText.length > 0) blocks.push({ type: "text", content: currentText });
+
+  return (
+    <>
+      {blocks.map((block, i) =>
+        block.type === "bullets" ? (
+          <ul key={i} className="mt-1.5 space-y-1 ml-3">
+            {block.content.map((bullet, j) => (
+              <li key={j} className="text-xs text-[var(--muted)] flex gap-1.5">
+                <span className="text-[#9b6fd4] shrink-0 mt-0.5">&#8226;</span>
+                <span>{renderLinkedText(bullet)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p key={i} className="text-xs text-[var(--muted)] mt-1">
+            {renderLinkedText(block.content.join(" "))}
+          </p>
+        )
+      )}
+    </>
+  );
 }
 
 const PROJECT_STATUS_STYLES: Record<ProjectStatus, { text: string; pill: string }> = {
@@ -321,6 +386,13 @@ export default function HomeDashboard({
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementContent, setAnnouncementContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showChangelogForm, setShowChangelogForm] = useState(false);
+  const [changelogTitle, setChangelogTitle] = useState("");
+  const [changelogDescription, setChangelogDescription] = useState("");
+  const [changelogCategory, setChangelogCategory] = useState<ChangelogCategory>("feature");
+  const [changelogImageUrl, setChangelogImageUrl] = useState("");
+  const [changelogSubmitting, setChangelogSubmitting] = useState(false);
+  const [showAllChangelog, setShowAllChangelog] = useState(false);
 
   const fetchBulletin = useCallback(async () => {
     try {
@@ -391,6 +463,41 @@ export default function HomeDashboard({
   async function handleDeleteAnnouncement(id: string) {
     try {
       const res = await fetch(`/api/admin/bulletin/announcements?id=${id}`, { method: "DELETE" });
+      if (res.ok) fetchBulletin();
+    } catch {}
+  }
+
+  async function handleCreateChangelog() {
+    if (!changelogTitle.trim() || !changelogDescription.trim()) return;
+    setChangelogSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/changelog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: changelogTitle,
+          description: changelogDescription,
+          category: changelogCategory,
+          imageUrl: changelogImageUrl || undefined,
+        }),
+      });
+      if (res.ok) {
+        setChangelogTitle("");
+        setChangelogDescription("");
+        setChangelogCategory("feature");
+        setChangelogImageUrl("");
+        setShowChangelogForm(false);
+        fetchBulletin();
+      }
+    } catch {
+    } finally {
+      setChangelogSubmitting(false);
+    }
+  }
+
+  async function handleDeleteChangelog(id: string) {
+    try {
+      const res = await fetch(`/api/admin/changelog?id=${id}`, { method: "DELETE" });
       if (res.ok) fetchBulletin();
     } catch {}
   }
@@ -660,6 +767,139 @@ export default function HomeDashboard({
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* What's New — purple theme */}
+      <div className="rounded-2xl bg-[#F5F0FF] overflow-hidden">
+        <div className="px-5 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">&#9889;</span>
+              <div>
+                <h2 className="text-sm font-bold text-[#4a1a7a]">What&apos;s New</h2>
+                <p className="text-[10px] text-[#4a1a7a]/60">
+                  {data?.changelog?.length ? `${data.changelog.length} recent update${data.changelog.length > 1 ? "s" : ""}` : "No updates yet"}
+                </p>
+              </div>
+            </div>
+            {canDeleteAnnouncements && (
+              <button
+                onClick={() => setShowChangelogForm(!showChangelogForm)}
+                className="text-xs font-medium text-[#4a1a7a] hover:text-[#6b2fa8] transition px-2 py-1 rounded-lg hover:bg-white/50"
+              >
+                {showChangelogForm ? "Cancel" : "+ New"}
+              </button>
+            )}
+          </div>
+
+          {showChangelogForm && (
+            <div className="mt-3 p-3 rounded-xl bg-white/60 space-y-2">
+              <input
+                type="text"
+                placeholder="Title (e.g. Timesheet moved to Settings)"
+                value={changelogTitle}
+                onChange={(e) => setChangelogTitle(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg border border-[#d4c4f0] bg-white focus:outline-none focus:ring-1 focus:ring-[#9b6fd4]"
+              />
+              <textarea
+                placeholder="Brief description of the change..."
+                value={changelogDescription}
+                onChange={(e) => setChangelogDescription(e.target.value)}
+                rows={2}
+                className="w-full text-sm px-3 py-2 rounded-lg border border-[#d4c4f0] bg-white focus:outline-none focus:ring-1 focus:ring-[#9b6fd4] resize-none"
+              />
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={changelogCategory}
+                  onChange={(e) => setChangelogCategory(e.target.value as ChangelogCategory)}
+                  className="text-xs px-2 py-1.5 rounded-lg border border-[#d4c4f0] bg-white focus:outline-none"
+                >
+                  <option value="feature">Feature</option>
+                  <option value="improvement">Improvement</option>
+                  <option value="fix">Fix</option>
+                  <option value="design">Design</option>
+                  <option value="moved">Moved</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Image URL (optional)"
+                  value={changelogImageUrl}
+                  onChange={(e) => setChangelogImageUrl(e.target.value)}
+                  className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-[#d4c4f0] bg-white focus:outline-none"
+                />
+                <button
+                  onClick={handleCreateChangelog}
+                  disabled={changelogSubmitting || !changelogTitle.trim() || !changelogDescription.trim()}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#7c3aed] text-white hover:bg-[#6d28d9] disabled:opacity-50 transition"
+                >
+                  {changelogSubmitting ? "Saving..." : "Add"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {!data?.changelog?.length ? (
+          <div className="text-center py-6 pb-8">
+            <p className="text-sm text-[#4a1a7a]/60">No updates yet</p>
+          </div>
+        ) : (
+          <div className="px-4 pb-4 space-y-3">
+            {(showAllChangelog ? data.changelog : data.changelog.slice(0, 6)).map((entry: ChangelogEntry) => {
+              const categoryStyles: Record<ChangelogCategory, string> = {
+                feature: "bg-[#BDFFE8] text-[#0d5a3f]",
+                improvement: "bg-[#B1D0FF] text-[#1a4a7a]",
+                fix: "bg-[#FFB1B1] text-[#7a1a1a]",
+                design: "bg-[#E8BDFF] text-[#4a1a6b]",
+                moved: "bg-[#FFE0B1] text-[#6b4a1a]",
+              };
+
+              return (
+                <div
+                  key={entry.id}
+                  className="rounded-xl bg-white/80 p-4 hover:bg-white transition"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${categoryStyles[entry.category] || categoryStyles.feature}`}>
+                        {entry.category.charAt(0).toUpperCase() + entry.category.slice(1)}
+                      </span>
+                      <span className="text-sm font-semibold text-[var(--foreground)]">{entry.title}</span>
+                    </div>
+                    {canDeleteAnnouncements && (
+                      <button
+                        onClick={() => handleDeleteChangelog(entry.id)}
+                        className="text-xs text-[var(--muted)] hover:text-red-500 shrink-0 p-1"
+                        title="Delete"
+                      >
+                        &#10005;
+                      </button>
+                    )}
+                  </div>
+                  {entry.imageUrl && (
+                    <img
+                      src={entry.imageUrl}
+                      alt=""
+                      className="mt-2 rounded-lg max-h-48 object-contain border border-[#d4c4f0]/30"
+                    />
+                  )}
+                  {renderDescription(entry.description)}
+                  <p className="text-[10px] text-[var(--muted)] mt-1.5">
+                    {entry.authorName || "Bryce"} &middot; {timeAgo(entry.createdAt)}
+                  </p>
+                </div>
+              );
+            })}
+            {data.changelog.length > 6 && (
+              <button
+                onClick={() => setShowAllChangelog(!showAllChangelog)}
+                className="w-full text-center text-xs font-medium text-[#4a1a7a] hover:text-[#6b2fa8] py-2 transition"
+              >
+                {showAllChangelog ? "Show less" : `View all ${data.changelog.length} updates`}
+              </button>
+            )}
           </div>
         )}
       </div>

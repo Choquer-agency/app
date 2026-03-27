@@ -39,7 +39,7 @@ export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProp
   const [popupOpen, setPopupOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const hoursButtonRef = useRef<HTMLDivElement>(null);
+  const clockButtonRef = useRef<HTMLDivElement>(null);
 
   const fetchTimeData = useCallback(async () => {
     try {
@@ -204,32 +204,38 @@ export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProp
           )}
         </button>
 
-        {/* Total hours — clickable to open popup */}
-        {displayTotal && (
-          <div className="relative" ref={hoursButtonRef}>
-            <button
-              onClick={() => setPopupOpen(!popupOpen)}
-              className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:underline transition px-1 py-0.5 rounded"
-              title="View & manage time entries"
-            >
-              {displayTotal}
-            </button>
+        {/* Clock icon — always visible, opens time popup */}
+        <div className="relative" ref={clockButtonRef}>
+          <button
+            onClick={() => setPopupOpen(!popupOpen)}
+            className="flex items-center text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-50 transition rounded-md p-1"
+            title="Add or view time entries"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          </button>
 
-            {/* Time popup — absolutely positioned below the hours button */}
-            {popupOpen && (
-              <TimePopup
-                ticketId={ticketId}
-                entries={entries}
-                totalSeconds={totalSeconds + (running ? elapsed : 0)}
-                onClose={() => setPopupOpen(false)}
-                onEntriesChanged={() => {
-                  fetchTimeData();
-                  onTimerChange?.();
-                }}
-                anchorRef={hoursButtonRef}
-              />
-            )}
-          </div>
+          {popupOpen && (
+            <TimePopup
+              ticketId={ticketId}
+              entries={entries}
+              totalSeconds={totalSeconds + (running ? elapsed : 0)}
+              onClose={() => setPopupOpen(false)}
+              onEntriesChanged={() => {
+                fetchTimeData();
+                onTimerChange?.();
+              }}
+              anchorRef={clockButtonRef}
+            />
+          )}
+        </div>
+
+        {/* Total hours display */}
+        {displayTotal && (
+          <span className="text-xs text-[var(--muted)] px-1 py-0.5">
+            {displayTotal}
+          </span>
         )}
       </div>
     </div>

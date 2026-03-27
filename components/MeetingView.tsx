@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { TeamMember } from "@/types";
+import { TeamMember, isOverdueEligible } from "@/types";
 import type { MeetingMemberData, MeetingTicket } from "@/lib/commitments";
 import DatePicker from "./DatePicker";
 import { StatusDot } from "./TicketStatusBadge";
@@ -368,7 +368,7 @@ function MeetingTicketRow({
   const [saving, setSaving] = useState(false);
 
   const pri = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.normal;
-  const isOverdue = ticket.dueDate && ticket.dueDate < new Date().toISOString().split("T")[0];
+  const isOverdue = ticket.dueDate && ticket.dueDate < new Date().toISOString().split("T")[0] && isOverdueEligible(ticket.status);
   const daysOverdue = isOverdue && ticket.dueDate
     ? Math.ceil((Date.now() - new Date(ticket.dueDate + "T23:59:59").getTime()) / (1000 * 60 * 60 * 24))
     : 0;

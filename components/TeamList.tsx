@@ -44,6 +44,7 @@ function TeamMemberFormModal({
   const [tags, setTags] = useState<string[]>(member?.tags || []);
   const [employeeStatus, setEmployeeStatus] = useState(member?.employeeStatus || "active");
   const [sickDaysTotal, setSickDaysTotal] = useState<number | "">(member?.sickDaysTotal ?? 5);
+  const [bypassClockIn, setBypassClockIn] = useState(member?.bypassClockIn ?? false);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -121,6 +122,7 @@ function TeamMemberFormModal({
       body.roleLevel = memberRoleLevel;
       body.employeeStatus = employeeStatus;
       body.sickDaysTotal = sickDaysTotal === "" ? 5 : sickDaysTotal;
+      body.bypassClockIn = bypassClockIn;
     }
 
     try {
@@ -272,6 +274,22 @@ function TeamMemberFormModal({
             </div>
             <p className="text-xs text-[var(--muted)]">Controls which service boards this member can see</p>
           </div>
+
+          {/* Clock-in bypass */}
+          {canManageRoles && (
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={bypassClockIn}
+                  onChange={(e) => setBypassClockIn(e.target.checked)}
+                  className="accent-[var(--accent)] w-4 h-4"
+                />
+                <span className="text-sm font-medium text-[var(--foreground)]">Bypass clock-in requirement</span>
+              </label>
+              <p className="text-xs text-[var(--muted)] mt-1 ml-6">Allow this member to start ticket timers without clocking in first</p>
+            </div>
+          )}
 
           {/* Compensation — only visible to authorized roles */}
           {canEditWages && (

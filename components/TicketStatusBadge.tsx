@@ -1,6 +1,6 @@
 "use client";
 
-import { TicketStatus } from "@/types";
+import { TicketStatus, TicketStage, isOverdueEligible } from "@/types";
 
 const STATUS_CONFIG: Record<TicketStatus, { label: string; bg: string; text: string; dot: string }> = {
   needs_attention: { label: "Needs Attention", bg: "bg-orange-100", text: "text-orange-700", dot: "#f97316" },
@@ -11,6 +11,32 @@ const STATUS_CONFIG: Record<TicketStatus, { label: string; bg: string; text: str
   approved_go_live: { label: "Approved / Go Live", bg: "bg-green-100", text: "text-green-700", dot: "#22c55e" },
   closed: { label: "Closed", bg: "bg-green-100", text: "text-green-700", dot: "#22c55e" },
 };
+
+// Stage mapping — single source of truth for overdue logic.
+// When adding a new status, assign its stage here.
+const STATUS_STAGE: Record<TicketStatus, TicketStage> = {
+  needs_attention: "not_done",
+  stuck: "not_done",
+  in_progress: "not_done",
+  qa_ready: "in_review",
+  client_review: "in_review",
+  approved_go_live: "in_review",
+  closed: "done",
+};
+
+/** Get the stage a status belongs to */
+export function getStatusStage(status: TicketStatus): TicketStage {
+  return STATUS_STAGE[status] ?? "not_done";
+}
+
+/** Whether the ticket is past the employee's hands (in_review or done) */
+export function isCompletedStage(status: TicketStatus): boolean {
+  const stage = getStatusStage(status);
+  return stage === "in_review" || stage === "done";
+}
+
+// Re-export for convenience in components
+export { isOverdueEligible } from "@/types";
 
 export const STATUS_ORDER: TicketStatus[] = [
   "needs_attention",
