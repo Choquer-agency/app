@@ -36,14 +36,7 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
       const res = await fetch("/api/admin/packages", { cache: "no-store" });
       if (res.ok) {
         const data: Package[] = await res.json();
-        // Deduplicate by ID
-        const seen = new Set<string | number>();
-        const unique = data.filter((p) => {
-          if (seen.has(p.id)) return false;
-          seen.add(p.id);
-          return true;
-        });
-        setPackages(unique);
+        setPackages(data);
       }
     } catch {
       // Failed

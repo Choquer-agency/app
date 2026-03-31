@@ -12,15 +12,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const packages = await getAllPackages();
-    // Deduplicate by ID in case of any stale cache or double-fetch
-    const seen = new Set<string>();
-    const unique = packages.filter((p) => {
-      const id = String(p.id);
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
-    return NextResponse.json(unique, {
+    return NextResponse.json(packages, {
       headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     });
   } catch (error) {
