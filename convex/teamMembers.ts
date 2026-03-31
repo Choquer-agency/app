@@ -116,6 +116,7 @@ export const update = mutation({
     vacationDaysUsed: v.optional(v.number()),
     sickDaysTotal: v.optional(v.number()),
     tags: v.optional(v.array(v.string())),
+    bypassClockIn: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;
