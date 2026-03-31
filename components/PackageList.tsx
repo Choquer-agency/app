@@ -15,7 +15,10 @@ export default function PackageList() {
 
   const fetchPackages = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/packages", { cache: "no-store" });
+      const res = await fetch(`/api/admin/packages?_t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
+      });
       if (res.ok) {
         const data: Package[] = await res.json();
         setPackages(data);

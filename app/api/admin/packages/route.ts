@@ -13,7 +13,13 @@ export async function GET(request: NextRequest) {
   try {
     const packages = await getAllPackages();
     return NextResponse.json(packages, {
-      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      headers: {
+        "Cache-Control": "private, no-store, no-cache, must-revalidate, max-age=0",
+        "CDN-Cache-Control": "no-store",
+        "Vercel-CDN-Cache-Control": "no-store",
+        "Pragma": "no-cache",
+        "Expires": "0",
+      },
     });
   } catch (error) {
     console.error("Failed to fetch packages:", error);
