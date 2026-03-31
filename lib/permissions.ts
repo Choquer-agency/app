@@ -64,7 +64,10 @@ export type Permission =
   | "timesheet:view_all"
   | "timesheet:manage"
   | "timesheet:export"
-  | "timesheet:settings";
+  | "timesheet:settings"
+  // Connections
+  | "connections:view"
+  | "connections:manage";
 
 // Minimum role required for each permission.
 // Any role at that tier or higher automatically gets access.
@@ -110,6 +113,9 @@ const PERMISSION_MAP: Record<Permission, RoleLevel> = {
   "timesheet:manage": "c_suite",
   "timesheet:export": "bookkeeper",
   "timesheet:settings": "owner",
+
+  "connections:view": "c_suite",
+  "connections:manage": "c_suite",
 };
 
 // Bookkeepers only see CRM + Timesheet — explicit allowlist

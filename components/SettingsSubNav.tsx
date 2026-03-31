@@ -12,6 +12,7 @@ const TABS = [
   { href: "/admin/settings/notifications", label: "Notifications" },
   { href: "/admin/settings/past-clients", label: "Past Clients", minRole: "c_suite" as RoleLevel },
   { href: "/admin/settings/activity", label: "Activity", minRole: "c_suite" as RoleLevel },
+  { href: "/admin/settings/connections", label: "Connections", minRole: "c_suite" as RoleLevel },
 ];
 
 export default function SettingsSubNav({ roleLevel }: { roleLevel?: RoleLevel | string }) {

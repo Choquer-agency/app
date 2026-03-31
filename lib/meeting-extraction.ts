@@ -156,6 +156,7 @@ DATE RULES:
 - Day names: if that day has ALREADY PASSED this week, use NEXT week's occurrence. Example: if today is Thursday and they say "due Wednesday" → next Wednesday. If today is Monday and they say "due Friday" → this Friday.
 - "end of week" = this Friday. "next week" = next Monday.
 - NEVER output dates in the past.
+- NEVER output dates that fall on Saturday or Sunday. If a date would land on Saturday, use the following Monday instead. If it would land on Sunday, use the following Monday instead.
 
 Return ONLY valid JSON (no markdown fences) with this exact structure:
 {

@@ -1,0 +1,178 @@
+import { PlatformConfig } from "@/types";
+
+export const PLATFORM_CONFIGS: PlatformConfig[] = [
+  // Client-facing platforms
+  {
+    platform: "google_ads",
+    name: "Google Ads",
+    description: "Campaign performance, spend, conversions, and keyword data",
+    scope: "client",
+    authType: "oauth2",
+    docsUrl: "https://developers.google.com/google-ads/api/docs/start",
+    icon: "GoogleAds",
+    color: "#4285F4",
+  },
+  {
+    platform: "meta_ads",
+    name: "Meta Ads",
+    description: "Facebook and Instagram ad campaign insights and analytics",
+    scope: "client",
+    authType: "oauth2",
+    docsUrl: "https://developers.facebook.com/docs/marketing-apis",
+    icon: "Meta",
+    color: "#0081FB",
+  },
+  {
+    platform: "gmb",
+    name: "Google Business Profile",
+    description: "Business listings, reviews, and local search performance",
+    scope: "client",
+    authType: "oauth2",
+    docsUrl: "https://developers.google.com/my-business",
+    icon: "GoogleBusiness",
+    color: "#4285F4",
+  },
+  {
+    platform: "gsc",
+    name: "Google Search Console",
+    description: "Search queries, clicks, impressions, and indexing status",
+    scope: "client",
+    authType: "oauth2",
+    docsUrl: "https://developers.google.com/webmaster-tools",
+    icon: "SearchConsole",
+    color: "#458CF5",
+  },
+  {
+    platform: "instagram",
+    name: "Instagram",
+    description: "Profile insights, post performance, and audience data",
+    scope: "client",
+    authType: "oauth2",
+    docsUrl: "https://developers.facebook.com/docs/instagram-api",
+    icon: "Instagram",
+    color: "#E4405F",
+  },
+  {
+    platform: "linkedin_ads",
+    name: "LinkedIn Ads",
+    description: "Sponsored content performance and campaign analytics",
+    scope: "client",
+    authType: "oauth2",
+    docsUrl: "https://learn.microsoft.com/en-us/linkedin/marketing/",
+    icon: "LinkedIn",
+    color: "#0A66C2",
+  },
+  {
+    platform: "linkedin_pages",
+    name: "LinkedIn Pages",
+    description: "Company page analytics, follower growth, and post insights",
+    scope: "client",
+    authType: "oauth2",
+    docsUrl: "https://learn.microsoft.com/en-us/linkedin/marketing/community-management",
+    icon: "LinkedIn",
+    color: "#0A66C2",
+  },
+  {
+    platform: "google_merchant",
+    name: "Google Merchant Center",
+    description: "Product listings, shopping campaign data, and feed status",
+    scope: "client",
+    authType: "oauth2",
+    docsUrl: "https://developers.google.com/shopping-content",
+    icon: "GoogleMerchant",
+    color: "#4285F4",
+  },
+  {
+    platform: "pagespeed",
+    name: "PageSpeed Insights",
+    description: "Core Web Vitals, Lighthouse scores, and performance metrics",
+    scope: "client",
+    authType: "api_key",
+    docsUrl: "https://developers.google.com/speed/docs/insights/v5/get-started",
+    icon: "PageSpeed",
+    color: "#4285F4",
+  },
+  // Internal org-level platforms
+  {
+    platform: "airtable",
+    name: "Airtable",
+    description: "Access bases, tables, and records across your workspace",
+    scope: "org",
+    authType: "api_key",
+    docsUrl: "https://airtable.com/developers/web/api/introduction",
+    icon: "Airtable",
+    color: "#18BFFF",
+  },
+  {
+    platform: "intercom",
+    name: "Intercom",
+    description: "Customer conversations, contacts, and support metrics",
+    scope: "org",
+    authType: "api_key",
+    docsUrl: "https://developers.intercom.com/docs",
+    icon: "Intercom",
+    color: "#6AFDEF",
+  },
+  {
+    platform: "mailerlite",
+    name: "MailerLite",
+    description: "Email campaigns, subscribers, and automation stats",
+    scope: "org",
+    authType: "api_key",
+    docsUrl: "https://developers.mailerlite.com/docs",
+    icon: "MailerLite",
+    color: "#09C269",
+  },
+  {
+    platform: "mailersend",
+    name: "MailerSend",
+    description: "Transactional email delivery, templates, and analytics",
+    scope: "org",
+    authType: "api_key",
+    docsUrl: "https://developers.mailersend.com/",
+    icon: "MailerSend",
+    color: "#2F45FF",
+  },
+  {
+    platform: "notion",
+    name: "Notion",
+    description: "Pages, databases, and workspace content",
+    scope: "org",
+    authType: "api_key",
+    docsUrl: "https://developers.notion.com/",
+    icon: "Notion",
+    color: "#000000",
+  },
+  {
+    platform: "slack",
+    name: "Slack",
+    description: "Channels, messages, and workspace data",
+    scope: "org",
+    authType: "api_key",
+    docsUrl: "https://api.slack.com/",
+    icon: "Slack",
+    color: "#4A154B",
+  },
+  {
+    platform: "stripe",
+    name: "Stripe",
+    description: "Payments, subscriptions, invoices, and revenue data",
+    scope: "org",
+    authType: "api_key",
+    docsUrl: "https://docs.stripe.com/api",
+    icon: "Stripe",
+    color: "#635BFF",
+  },
+];
+
+export function getPlatformConfig(platform: string): PlatformConfig | undefined {
+  return PLATFORM_CONFIGS.find((p) => p.platform === platform);
+}
+
+export function getClientPlatforms(): PlatformConfig[] {
+  return PLATFORM_CONFIGS.filter((p) => p.scope === "client");
+}
+
+export function getOrgPlatforms(): PlatformConfig[] {
+  return PLATFORM_CONFIGS.filter((p) => p.scope === "org");
+}

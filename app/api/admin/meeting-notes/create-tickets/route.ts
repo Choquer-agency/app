@@ -14,6 +14,15 @@ interface TicketToCreate {
   priority: string;
 }
 
+/** If date falls on Saturday or Sunday, push to next Monday */
+function adjustForWeekend(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const day = d.getDay();
+  if (day === 6) d.setDate(d.getDate() + 2);
+  else if (day === 0) d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0];
+}
+
 export async function POST(request: NextRequest) {
   const session = getSession(request);
   if (!session) {
@@ -39,7 +48,7 @@ export async function POST(request: NextRequest) {
           title: item.title,
           description: item.description || "",
           clientId: item.clientId ?? null,
-          dueDate: item.dueDate ?? null,
+          dueDate: item.dueDate ? adjustForWeekend(item.dueDate) : null,
           priority: (item.priority as "low" | "normal" | "high" | "urgent") || "normal",
           assigneeIds: item.assigneeId ? [item.assigneeId] : [],
         },
@@ -52,7 +61,7 @@ export async function POST(request: NextRequest) {
         await addCommitment({
           ticketId: ticket.id,
           teamMemberId: item.assigneeId,
-          committedDate: item.dueDate,
+          committedDate: adjustForWeekend(item.dueDate),
           committedById: session.teamMemberId,
           notes: "Created from meeting notes",
         });
