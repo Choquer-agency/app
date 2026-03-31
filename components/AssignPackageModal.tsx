@@ -40,7 +40,7 @@ export default function AssignPackageModal({
     return "month_to_month";
   }
 
-  const [packageId, setPackageId] = useState<number | "">(packages[0]?.id || "");
+  const [packageId, setPackageId] = useState<string>(packages[0]?.id ? String(packages[0].id) : "");
   const [useCustomPrice, setUseCustomPrice] = useState(false);
   const [customPrice, setCustomPrice] = useState("");
   const [useCustomHours, setUseCustomHours] = useState(false);
@@ -57,7 +57,7 @@ export default function AssignPackageModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const selectedPkg = packages.find((p) => p.id === packageId);
+  const selectedPkg = packages.find((p) => String(p.id) === packageId);
   const showHours = !!selectedPkg;
   const hasSetupFee = selectedPkg && selectedPkg.setupFee > 0;
 
@@ -124,15 +124,15 @@ export default function AssignPackageModal({
             <select
               value={packageId}
               onChange={(e) => {
-                const newId = Number(e.target.value);
+                const newId = e.target.value;
                 setPackageId(newId);
-                const pkg = packages.find((p) => p.id === newId);
+                const pkg = packages.find((p) => String(p.id) === newId);
                 if (pkg) setContractTerm(getDefaultContractTerm(pkg.category));
               }}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9500] focus:border-transparent bg-white"
             >
               {packages.map((pkg) => (
-                <option key={pkg.id} value={pkg.id}>
+                <option key={String(pkg.id)} value={String(pkg.id)}>
                   {pkg.name} — {formatPrice(pkg.defaultPrice)}/mo {currency}
                 </option>
               ))}
