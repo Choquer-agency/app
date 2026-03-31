@@ -375,10 +375,12 @@ export default function HomeDashboard({
   roleLevel,
   userName,
   teamMemberId,
+  bypassClockIn = false,
 }: {
   roleLevel: string;
   userName: string;
   teamMemberId: string;
+  bypassClockIn?: boolean;
 }) {
   const [data, setData] = useState<BulletinData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -393,14 +395,6 @@ export default function HomeDashboard({
   const [changelogImageUrl, setChangelogImageUrl] = useState("");
   const [changelogSubmitting, setChangelogSubmitting] = useState(false);
   const [showAllChangelog, setShowAllChangelog] = useState(false);
-  const [bypassClockIn, setBypassClockIn] = useState(false);
-
-  // Check if this member bypasses clock-in
-  useEffect(() => {
-    fetch("/api/admin/me").then(r => r.json()).then(d => {
-      if (d.bypassClockIn) setBypassClockIn(true);
-    }).catch(() => {});
-  }, []);
 
   const fetchBulletin = useCallback(async () => {
     try {
