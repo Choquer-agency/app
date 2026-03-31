@@ -393,6 +393,14 @@ export default function HomeDashboard({
   const [changelogImageUrl, setChangelogImageUrl] = useState("");
   const [changelogSubmitting, setChangelogSubmitting] = useState(false);
   const [showAllChangelog, setShowAllChangelog] = useState(false);
+  const [bypassClockIn, setBypassClockIn] = useState(false);
+
+  // Check if this member bypasses clock-in
+  useEffect(() => {
+    fetch("/api/admin/me").then(r => r.json()).then(d => {
+      if (d.bypassClockIn) setBypassClockIn(true);
+    }).catch(() => {});
+  }, []);
 
   const fetchBulletin = useCallback(async () => {
     try {
@@ -540,8 +548,8 @@ export default function HomeDashboard({
         )}
       </div>
 
-      {/* Quick Clock Bar — employees/interns only */}
-      {!hasMinRole(roleLevel as RoleLevel, "bookkeeper") && (
+      {/* Quick Clock Bar — employees/interns only, hidden for bypassClockIn members */}
+      {!hasMinRole(roleLevel as RoleLevel, "bookkeeper") && !bypassClockIn && (
         <QuickClockBar teamMemberId={String(teamMemberId)} />
       )}
 

@@ -9,16 +9,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Fetch tags from Convex
+  // Fetch member details from Convex
   let tags: string[] = [];
+  let bypassClockIn = false;
   try {
     const convex = getConvexClient();
     const member = await convex.query(api.teamMembers.getById, { id: session.teamMemberId as any });
-    if (member && Array.isArray((member as any).tags)) {
-      tags = (member as any).tags as string[];
+    if (member) {
+      if (Array.isArray((member as any).tags)) {
+        tags = (member as any).tags as string[];
+      }
+      if ((member as any).bypassClockIn) {
+        bypassClockIn = true;
+      }
     }
   } catch {
-    // tags field may not exist yet
+    // fields may not exist yet
   }
 
   return NextResponse.json({
@@ -27,5 +33,6 @@ export async function GET(request: NextRequest) {
     email: session.email,
     roleLevel: session.roleLevel,
     tags,
+    bypassClockIn,
   });
 }
