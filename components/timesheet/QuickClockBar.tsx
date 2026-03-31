@@ -40,6 +40,15 @@ export default function QuickClockBar({
 
   const [now, setNow] = useState(new Date());
   const [showVacationForm, setShowVacationForm] = useState(false);
+  const [hidden, setHidden] = useState(false);
+
+  // Hide entire bar if member has bypassClockIn
+  useEffect(() => {
+    fetch(`/api/admin/me?_=${Date.now()}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => { if (d.bypassClockIn) setHidden(true); })
+      .catch(() => {});
+  }, []);
 
   // Live clock
   useEffect(() => {
@@ -52,6 +61,9 @@ export default function QuickClockBar({
     minute: "2-digit",
     second: "2-digit",
   }).toLowerCase();
+
+  // Hide for bypassClockIn members
+  if (hidden) return null;
 
   // ── Full-screen overlays (same as ClockInOutCard) ──
 
