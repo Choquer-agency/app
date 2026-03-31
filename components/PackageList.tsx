@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import { Package } from "@/types";
 import PackageFormModal from "./PackageFormModal";
 
 export default function PackageList() {
+  const instanceId = useId();
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -127,13 +128,14 @@ export default function PackageList() {
   }
 
   return (
-    <>
+    <div data-package-list={instanceId}>
       {/* Page heading */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-[var(--foreground)]">Packages</h2>
           <p className="text-sm text-[var(--muted)] mt-1">
             Manage your service packages and pricing
+            <span className="ml-2 text-xs text-gray-300">({packages.length} packages · {instanceId})</span>
           </p>
         </div>
         <button
@@ -225,6 +227,6 @@ export default function PackageList() {
           onSaved={handleSaved}
         />
       )}
-    </>
+    </div>
   );
 }
