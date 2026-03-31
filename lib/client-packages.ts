@@ -48,17 +48,28 @@ export async function assignPackage(data: {
   notes?: string;
 }): Promise<ClientPackage> {
   const convex = getConvexClient();
-  const doc = await convex.mutation(api.clientPackages.create, {
+  // Build args — only include customPrice/customHours if they have a real value
+  // (Convex optional fields: pass value to store, omit to skip)
+  const args: Record<string, unknown> = {
     clientId: data.clientId as any,
     packageId: data.packageId as any,
-    customPrice: data.customPrice ?? undefined,
-    customHours: data.customHours ?? undefined,
     applySetupFee: data.applySetupFee,
-    customSetupFee: data.customSetupFee ?? undefined,
     signupDate: data.signupDate,
-    contractEndDate: data.contractEndDate ?? undefined,
     notes: data.notes,
-  });
+  };
+  if (data.customPrice !== null && data.customPrice !== undefined) {
+    args.customPrice = data.customPrice;
+  }
+  if (data.customHours !== null && data.customHours !== undefined) {
+    args.customHours = data.customHours;
+  }
+  if (data.customSetupFee !== null && data.customSetupFee !== undefined) {
+    args.customSetupFee = data.customSetupFee;
+  }
+  if (data.contractEndDate) {
+    args.contractEndDate = data.contractEndDate;
+  }
+  const doc = await convex.mutation(api.clientPackages.create, args as any);
   return docToClientPackage(doc);
 }
 

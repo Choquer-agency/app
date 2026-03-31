@@ -9,7 +9,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const packages = await getAllPackages();
-    return NextResponse.json(packages);
+    return NextResponse.json(packages, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+    });
   } catch (error) {
     console.error("Failed to fetch packages:", error);
     return NextResponse.json({ error: "Failed to fetch packages" }, { status: 500 });

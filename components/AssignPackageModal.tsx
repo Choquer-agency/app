@@ -84,7 +84,9 @@ export default function AssignPackageModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           packageId,
-          customPrice: useCustomPrice ? parseFloat(customPrice) || null : null,
+          customPrice: useCustomPrice
+            ? customPrice.trim() === "" ? null : parseFloat(customPrice)
+            : null,
           customHours: useCustomHours
             ? customHours.trim() === "" ? null : parseFloat(customHours)
             : null,
