@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAllPackages, createPackage } from "@/lib/packages";
 import { getSession } from "@/lib/admin-auth";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   if (!getSession(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

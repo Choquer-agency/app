@@ -4,6 +4,8 @@ import { addNote } from "@/lib/client-notes";
 import { getPackageById } from "@/lib/packages";
 import { getSession } from "@/lib/admin-auth";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
