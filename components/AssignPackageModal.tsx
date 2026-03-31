@@ -58,7 +58,7 @@ export default function AssignPackageModal({
   const [error, setError] = useState("");
 
   const selectedPkg = packages.find((p) => p.id === packageId);
-  const showHours = selectedPkg && ["seo", "retainer", "google_ads", "social_media_ads"].includes(selectedPkg.category);
+  const showHours = !!selectedPkg;
   const hasSetupFee = selectedPkg && selectedPkg.setupFee > 0;
 
   function computeEndDate(): string | null {
