@@ -14,9 +14,17 @@ export default function PackageList() {
 
   const fetchPackages = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/packages");
+      const res = await fetch("/api/admin/packages", { cache: "no-store" });
       if (res.ok) {
-        setPackages(await res.json());
+        const data: Package[] = await res.json();
+        // Deduplicate by ID
+        const seen = new Set<string | number>();
+        const unique = data.filter((p) => {
+          if (seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
+        setPackages(unique);
         setNeedsMigration(false);
       } else {
         setNeedsMigration(true);
