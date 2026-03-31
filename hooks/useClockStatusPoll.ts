@@ -9,7 +9,7 @@ export function useClockStatusPoll(pollInterval = 30000) {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/timesheet/status");
+      const res = await fetch(`/api/admin/timesheet/status?_=${Date.now()}`, { cache: "no-store" });
       if (res.ok) {
         const data: ShiftStatus = await res.json();
         setClockStatus(deriveClockStatus(data));

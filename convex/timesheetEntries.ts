@@ -7,15 +7,29 @@ export const getActiveShift = query({
   args: { teamMemberId: v.id("teamMembers") },
   handler: async (ctx, args) => {
     const today = new Date().toISOString().split("T")[0];
-    const entries = await ctx.db
+
+    // First check today's entries
+    const todayEntries = await ctx.db
       .query("timesheetEntries")
       .withIndex("by_teamMemberId_and_date", (q) =>
         q.eq("teamMemberId", args.teamMemberId).eq("date", today)
       )
       .take(5);
-    // Find the one that's still open (no clockOutTime)
-    const active = entries.find((e) => e.clockOutTime === undefined);
-    return active ?? null;
+    const todayActive = todayEntries.find((e) => e.clockOutTime === undefined);
+    if (todayActive) return todayActive;
+
+    // Also check for stale open shifts from previous days (up to 7 days back)
+    const recent = await ctx.db
+      .query("timesheetEntries")
+      .withIndex("by_teamMemberId_and_date", (q) =>
+        q.eq("teamMemberId", args.teamMemberId)
+      )
+      .order("desc")
+      .take(20);
+    const stale = recent.find(
+      (e) => e.clockOutTime === undefined && e.date < today && !e.isSickDay && !e.isVacation
+    );
+    return stale ?? null;
   },
 });
 
@@ -119,8 +133,34 @@ export const clockIn = mutation({
 
     const active = existing.find((e) => e.clockOutTime === undefined);
     if (active) {
-      // Already clocked in — return existing entry
+      // Already clocked in today — return existing entry
       return active;
+    }
+
+    // Auto-close any stale open shifts from previous days
+    const recent = await ctx.db
+      .query("timesheetEntries")
+      .withIndex("by_teamMemberId_and_date", (q) =>
+        q.eq("teamMemberId", args.teamMemberId)
+      )
+      .order("desc")
+      .take(20);
+
+    for (const entry of recent) {
+      if (entry.clockOutTime === undefined && entry.date < today && !entry.isSickDay && !entry.isVacation) {
+        // Auto-close stale shift at end of that day (11:59 PM)
+        const staleEnd = new Date(entry.date + "T23:59:00");
+        const clockInMs = new Date(entry.clockInTime).getTime();
+        const totalMinutes = Math.floor((staleEnd.getTime() - clockInMs) / 60000);
+        const breakMinutes = entry.totalBreakMinutes ?? 0;
+        const workedMinutes = Math.max(0, totalMinutes - breakMinutes);
+
+        await ctx.db.patch(entry._id, {
+          clockOutTime: staleEnd.toISOString(),
+          workedMinutes,
+          issues: [...(entry.issues ?? []), "AUTO_CLOSED_STALE"],
+        });
+      }
     }
 
     const id = await ctx.db.insert("timesheetEntries", {

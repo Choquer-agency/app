@@ -851,6 +851,45 @@ export interface ChangelogEntry {
   createdAt: string;
 }
 
+// === API Connections Types ===
+
+export type ConnectionPlatform =
+  | "google_ads" | "meta_ads" | "gmb" | "gsc" | "instagram"
+  | "linkedin_ads" | "linkedin_pages" | "google_merchant" | "pagespeed"
+  | "airtable" | "intercom" | "mailerlite" | "mailersend" | "notion" | "slack" | "stripe";
+
+export type ConnectionScope = "org" | "client";
+export type ConnectionAuthType = "api_key" | "oauth2" | "service_account";
+export type ConnectionStatus = "active" | "expired" | "error" | "disconnected";
+
+export interface ApiConnection {
+  id: string;
+  platform: ConnectionPlatform;
+  scope: ConnectionScope;
+  clientId?: string;
+  authType: ConnectionAuthType;
+  oauthAccountId?: string;
+  oauthAccountName?: string;
+  oauthExpiresAt?: string;
+  status: ConnectionStatus;
+  lastVerifiedAt?: string;
+  lastError?: string;
+  displayName?: string;
+  addedById?: string;
+  createdAt: string;
+}
+
+export interface PlatformConfig {
+  platform: ConnectionPlatform;
+  name: string;
+  description: string;
+  scope: ConnectionScope;
+  authType: ConnectionAuthType;
+  docsUrl: string;
+  icon: string;
+  color: string;
+}
+
 // === Service Board Types ===
 
 export type ServiceBoardStatus = "needs_attention" | "in_progress" | "report_ready" | "email_sent";

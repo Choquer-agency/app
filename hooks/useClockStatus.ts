@@ -47,7 +47,10 @@ export function useClockStatus(teamMemberId: string, onStatusChange?: () => void
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/timesheet/status");
+      // Cache-bust to ensure fresh status after clock actions
+      const res = await fetch(`/api/admin/timesheet/status?_=${Date.now()}`, {
+        cache: "no-store",
+      });
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
@@ -138,9 +141,17 @@ export function useClockStatus(teamMemberId: string, onStatusChange?: () => void
   async function handleClockOut() {
     setActionLoading(true);
     try {
-      await fetch("/api/admin/timesheet/clock-out", { method: "POST" });
+      const res = await fetch("/api/admin/timesheet/clock-out", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert("Clock-out failed: " + (data.error || "Unknown error"));
+      }
+      // Force fresh status fetch with cache bust
       await fetchStatus();
       onStatusChange?.();
+    } catch (err) {
+      console.error("Clock-out error:", err);
+      alert("Clock-out failed. Please try again.");
     } finally {
       setActionLoading(false);
     }

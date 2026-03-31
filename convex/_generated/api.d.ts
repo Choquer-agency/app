@@ -9,6 +9,7 @@
  */
 
 import type * as activityLog from "../activityLog.js";
+import type * as apiConnections from "../apiConnections.js";
 import type * as approvals from "../approvals.js";
 import type * as blockerEscalations from "../blockerEscalations.js";
 import type * as bulletin from "../bulletin.js";
@@ -17,6 +18,7 @@ import type * as clientNotes from "../clientNotes.js";
 import type * as clientPackages from "../clientPackages.js";
 import type * as clients from "../clients.js";
 import type * as commitments from "../commitments.js";
+import type * as connectionLogs from "../connectionLogs.js";
 import type * as enrichedContent from "../enrichedContent.js";
 import type * as leads from "../leads.js";
 import type * as meetingNotes from "../meetingNotes.js";
@@ -58,6 +60,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   activityLog: typeof activityLog;
+  apiConnections: typeof apiConnections;
   approvals: typeof approvals;
   blockerEscalations: typeof blockerEscalations;
   bulletin: typeof bulletin;
@@ -66,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   clientPackages: typeof clientPackages;
   clients: typeof clients;
   commitments: typeof commitments;
+  connectionLogs: typeof connectionLogs;
   enrichedContent: typeof enrichedContent;
   leads: typeof leads;
   meetingNotes: typeof meetingNotes;

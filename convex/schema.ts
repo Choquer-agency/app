@@ -623,4 +623,32 @@ export default defineSchema({
     authorName: v.optional(v.string()),
     visibility: v.optional(v.string()), // "team" (default, everyone) | "internal" (owner/c_suite only)
   }),
+
+  apiConnections: defineTable({
+    platform: v.string(), // "google_ads" | "meta_ads" | "gsc" | "gmb" | "instagram" | "linkedin_ads" | "linkedin_pages" | "google_merchant" | "pagespeed" | "airtable" | "intercom" | "mailerlite" | "mailersend" | "notion" | "slack" | "stripe"
+    scope: v.string(), // "org" | "client"
+    clientId: v.optional(v.id("clients")),
+    authType: v.string(), // "api_key" | "oauth2" | "service_account"
+    encryptedCreds: v.string(),
+    credsIv: v.string(),
+    oauthAccountId: v.optional(v.string()),
+    oauthAccountName: v.optional(v.string()),
+    oauthExpiresAt: v.optional(v.string()),
+    status: v.string(), // "active" | "expired" | "error" | "disconnected"
+    lastVerifiedAt: v.optional(v.string()),
+    lastError: v.optional(v.string()),
+    displayName: v.optional(v.string()),
+    addedById: v.optional(v.id("teamMembers")),
+  })
+    .index("by_platform_scope", ["platform", "scope"])
+    .index("by_client", ["clientId"])
+    .index("by_status", ["status"]),
+
+  connectionLogs: defineTable({
+    connectionId: v.id("apiConnections"),
+    event: v.string(), // "created" | "verified" | "refreshed" | "error" | "disconnected"
+    detail: v.optional(v.string()),
+    actorId: v.optional(v.id("teamMembers")),
+  })
+    .index("by_connection", ["connectionId"]),
 });

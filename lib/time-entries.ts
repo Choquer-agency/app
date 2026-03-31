@@ -254,6 +254,7 @@ export async function getClientHourCap(
   // Get total included hours from all active packages
   const convex = getConvexClient();
   let includedHours = 0;
+  let hasHourCap = false;
   let clientName = "";
   try {
     const client = await convex.query(api.clients.getById, { id: clientId as any });
@@ -261,13 +262,19 @@ export async function getClientHourCap(
     const packages = await convex.query(api.clientPackages.listByClient, { clientId: clientId as any });
     for (const cp of packages as any[]) {
       if (cp.active) {
-        includedHours += cp.customHours ?? cp.packageHoursIncluded ?? 0;
+        // null/undefined = unlimited (not tracked), 0 = zero hours, number = cap
+        const hours = cp.customHours ?? cp.packageHoursIncluded ?? null;
+        if (hours !== null) {
+          hasHourCap = true;
+          includedHours += hours;
+        }
       }
     }
   } catch {}
 
-  const percentUsed = includedHours > 0 ? Math.round((totalHours / includedHours) * 100) : 0;
-  const status = percentUsed >= 100 ? "exceeded" : percentUsed >= 80 ? "warning" : "ok";
+  // If no packages define an hour cap, treat as unlimited (0% used, always "ok")
+  const percentUsed = hasHourCap && includedHours > 0 ? Math.round((totalHours / includedHours) * 100) : 0;
+  const status = !hasHourCap ? "ok" : percentUsed >= 100 ? "exceeded" : percentUsed >= 80 ? "warning" : "ok";
 
   return {
     clientId: clientId as any,

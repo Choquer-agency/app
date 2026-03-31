@@ -22,5 +22,10 @@ export async function GET(request: NextRequest) {
     isOnBreak: !!activeBreak,
     activeShift: activeShift ? { ...activeShift, breakCount } : null,
     activeBreak,
+  }, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "Pragma": "no-cache",
+    },
   });
 }

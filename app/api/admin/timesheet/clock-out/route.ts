@@ -9,10 +9,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Find active shift for this user
+  // Find active shift for this user (includes stale shifts from previous days)
   const active = await getActiveShift(session.teamMemberId);
   if (!active) {
-    return NextResponse.json({ error: "No active shift" }, { status: 404 });
+    // No open shift — already clocked out, return success to prevent UI confusion
+    return NextResponse.json({ alreadyClockedOut: true });
   }
 
   // Auto-stop any running ticket timer when clocking out
@@ -20,7 +21,8 @@ export async function POST(request: NextRequest) {
 
   const entry = await clockOut(active.id);
   if (!entry) {
-    return NextResponse.json({ error: "Failed to clock out" }, { status: 500 });
+    // clockOut returns null if already closed — treat as success
+    return NextResponse.json({ alreadyClockedOut: true });
   }
   return NextResponse.json(entry);
 }

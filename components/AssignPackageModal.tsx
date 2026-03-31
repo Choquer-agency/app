@@ -85,7 +85,9 @@ export default function AssignPackageModal({
         body: JSON.stringify({
           packageId,
           customPrice: useCustomPrice ? parseFloat(customPrice) || null : null,
-          customHours: useCustomHours ? parseFloat(customHours) || null : null,
+          customHours: useCustomHours
+            ? customHours.trim() === "" ? null : parseFloat(customHours)
+            : null,
           applySetupFee,
           customSetupFee: applySetupFee && useCustomSetupFee ? parseFloat(customSetupFee) || null : null,
           signupDate,
@@ -206,9 +208,12 @@ export default function AssignPackageModal({
                     inputMode="decimal"
                     value={customHours}
                     onChange={(e) => setCustomHours(e.target.value)}
-                    placeholder="e.g. 15"
+                    placeholder="Leave blank for unlimited"
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9500] focus:border-transparent"
                   />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Blank = unlimited (not tracked) · 0 = no hours · Any number = monthly cap
+                  </p>
                 </div>
               )}
             </>
