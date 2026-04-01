@@ -857,12 +857,68 @@ function parseContent(content: string): Record<string, unknown> | string {
     if (parsed && typeof parsed === "object" && parsed.type === "doc") {
       return parsed;
     }
-    // Not tiptap JSON — treat as plain text
-    return plainToTiptap(content);
+    // Not tiptap JSON — check for markdown, then fall back to plain text
+    return looksLikeMarkdown(content) ? markdownToTiptapJson(content) : plainToTiptap(content);
   } catch {
-    // Plain text string
-    return plainToTiptap(content);
+    // Plain text string — check for markdown
+    return looksLikeMarkdown(content) ? markdownToTiptapJson(content) : plainToTiptap(content);
   }
+}
+
+/** Check if text contains markdown formatting */
+function looksLikeMarkdown(text: string): boolean {
+  if (!text) return false;
+  return text.split("\n").some((line) => /^#{1,3}\s|^\s*[-*]\s\S|^\s*>\s|\*\*[^*]+\*\*/.test(line));
+}
+
+/** Convert markdown to TipTap JSON (client-side version) */
+function markdownToTiptapJson(markdown: string): Record<string, unknown> {
+  type Mark = { type: string; attrs?: Record<string, unknown> };
+  type Node = { type: string; attrs?: Record<string, unknown>; content?: Node[]; marks?: Mark[]; text?: string };
+
+  function parseInline(text: string): Node[] {
+    const nodes: Node[] = [];
+    const re = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) nodes.push({ type: "text", text: text.slice(last, m.index) });
+      if (m[2]) nodes.push({ type: "text", text: m[2], marks: [{ type: "bold" }, { type: "italic" }] });
+      else if (m[3]) nodes.push({ type: "text", text: m[3], marks: [{ type: "bold" }] });
+      else if (m[4]) nodes.push({ type: "text", text: m[4], marks: [{ type: "italic" }] });
+      else if (m[5]) nodes.push({ type: "text", text: m[5], marks: [{ type: "code" }] });
+      else if (m[6] && m[7]) nodes.push({ type: "text", text: m[6], marks: [{ type: "link", attrs: { href: m[7], target: "_blank" } }] });
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) nodes.push({ type: "text", text: text.slice(last) });
+    return nodes;
+  }
+
+  function para(text: string): Node {
+    const c = parseInline(text);
+    return { type: "paragraph", content: c.length > 0 ? c : undefined };
+  }
+
+  const lines = markdown.split("\n");
+  const nodes: Node[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trimStart().startsWith("```")) { const cl: string[] = []; i++; while (i < lines.length && !lines[i].trimStart().startsWith("```")) { cl.push(lines[i]); i++; } i++; nodes.push({ type: "codeBlock", content: cl.length > 0 ? [{ type: "text", text: cl.join("\n") }] : undefined }); continue; }
+    if (/^---+$/.test(line.trim())) { nodes.push({ type: "horizontalRule" }); i++; continue; }
+    const hm = line.match(/^(#{1,3})\s+(.+)/);
+    if (hm) { nodes.push({ type: "heading", attrs: { level: hm[1].length }, content: parseInline(hm[2].trim()) }); i++; continue; }
+    if (line.trimStart().startsWith("> ")) { const ql: string[] = []; while (i < lines.length && lines[i].trimStart().startsWith("> ")) { ql.push(lines[i].replace(/^>\s?/, "")); i++; } nodes.push({ type: "blockquote", content: ql.map(para) }); continue; }
+    if (/^\s*[-*]\s+/.test(line)) { const li: Node[] = []; while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) { li.push({ type: "listItem", content: [para(lines[i].replace(/^\s*[-*]\s+/, ""))] }); i++; } nodes.push({ type: "bulletList", content: li }); continue; }
+    if (/^\s*\d+\.\s+/.test(line)) { const li: Node[] = []; while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) { li.push({ type: "listItem", content: [para(lines[i].replace(/^\s*\d+\.\s+/, ""))] }); i++; } nodes.push({ type: "orderedList", content: li }); continue; }
+    if (!line.trim()) { i++; continue; }
+    nodes.push(para(line));
+    i++;
+  }
+
+  if (nodes.length === 0) nodes.push({ type: "paragraph" });
+  return { type: "doc", content: nodes };
 }
 
 function plainToTiptap(text: string): Record<string, unknown> {

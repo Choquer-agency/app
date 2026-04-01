@@ -4,6 +4,7 @@ import { createTicket } from "@/lib/tickets";
 import { addCommitment } from "@/lib/commitments";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@/convex/_generated/api";
+import { markdownToTiptap } from "@/lib/markdown-to-tiptap";
 
 interface TicketToCreate {
   title: string;
@@ -43,10 +44,13 @@ export async function POST(request: NextRequest) {
     const created: Array<{ ticketId: string; ticketNumber: string; title: string }> = [];
 
     for (const item of items) {
+      const tiptapDescription = markdownToTiptap(item.description || "");
+
       const ticket = await createTicket(
         {
           title: item.title,
-          description: item.description || "",
+          description: tiptapDescription,
+          descriptionFormat: "tiptap",
           clientId: item.clientId ?? null,
           dueDate: item.dueDate ? adjustForWeekend(item.dueDate) : null,
           priority: (item.priority as "low" | "normal" | "high" | "urgent") || "normal",
