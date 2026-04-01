@@ -34,6 +34,7 @@ export default function TicketDetailModal({
   const [activityLoading, setActivityLoading] = useState(true);
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentTicketId, setCurrentTicketId] = useState(ticketId);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -100,7 +101,10 @@ export default function TicketDetailModal({
     fetch("/api/admin/me")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
-        if (data) setCurrentUserId(data.teamMemberId);
+        if (data) {
+          setCurrentUserId(data.teamMemberId);
+          setCurrentUserRole(data.roleLevel ?? null);
+        }
       })
       .catch(() => {});
   }, []);
@@ -451,6 +455,7 @@ export default function TicketDetailModal({
                 onEditComment={handleEditComment}
                 onDeleteComment={handleDeleteComment}
                 currentUserId={currentUserId}
+                currentUserRole={currentUserRole}
                 teamMembers={teamMembers}
               />
             </div>

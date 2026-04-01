@@ -11,6 +11,9 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import Mention from "@tiptap/extension-mention";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Color from "@tiptap/extension-color";
+import Highlight from "@tiptap/extension-highlight";
 import { useEffect, useCallback, useRef, useState, forwardRef, useImperativeHandle } from "react";
 
 interface MentionItem {
@@ -106,6 +109,10 @@ export default function TiptapEditor({
 }: TiptapEditorProps) {
   const isInitialized = useRef(false);
   const mentionOpenRef = useRef(false);
+  const [showTextColor, setShowTextColor] = useState(false);
+  const [showHighlight, setShowHighlight] = useState(false);
+  const textColorRef = useRef<HTMLDivElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
 
   const handleImagePaste = useCallback(
     async (file: File): Promise<string | null> => {
@@ -157,6 +164,9 @@ export default function TiptapEditor({
       }),
       Image.configure({ inline: true }),
       Underline,
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
       Mention.configure({
         HTMLAttributes: { class: "tiptap-mention" },
         suggestion: {
@@ -290,7 +300,52 @@ export default function TiptapEditor({
     if (editor) editor.setEditable(editable);
   }, [editable, editor]);
 
+  // Close color dropdowns on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (textColorRef.current && !textColorRef.current.contains(e.target as Node)) {
+        setShowTextColor(false);
+      }
+      if (highlightRef.current && !highlightRef.current.contains(e.target as Node)) {
+        setShowHighlight(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   if (!editor) return null;
+
+  const TEXT_COLORS = [
+    { name: "Default", color: null },
+    { name: "Black", color: "#000000" },
+    { name: "Dark Gray", color: "#4B5563" },
+    { name: "Gray", color: "#9CA3AF" },
+    { name: "Red", color: "#EF4444" },
+    { name: "Orange", color: "#F97316" },
+    { name: "Amber", color: "#F59E0B" },
+    { name: "Yellow", color: "#EAB308" },
+    { name: "Green", color: "#22C55E" },
+    { name: "Teal", color: "#14B8A6" },
+    { name: "Blue", color: "#3B82F6" },
+    { name: "Indigo", color: "#6366F1" },
+    { name: "Purple", color: "#A855F7" },
+    { name: "Pink", color: "#EC4899" },
+    { name: "Rose", color: "#F43F5E" },
+  ];
+
+  const HIGHLIGHT_COLORS = [
+    { name: "Default", color: null },
+    { name: "Yellow", color: "#FEF08A" },
+    { name: "Green", color: "#BBF7D0" },
+    { name: "Blue", color: "#BFDBFE" },
+    { name: "Purple", color: "#E9D5FF" },
+    { name: "Pink", color: "#FBCFE8" },
+    { name: "Red", color: "#FECACA" },
+    { name: "Orange", color: "#FED7AA" },
+    { name: "Teal", color: "#CCFBF1" },
+    { name: "Gray", color: "#E5E7EB" },
+  ];
 
   return (
     <div className={`tiptap-wrapper ${className}`}>
@@ -339,6 +394,82 @@ export default function TiptapEditor({
           >
             {"</>"}
           </button>
+          <span className="tiptap-separator" />
+          {/* Text Color */}
+          <div ref={textColorRef} style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => { setShowTextColor(!showTextColor); setShowHighlight(false); }}
+              className={editor.isActive("textStyle") ? "is-active" : ""}
+              title="Text Color"
+              style={{ position: "relative" }}
+            >
+              <span style={{ borderBottom: `3px solid ${editor.getAttributes("textStyle").color || "var(--foreground)"}`, lineHeight: 1, paddingBottom: 1, fontWeight: 700, fontSize: 12 }}>A</span>
+            </button>
+            {showTextColor && (
+              <div className="tiptap-color-dropdown">
+                {TEXT_COLORS.map((c) => (
+                  <button
+                    key={c.name}
+                    type="button"
+                    title={c.name}
+                    className={`tiptap-color-swatch ${!c.color && !editor.getAttributes("textStyle").color ? "is-active" : c.color && editor.getAttributes("textStyle").color === c.color ? "is-active" : ""}`}
+                    onClick={() => {
+                      if (c.color) {
+                        editor.chain().focus().setColor(c.color).run();
+                      } else {
+                        editor.chain().focus().unsetColor().run();
+                      }
+                      setShowTextColor(false);
+                    }}
+                  >
+                    {c.color ? (
+                      <span style={{ background: c.color, width: 18, height: 18, borderRadius: "50%", display: "block", border: "1px solid rgba(0,0,0,0.1)" }} />
+                    ) : (
+                      <span style={{ width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #d1d5db", fontSize: 10, color: "#9CA3AF" }}>&#x2215;</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Highlight Color */}
+          <div ref={highlightRef} style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => { setShowHighlight(!showHighlight); setShowTextColor(false); }}
+              className={editor.isActive("highlight") ? "is-active" : ""}
+              title="Highlight"
+            >
+              <span style={{ background: editor.getAttributes("highlight").color || "#FEF08A", borderRadius: 2, padding: "0 3px", fontWeight: 700, fontSize: 12, lineHeight: 1 }}>H</span>
+            </button>
+            {showHighlight && (
+              <div className="tiptap-color-dropdown">
+                {HIGHLIGHT_COLORS.map((c) => (
+                  <button
+                    key={c.name}
+                    type="button"
+                    title={c.name}
+                    className={`tiptap-color-swatch ${!c.color && !editor.isActive("highlight") ? "is-active" : c.color && editor.isActive("highlight", { color: c.color }) ? "is-active" : ""}`}
+                    onClick={() => {
+                      if (c.color) {
+                        editor.chain().focus().toggleHighlight({ color: c.color }).run();
+                      } else {
+                        editor.chain().focus().unsetHighlight().run();
+                      }
+                      setShowHighlight(false);
+                    }}
+                  >
+                    {c.color ? (
+                      <span style={{ background: c.color, width: 18, height: 18, borderRadius: "50%", display: "block", border: "1px solid rgba(0,0,0,0.1)" }} />
+                    ) : (
+                      <span style={{ width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #d1d5db", fontSize: 10, color: "#9CA3AF" }}>&#x2215;</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <span className="tiptap-separator" />
           <button
             type="button"
@@ -666,6 +797,53 @@ export default function TiptapEditor({
           height: 20px;
           background: var(--border);
           margin: 0 2px;
+        }
+
+        .tiptap-color-dropdown {
+          position: absolute;
+          top: calc(100% + 6px);
+          left: 50%;
+          transform: translateX(-50%);
+          background: white;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 8px;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 4px;
+          z-index: 100;
+          width: max-content;
+        }
+
+        .tiptap-color-swatch {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 28px !important;
+          height: 28px !important;
+          border-radius: 6px !important;
+          border: none !important;
+          background: transparent !important;
+          cursor: pointer !important;
+          padding: 0 !important;
+          transition: transform 0.1s !important;
+        }
+
+        .tiptap-color-swatch:hover {
+          transform: scale(1.15) !important;
+          background: #f3f4f6 !important;
+        }
+
+        .tiptap-color-swatch.is-active {
+          outline: 2px solid var(--accent) !important;
+          outline-offset: 1px;
+          border-radius: 50% !important;
+        }
+
+        .tiptap-content mark {
+          border-radius: 2px;
+          padding: 1px 0;
         }
       `}</style>
     </div>

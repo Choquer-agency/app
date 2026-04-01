@@ -82,7 +82,22 @@ export async function updateComment(
   return docToComment(doc);
 }
 
-// === Delete Comment (own only) ===
+// === Get Single Comment ===
+
+export async function getComment(commentId: number | string): Promise<TicketComment | null> {
+  const convex = getConvexClient();
+  try {
+    const doc = await convex.query(api.ticketComments.getById, {
+      id: commentId as any,
+    });
+    if (!doc) return null;
+    return docToComment(doc);
+  } catch {
+    return null;
+  }
+}
+
+// === Delete Comment ===
 
 export async function deleteComment(
   commentId: number | string,

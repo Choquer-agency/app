@@ -51,6 +51,13 @@ export const update = mutation({
   },
 });
 
+export const getById = query({
+  args: { id: v.id("ticketComments") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
 export const remove = mutation({
   args: { id: v.id("ticketComments") },
   handler: async (ctx, args) => {

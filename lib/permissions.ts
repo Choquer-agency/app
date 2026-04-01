@@ -65,6 +65,8 @@ export type Permission =
   | "timesheet:manage"
   | "timesheet:export"
   | "timesheet:settings"
+  // Comments
+  | "comments:delete_any"
   // Connections
   | "connections:view"
   | "connections:manage";
@@ -113,6 +115,8 @@ const PERMISSION_MAP: Record<Permission, RoleLevel> = {
   "timesheet:manage": "c_suite",
   "timesheet:export": "bookkeeper",
   "timesheet:settings": "owner",
+
+  "comments:delete_any": "owner",
 
   "connections:view": "c_suite",
   "connections:manage": "c_suite",
