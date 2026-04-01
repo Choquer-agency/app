@@ -8,7 +8,7 @@ function hasMissingConnections(client: ClientConfig): boolean {
   return !(client.ga4PropertyId && client.gscSiteUrl && client.notionPageUrl && client.calLink);
 }
 
-type SortMode = "alphabetical" | "recent" | "specialist";
+type SortField = "name" | "mrr" | "specialist" | "contact";
 
 export default function AdminClientList() {
   const [clients, setClients] = useState<ClientConfig[]>([]);
@@ -18,7 +18,8 @@ export default function AdminClientList() {
   const [copiedClientId, setCopiedClientId] = useState<number | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [search, setSearch] = useState("");
-  const [sortMode, setSortMode] = useState<SortMode>("alphabetical");
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const fetchClients = useCallback(async () => {
     try {
@@ -80,6 +81,16 @@ export default function AdminClientList() {
     runEnrichment(client.slug);
   }
 
+  function handleSort(field: SortField) {
+    if (sortField === field) {
+      if (sortDir === "asc") setSortDir("desc");
+      else { setSortField(null); setSortDir("asc"); }
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  }
+
   // Filter + sort clients
   const filteredClients = (() => {
     const q = search.toLowerCase().trim();
@@ -93,16 +104,22 @@ export default function AdminClientList() {
         )
       : [...clients];
 
-    switch (sortMode) {
-      case "alphabetical":
-        list.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case "recent":
-        list.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
-        break;
-      case "specialist":
-        list.sort((a, b) => (a.accountSpecialist ?? "").localeCompare(b.accountSpecialist ?? ""));
-        break;
+    if (sortField) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      list.sort((a, b) => {
+        switch (sortField) {
+          case "name":
+            return dir * a.name.localeCompare(b.name);
+          case "mrr":
+            return dir * ((a.mrr || 0) - (b.mrr || 0));
+          case "specialist":
+            return dir * (a.accountSpecialist ?? "").localeCompare(b.accountSpecialist ?? "");
+          case "contact":
+            return dir * (a.contactName ?? "").localeCompare(b.contactName ?? "");
+          default:
+            return 0;
+        }
+      });
     }
     return list;
   })();
@@ -131,9 +148,9 @@ export default function AdminClientList() {
         </button>
       </div>
 
-      {/* Search + Sort bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
-        <div className="relative flex-1">
+      {/* Search bar */}
+      <div className="mb-4">
+        <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <circle cx="11" cy="11" r="8" />
             <path strokeLinecap="round" d="m21 21-4.35-4.35" />
@@ -143,27 +160,8 @@ export default function AdminClientList() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search clients..."
-            className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent placeholder:text-[var(--muted)]"
+            className="w-full sm:max-w-sm pl-9 pr-3 py-2 text-sm bg-white border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent placeholder:text-[var(--muted)]"
           />
-        </div>
-        <div className="flex items-center gap-1 bg-white border border-[var(--border)] rounded-lg p-0.5">
-          {([
-            ["alphabetical", "A–Z"],
-            ["recent", "Recent"],
-            ["specialist", "Specialist"],
-          ] as [SortMode, string][]).map(([mode, label]) => (
-            <button
-              key={mode}
-              onClick={() => setSortMode(mode)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
-                sortMode === mode
-                  ? "bg-[var(--accent)] text-white"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -173,25 +171,37 @@ export default function AdminClientList() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">
-                  Name
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">
-                  MRR
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">
-                  Specialist
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">
-                  Contact
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-[var(--foreground)]">
-                  Dashboard
-                </th>
-              </tr>
+                {([
+                  { key: "name" as SortField, label: "Name", align: "left" },
+                  { key: null, label: "Status", align: "left" },
+                  { key: "mrr" as SortField, label: "MRR", align: "left" },
+                  { key: "specialist" as SortField, label: "Specialist", align: "left" },
+                  { key: "contact" as SortField, label: "Contact", align: "left" },
+                  { key: null, label: "Dashboard", align: "right" },
+                ] as const).map((col) => (
+                  <th
+                    key={col.label}
+                    className={`px-4 py-3 text-${col.align} font-medium text-[var(--foreground)] ${col.key ? "cursor-pointer select-none group/sort" : ""}`}
+                    onClick={col.key ? () => handleSort(col.key!) : undefined}
+                  >
+                    <span className={`inline-flex items-center gap-1 ${col.align === "right" ? "justify-end" : ""}`}>
+                      {col.label}
+                      {col.key && sortField === col.key ? (
+                        <svg className="w-3 h-3 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                          {sortDir === "asc" ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                          )}
+                        </svg>
+                      ) : col.key ? (
+                        <svg className="w-3 h-3 opacity-0 group-hover/sort:opacity-40 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
+                        </svg>
+                      ) : null}
+                    </span>
+                  </th>
+                ))}</tr>
             </thead>
             <tbody>
               {filteredClients.length === 0 ? (
