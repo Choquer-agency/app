@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split("T")[0];
-    const todayStr = now.toISOString().split("T")[0];
+    const tomorrowStr = tomorrow.toLocaleDateString("en-CA", { timeZone: "America/Vancouver" });
+    const todayStr = now.toLocaleDateString("en-CA", { timeZone: "America/Vancouver" });
 
     const dueSoonTickets = allTickets.filter(
       (t: any) => t.dueDate === tomorrowStr && !t.archived && t.status !== "closed"

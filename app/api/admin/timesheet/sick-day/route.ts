@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const date = body.date ?? new Date().toISOString().split("T")[0];
+  const date = body.date ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/Vancouver" });
   const isHalf = body.isHalf ?? false;
 
   const entry = await markSickDay(session.teamMemberId, date, isHalf);

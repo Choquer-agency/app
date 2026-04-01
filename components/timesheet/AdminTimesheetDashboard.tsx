@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { TimesheetEntry, TimesheetBreak, VacationRequest, TimesheetChangeRequest } from "@/types";
 import PeriodDetailModal from "./PeriodDetailModal";
+import TimeCardModal from "./TimeCardModal";
 
 function formatTime(iso: string | null) {
   if (!iso) return "--:--";
@@ -54,11 +55,23 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
   const [periodDetailEntries, setPeriodDetailEntries] = useState<TimesheetEntry[]>([]);
   const [isPeriodDetailOpen, setIsPeriodDetailOpen] = useState(false);
 
-  function openTimeCard(entry: TimesheetEntry | null, date: string, employeeName: string) {
+  const [selectedBreaks, setSelectedBreaks] = useState<TimesheetBreak[]>([]);
+
+  async function openTimeCard(entry: TimesheetEntry | null, date: string, employeeName: string) {
     setSelectedEntry(entry);
     setSelectedDate(date);
     setSelectedEmployeeName(employeeName);
     setIsTimeCardOpen(true);
+    // Fetch breaks for this entry
+    if (entry?.id) {
+      try {
+        const res = await fetch(`/api/admin/timesheet/break/list?entryId=${entry.id}`);
+        if (res.ok) setSelectedBreaks(await res.json());
+        else setSelectedBreaks([]);
+      } catch { setSelectedBreaks([]); }
+    } else {
+      setSelectedBreaks([]);
+    }
   }
 
   function closeTimeCard() {
@@ -78,7 +91,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
       await fetch("/api/admin/timesheet/entries", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: selectedEntry.id, ...updates }),
+        body: JSON.stringify({ entryId: selectedEntry.id, ...updates }),
       });
       closeTimeCard();
       fetchAll();
@@ -531,97 +544,18 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
           </div>
         </>
       )}
-      {/* TimeCardModal — will be wired in Phase 2 when the component exists */}
-      {isTimeCardOpen && selectedEntry && (
-        <div
-          className="fixed inset-0 z-50 bg-[#484848]/40 backdrop-blur-sm transition-all overflow-hidden"
-          onClick={closeTimeCard}
-          style={{ touchAction: "none" }}
-        >
-          <div
-            className="absolute right-0 top-0 bottom-0 w-full md:max-w-2xl bg-[#FAF9F5] shadow-2xl md:rounded-none animate-slide-in-right overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Inline TimeCard until TimeCardModal component is wired */}
-            <div className="p-6 md:p-8">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">{selectedEmployeeName}</h2>
-                  <p className="text-[#6B6B6B] font-medium text-sm">
-                    {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-                  </p>
-                </div>
-                <button onClick={closeTimeCard} className="text-[#9CA3AF] hover:text-[#484848] p-2 -mr-2 min-h-[44px] min-w-[44px] flex items-center justify-center">
-                  <svg className="w-8 h-8 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-
-              {/* Entry details */}
-              <div className="space-y-4">
-                {selectedEntry.isSickDay ? (
-                  <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl">
-                    <h3 className="font-bold text-rose-900">
-                      {selectedEntry.isHalfSickDay ? "Partial Sick Day" : "Sick Day"}
-                    </h3>
-                    {selectedEntry.sickHoursUsed && (
-                      <p className="text-sm text-rose-700 mt-1">{selectedEntry.sickHoursUsed}h sick time used</p>
-                    )}
-                  </div>
-                ) : selectedEntry.isVacation ? (
-                  <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl">
-                    <h3 className="font-bold text-sky-900">Vacation Day</h3>
-                  </div>
-                ) : (
-                  <>
-                    <div className="bg-white p-4 rounded-2xl border border-[#F6F5F1]">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Clock In</div>
-                          <div className="text-lg font-mono text-[#1A1A1A]">{formatTime(selectedEntry.clockInTime)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Clock Out</div>
-                          <div className="text-lg font-mono text-[#1A1A1A]">{formatTime(selectedEntry.clockOutTime)}</div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl border border-[#F6F5F1]">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Worked</div>
-                          <div className="text-lg font-bold text-[#1A1A1A]">{selectedEntry.workedMinutes !== null ? formatDuration(selectedEntry.workedMinutes) : "—"}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Break</div>
-                          <div className="text-lg text-[#6B6B6B]">{formatDuration(selectedEntry.totalBreakMinutes)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {selectedEntry.note && (
-                  <div className="bg-white p-4 rounded-2xl border border-[#F6F5F1]">
-                    <div className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Notes</div>
-                    <p className="text-sm text-[#1A1A1A]">{selectedEntry.note}</p>
-                  </div>
-                )}
-
-                {selectedEntry.issues && selectedEntry.issues.length > 0 && (
-                  <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200">
-                    <div className="text-xs font-bold text-amber-700 uppercase mb-1">Issues</div>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedEntry.issues.map((issue) => (
-                        <span key={issue} className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full">{issue.replace(/_/g, " ")}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* TimeCardModal — editable for admin */}
+      <TimeCardModal
+        isOpen={isTimeCardOpen}
+        onClose={closeTimeCard}
+        entry={selectedEntry}
+        breaks={selectedBreaks}
+        employeeName={selectedEmployeeName}
+        date={selectedDate}
+        isEmployeeView={false}
+        onSave={(updates, breaks) => handleTimeCardSave(updates)}
+        onDelete={handleTimeCardDelete}
+      />
 
       {/* PeriodDetailModal */}
       <PeriodDetailModal

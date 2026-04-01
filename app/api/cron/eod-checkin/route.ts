@@ -30,7 +30,7 @@ export async function GET() {
 
     const allTickets = await convex.query(api.tickets.list, {});
     const allClients = await convex.query(api.clients.list, {});
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/Vancouver" });
 
     let sentCount = 0;
 

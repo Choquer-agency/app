@@ -71,7 +71,7 @@ export function useClockStatus(teamMemberId: string, onStatusChange?: () => void
         const res = await fetch("/api/admin/timesheet/history");
         if (!res.ok) return;
         const entries: TimesheetEntry[] = await res.json();
-        const today = new Date().toISOString().split("T")[0];
+        const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Vancouver" });
 
         const issue = entries.find((e) => {
           if (e.date >= today) return false;

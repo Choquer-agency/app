@@ -14,7 +14,7 @@ export async function GET() {
 
     // 2. Get all active tickets and their commitments for "due today" notifications
     const allTickets = await convex.query(api.tickets.list);
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/Vancouver" });
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
 
     // Collect all commitments across all tickets

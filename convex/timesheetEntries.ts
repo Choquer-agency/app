@@ -6,7 +6,7 @@ import { query, mutation } from "./_generated/server";
 export const getActiveShift = query({
   args: { teamMemberId: v.id("teamMembers") },
   handler: async (ctx, args) => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Vancouver" });
 
     // First check today's entries
     const todayEntries = await ctx.db
