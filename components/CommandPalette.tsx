@@ -30,7 +30,7 @@ interface ResultItem {
 
 const QUICK_ACTIONS: ResultItem[] = [
   { type: "action", id: "new-ticket", label: "New Ticket", subtitle: "Create a new ticket", url: "__action:new-ticket" },
-  { type: "action", id: "meeting-notes", label: "Meeting Notes", subtitle: "Turn your meeting into tasks", url: "/admin/meetings" },
+  { type: "action", id: "meeting-notes", label: "Meeting Notes", subtitle: "Turn your meeting into tasks", url: "/admin/meeting-notes" },
   { type: "action", id: "timesheet", label: "Timesheet", subtitle: "Manage your time and request vacations", url: "__action:timesheet" },
 ];
 
