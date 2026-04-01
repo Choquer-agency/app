@@ -8,6 +8,8 @@ function hasMissingConnections(client: ClientConfig): boolean {
   return !(client.ga4PropertyId && client.gscSiteUrl && client.notionPageUrl && client.calLink);
 }
 
+type SortMode = "alphabetical" | "recent" | "specialist";
+
 export default function AdminClientList() {
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,6 +17,8 @@ export default function AdminClientList() {
   const [enrichResult, setEnrichResult] = useState<{ slug: string; message: string; success: boolean } | null>(null);
   const [copiedClientId, setCopiedClientId] = useState<number | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [search, setSearch] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("alphabetical");
 
   const fetchClients = useCallback(async () => {
     try {
@@ -76,6 +80,33 @@ export default function AdminClientList() {
     runEnrichment(client.slug);
   }
 
+  // Filter + sort clients
+  const filteredClients = (() => {
+    const q = search.toLowerCase().trim();
+    let list = q
+      ? clients.filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            c.slug.toLowerCase().includes(q) ||
+            (c.contactName && c.contactName.toLowerCase().includes(q)) ||
+            (c.accountSpecialist && c.accountSpecialist.toLowerCase().includes(q))
+        )
+      : [...clients];
+
+    switch (sortMode) {
+      case "alphabetical":
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "recent":
+        list.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+        break;
+      case "specialist":
+        list.sort((a, b) => (a.accountSpecialist ?? "").localeCompare(b.accountSpecialist ?? ""));
+        break;
+    }
+    return list;
+  })();
+
   if (loading) {
     return (
       <div className="text-center py-12 text-[var(--muted)] text-sm">Loading...</div>
@@ -98,6 +129,42 @@ export default function AdminClientList() {
         >
           + Add Client
         </button>
+      </div>
+
+      {/* Search + Sort bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
+        <div className="relative flex-1">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <circle cx="11" cy="11" r="8" />
+            <path strokeLinecap="round" d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search clients..."
+            className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent placeholder:text-[var(--muted)]"
+          />
+        </div>
+        <div className="flex items-center gap-1 bg-white border border-[var(--border)] rounded-lg p-0.5">
+          {([
+            ["alphabetical", "A–Z"],
+            ["recent", "Recent"],
+            ["specialist", "Specialist"],
+          ] as [SortMode, string][]).map(([mode, label]) => (
+            <button
+              key={mode}
+              onClick={() => setSortMode(mode)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
+                sortMode === mode
+                  ? "bg-[var(--accent)] text-white"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -127,18 +194,19 @@ export default function AdminClientList() {
               </tr>
             </thead>
             <tbody>
-              {clients.length === 0 ? (
+              {filteredClients.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
                     className="px-4 py-8 text-center text-[var(--muted)]"
                   >
-                    No clients yet. Click &quot;+ Add Client&quot; to get
-                    started.
+                    {clients.length === 0
+                      ? 'No clients yet. Click "+ Add Client" to get started.'
+                      : "No clients match your search."}
                   </td>
                 </tr>
               ) : (
-                clients.map((client) => (
+                filteredClients.map((client) => (
                   <tr
                     key={client.id}
                     onClick={() => {
