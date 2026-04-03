@@ -101,9 +101,13 @@ export const list = query({
         )
           return false;
       }
-      // Service category filter — only applied when explicitly viewing a service board
+      // Service category filter
+      // When viewing a personal board (assigneeId set), show ALL assigned tickets
       if (args.serviceCategory !== undefined) {
         if (t.serviceCategory !== args.serviceCategory) return false;
+      } else if (!args.assigneeId) {
+        // Default: exclude service tickets (except retainer) — but not on personal boards
+        if (t.serviceCategory && t.serviceCategory !== "retainer") return false;
       }
       // isPersonal filter
       if (args.isPersonal === true && !t.isPersonal) return false;
@@ -313,39 +317,9 @@ export const create = mutation({
     }
     const ticketNumber = `CHQ-${String(next).padStart(3, "0")}`;
 
-    // Auto-tag service_category from client's active packages if not provided
-    let serviceCategory = args.serviceCategory;
-    if (!serviceCategory && args.clientId) {
-      const clientPackages = await ctx.db
-        .query("clientPackages")
-        .withIndex("by_client", (q) => q.eq("clientId", args.clientId!))
-        .collect();
-      const activePackages = clientPackages.filter((cp) => cp.active);
-
-      // Check each package's category, priority: retainer > seo > google_ads
-      let bestCategory: string | undefined;
-      let bestPriority = 999;
-      for (const cp of activePackages) {
-        const pkg = await ctx.db.get(cp.packageId);
-        if (pkg?.category) {
-          const p =
-            pkg.category === "retainer"
-              ? 1
-              : pkg.category === "seo"
-                ? 2
-                : pkg.category === "google_ads"
-                  ? 3
-                  : 999;
-          if (p < bestPriority) {
-            bestPriority = p;
-            bestCategory = pkg.category;
-          }
-        }
-      }
-      if (bestCategory) {
-        serviceCategory = bestCategory;
-      }
-    }
+    // Service category is only set when explicitly provided (e.g. from a service board).
+    // Tickets created on the main board should NOT be auto-tagged — they stay on the main board.
+    const serviceCategory = args.serviceCategory;
 
     const ticketId = await ctx.db.insert("tickets", {
       ticketNumber,
