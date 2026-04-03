@@ -70,9 +70,11 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
     onPackagesChanged?.();
   }
 
-  const totalMrr = assignments
-    .filter((a) => a.active)
-    .reduce((sum, a) => sum + (a.customPrice ?? a.packageDefaultPrice ?? 0), 0);
+  const recurring = assignments.filter((a) => a.active && !a.isOneTime);
+  const oneTime = assignments.filter((a) => a.isOneTime);
+
+  const totalMrr = recurring.reduce((sum, a) => sum + (a.customPrice ?? a.packageDefaultPrice ?? 0), 0);
+  const totalOneTime = oneTime.reduce((sum, a) => sum + (a.customPrice ?? a.packageDefaultPrice ?? 0), 0);
 
   function formatCurrency(val: number) {
     return new Intl.NumberFormat("en-US", {
@@ -81,6 +83,13 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(val);
+  }
+
+  function billingLabel(a: ClientPackage) {
+    if (a.isOneTime) return "one-time";
+    if (a.packageBillingFrequency === "annually") return "yr";
+    if (a.packageBillingFrequency === "one_time") return "one-time";
+    return "mo";
   }
 
   function contractLabel(endDate: string | null) {
@@ -101,12 +110,66 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
     return "text-[var(--foreground)]";
   }
 
+  function renderPackageRow(a: ClientPackage) {
+    const price = a.customPrice ?? a.packageDefaultPrice ?? 0;
+    const isCustom = a.customPrice !== null && a.customPrice !== a.packageDefaultPrice;
+    return (
+      <tr key={a.id} className="border-b border-[var(--border)] hover:bg-[var(--accent-light)] transition">
+        <td className="px-4 py-3 font-medium text-[var(--foreground)]">{a.packageName}</td>
+        <td className="px-4 py-3">
+          {formatCurrency(price)}/{billingLabel(a)} <span className="text-[10px] text-[var(--muted)]">{currency}</span>
+          {isCustom && (
+            <span className="ml-1 text-[10px] text-[var(--accent)]">custom</span>
+          )}
+        </td>
+        {a.isOneTime ? (
+          <td className="px-4 py-3 text-[var(--muted)]">{a.paidDate || a.signupDate}</td>
+        ) : (
+          <>
+            <td className="px-4 py-3 text-[var(--muted)]">
+              {a.applySetupFee ? (
+                <>
+                  {formatCurrency(a.customSetupFee ?? a.packageSetupFee ?? 0)}
+                  {a.customSetupFee !== null && (
+                    <span className="ml-1 text-[10px] text-[var(--accent)]">custom</span>
+                  )}
+                </>
+              ) : (
+                <span className="text-xs">—</span>
+              )}
+            </td>
+            <td className="px-4 py-3 text-[var(--muted)]">{a.signupDate}</td>
+            <td className={`px-4 py-3 text-xs ${contractStyle(a.contractEndDate)}`}>
+              {contractLabel(a.contractEndDate)}
+            </td>
+          </>
+        )}
+        <td className="px-4 py-3">
+          <button
+            onClick={() => handleRemove(a.id)}
+            className="text-xs text-[#b91c1c] hover:text-red-700"
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <span className="text-sm text-[var(--muted)]">Total MRR from packages:</span>{" "}
-          <span className="text-lg font-bold text-[var(--foreground)]">{formatCurrency(totalMrr)}</span>
+        <div className="flex items-center gap-6">
+          <div>
+            <span className="text-sm text-[var(--muted)]">MRR:</span>{" "}
+            <span className="text-lg font-bold text-[var(--foreground)]">{formatCurrency(totalMrr)}</span>
+          </div>
+          {totalOneTime > 0 && (
+            <div>
+              <span className="text-sm text-[var(--muted)]">One-time revenue:</span>{" "}
+              <span className="text-lg font-bold text-[var(--foreground)]">{formatCurrency(totalOneTime)}</span>
+            </div>
+          )}
         </div>
         <button
           onClick={() => setShowAssign(true)}
@@ -123,61 +186,50 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
           No packages assigned yet
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Package</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Price</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Setup Fee</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Sign-up Date</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Contract</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assignments.map((a) => {
-                const price = a.customPrice ?? a.packageDefaultPrice ?? 0;
-                const isCustom = a.customPrice !== null && a.customPrice !== a.packageDefaultPrice;
-                return (
-                  <tr key={a.id} className="border-b border-[var(--border)] hover:bg-[var(--accent-light)] transition">
-                    <td className="px-4 py-3 font-medium text-[var(--foreground)]">{a.packageName}</td>
-                    <td className="px-4 py-3">
-                      {formatCurrency(price)}/mo <span className="text-[10px] text-[var(--muted)]">{currency}</span>
-                      {isCustom && (
-                        <span className="ml-1 text-[10px] text-[var(--accent)]">custom</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-[var(--muted)]">
-                      {a.applySetupFee ? (
-                        <>
-                          {formatCurrency(a.customSetupFee ?? a.packageSetupFee ?? 0)}
-                          {a.customSetupFee !== null && (
-                            <span className="ml-1 text-[10px] text-[var(--accent)]">custom</span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-[var(--muted)]">{a.signupDate}</td>
-                    <td className={`px-4 py-3 text-xs ${contractStyle(a.contractEndDate)}`}>
-                      {contractLabel(a.contractEndDate)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleRemove(a.id)}
-                        className="text-xs text-[#b91c1c] hover:text-red-700"
-                      >
-                        Remove
-                      </button>
-                    </td>
+        <>
+          {recurring.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
+                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Package</th>
+                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Price</th>
+                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Setup Fee</th>
+                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Sign-up Date</th>
+                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Contract</th>
+                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Actions</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {recurring.map(renderPackageRow)}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {oneTime.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">
+                One-Time Payments
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
+                      <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Description</th>
+                      <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Amount</th>
+                      <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Paid Date</th>
+                      <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {oneTime.map(renderPackageRow)}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {showAssign && (

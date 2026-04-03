@@ -53,6 +53,8 @@ export default function AssignPackageModal({
     getDefaultContractTerm(packages[0]?.category || "other")
   );
   const [customEndDate, setCustomEndDate] = useState("");
+  const [isOneTime, setIsOneTime] = useState(false);
+  const [paidDate, setPaidDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -93,8 +95,10 @@ export default function AssignPackageModal({
           applySetupFee,
           customSetupFee: applySetupFee && useCustomSetupFee ? parseFloat(customSetupFee) || null : null,
           signupDate,
-          contractEndDate: computeEndDate(),
+          contractEndDate: isOneTime ? null : computeEndDate(),
           notes,
+          isOneTime,
+          paidDate: isOneTime ? paidDate : undefined,
         }),
       });
 
@@ -135,15 +139,33 @@ export default function AssignPackageModal({
             >
               {packages.map((pkg) => (
                 <option key={String(pkg.id)} value={String(pkg.id)}>
-                  {pkg.name} — {formatPrice(pkg.defaultPrice)}/mo {currency}
+                  {pkg.name} — {formatPrice(pkg.defaultPrice)}/{pkg.billingFrequency === "annually" ? "yr" : "mo"} {currency}
                 </option>
               ))}
             </select>
           </div>
 
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isOneTime"
+              checked={isOneTime}
+              onChange={(e) => setIsOneTime(e.target.checked)}
+              className="rounded border-gray-300 text-[#FF9500] focus:ring-[#FF9500]"
+            />
+            <label htmlFor="isOneTime" className="text-sm text-gray-700">
+              One-time payment
+            </label>
+            {isOneTime && (
+              <span className="text-[10px] text-[#FF9500] ml-auto">
+                Will not count toward MRR
+              </span>
+            )}
+          </div>
+
           {selectedPkg && (
             <p className="text-xs text-gray-400">
-              Default price: {formatPrice(selectedPkg.defaultPrice)}/mo {currency}
+              Default price: {formatPrice(selectedPkg.defaultPrice)}/{selectedPkg.billingFrequency === "annually" ? "yr" : "mo"} {currency}
             </p>
           )}
 
@@ -163,7 +185,7 @@ export default function AssignPackageModal({
           {useCustomPrice && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Custom Price ({currency}/mo)
+                Custom Price ({currency}{isOneTime ? "" : "/mo"})
               </label>
               <div className="relative">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none select-none">
@@ -284,7 +306,24 @@ export default function AssignPackageModal({
             />
           </div>
 
-          <div>
+          {isOneTime && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Paid Date
+              </label>
+              <input
+                type="date"
+                value={paidDate}
+                onChange={(e) => setPaidDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9500] focus:border-transparent"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Revenue will be attributed to this month
+              </p>
+            </div>
+          )}
+
+          {!isOneTime && <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Contract Term
             </label>
@@ -318,7 +357,7 @@ export default function AssignPackageModal({
                 className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9500] focus:border-transparent"
               />
             )}
-          </div>
+          </div>}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

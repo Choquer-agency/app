@@ -28,6 +28,7 @@ export const listByClient = query({
           packageCategory: pkg?.category ?? "other",
           packageHoursIncluded: pkg?.hoursIncluded ?? null,
           packageSetupFee: pkg?.setupFee ?? 0,
+          packageBillingFrequency: pkg?.billingFrequency ?? "monthly",
         };
       })
     );
@@ -46,6 +47,8 @@ export const create = mutation({
     signupDate: v.optional(v.string()),
     contractEndDate: v.optional(v.string()),
     notes: v.optional(v.string()),
+    isOneTime: v.optional(v.boolean()),
+    paidDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("clientPackages", {
@@ -59,9 +62,11 @@ export const create = mutation({
       contractEndDate: args.contractEndDate,
       active: true,
       notes: args.notes ?? "",
+      isOneTime: args.isOneTime ?? false,
+      paidDate: args.isOneTime ? (args.paidDate ?? args.signupDate ?? new Date().toISOString().split("T")[0]) : undefined,
     });
 
-    // Sync MRR on client
+    // Sync MRR on client (one-time payments excluded)
     await syncClientMrr(ctx, args.clientId);
 
     return await ctx.db.get(id);
@@ -79,6 +84,8 @@ export const update = mutation({
     contractEndDate: v.optional(v.string()),
     active: v.optional(v.boolean()),
     notes: v.optional(v.string()),
+    isOneTime: v.optional(v.boolean()),
+    paidDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;
@@ -116,7 +123,7 @@ export const listActiveByCategory = query({
   args: { category: v.string() },
   handler: async (ctx, args) => {
     const all = await ctx.db.query("clientPackages").collect();
-    const active = all.filter((cp) => cp.active);
+    const active = all.filter((cp) => cp.active && !cp.isOneTime);
 
     // Enrich with package details and filter by category
     const results = [];
@@ -138,7 +145,7 @@ export const listActiveByCategory = query({
   },
 });
 
-// Helper: recalculate client MRR from active package assignments
+// Helper: recalculate client MRR from active package assignments (excludes one-time payments)
 async function syncClientMrr(ctx: MutationCtx, clientId: Id<"clients">) {
   const assignments = await ctx.db
     .query("clientPackages")
@@ -147,7 +154,7 @@ async function syncClientMrr(ctx: MutationCtx, clientId: Id<"clients">) {
 
   let mrr = 0;
   for (const cp of assignments) {
-    if (cp.active) {
+    if (cp.active && !cp.isOneTime) {
       if (cp.customPrice != null) {
         mrr += cp.customPrice;
       } else {

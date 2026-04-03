@@ -51,6 +51,8 @@ export async function POST(
       signupDate: body.signupDate,
       contractEndDate: body.contractEndDate ?? null,
       notes: body.notes || "",
+      isOneTime: body.isOneTime ?? false,
+      paidDate: body.paidDate,
     });
 
     // Sync MRR on clients table
@@ -61,7 +63,8 @@ export async function POST(
     const pkgName = pkg?.name || `Package #${body.packageId}`;
     const price = body.customPrice ?? pkg?.defaultPrice ?? 0;
     const hours = body.customHours ?? pkg?.hoursIncluded;
-    const parts = [`${pkgName} — $${price.toLocaleString()}/mo`];
+    const suffix = body.isOneTime ? " (one-time)" : "/mo";
+    const parts = [`${pkgName} — $${price.toLocaleString()}${suffix}`];
     if (hours) parts.push(`${hours}h/mo`);
     if (body.applySetupFee) {
       const setupFeeAmt = body.customSetupFee ?? pkg?.setupFee ?? 0;

@@ -15,6 +15,8 @@ function docToClientPackage(doc: any): ClientPackage {
     contractEndDate: doc.contractEndDate ?? null,
     active: doc.active ?? true,
     notes: doc.notes ?? "",
+    isOneTime: doc.isOneTime ?? false,
+    paidDate: doc.paidDate ?? null,
     createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : undefined,
     updatedAt: undefined,
     // Enriched fields from the Convex query
@@ -23,10 +25,11 @@ function docToClientPackage(doc: any): ClientPackage {
     packageCategory: (doc.packageCategory ?? "other") as PackageCategory,
     packageHoursIncluded: doc.packageHoursIncluded ?? null,
     packageSetupFee: doc.packageSetupFee,
+    packageBillingFrequency: doc.packageBillingFrequency ?? "monthly",
   };
 }
 
-export async function syncClientMrr(clientId: string): Promise<void> {
+export async function syncClientMrr(_clientId: string): Promise<void> {
   // MRR is synced automatically by the Convex mutation
 }
 
@@ -46,16 +49,18 @@ export async function assignPackage(data: {
   signupDate?: string;
   contractEndDate?: string | null;
   notes?: string;
+  isOneTime?: boolean;
+  paidDate?: string;
 }): Promise<ClientPackage> {
   const convex = getConvexClient();
-  // Build args — only include customPrice/customHours if they have a real value
-  // (Convex optional fields: pass value to store, omit to skip)
   const args: Record<string, unknown> = {
     clientId: data.clientId as any,
     packageId: data.packageId as any,
     applySetupFee: data.applySetupFee,
     signupDate: data.signupDate,
     notes: data.notes,
+    isOneTime: data.isOneTime,
+    paidDate: data.paidDate,
   };
   if (data.customPrice !== null && data.customPrice !== undefined) {
     args.customPrice = data.customPrice;
@@ -83,6 +88,8 @@ export async function updateAssignment(
     contractEndDate?: string | null;
     active?: boolean;
     notes?: string;
+    isOneTime?: boolean;
+    paidDate?: string;
   }
 ): Promise<ClientPackage | null> {
   const convex = getConvexClient();
@@ -95,6 +102,8 @@ export async function updateAssignment(
     contractEndDate: data.contractEndDate ?? undefined,
     active: data.active,
     notes: data.notes,
+    isOneTime: data.isOneTime,
+    paidDate: data.paidDate,
   } as any);
   if (!doc) return null;
   return docToClientPackage(doc);

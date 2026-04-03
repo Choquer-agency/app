@@ -22,13 +22,13 @@ function docToPackage(doc: any): Package {
 export async function getAllPackages(): Promise<Package[]> {
   const convex = getConvexClient();
   const docs = await convex.query(api.packages.list, {});
-  return docs.map(docToPackage);
+  return docs.map(docToPackage).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getActivePackages(): Promise<Package[]> {
   const convex = getConvexClient();
   const docs = await convex.query(api.packages.list, { activeOnly: true });
-  return docs.map(docToPackage);
+  return docs.map(docToPackage).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getPackageById(id: string): Promise<Package | null> {

@@ -92,6 +92,8 @@ export default defineSchema({
     contractEndDate: v.optional(v.string()),
     active: v.boolean(),
     notes: v.optional(v.string()),
+    isOneTime: v.optional(v.boolean()),
+    paidDate: v.optional(v.string()),
   })
     .index("by_client", ["clientId"])
     .index("by_package", ["packageId"])

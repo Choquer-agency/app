@@ -124,6 +124,8 @@ export interface ClientPackage {
   contractEndDate: string | null;
   active: boolean;
   notes: string;
+  isOneTime?: boolean;
+  paidDate?: string | null;
   createdAt?: string;
   updatedAt?: string;
   // Joined fields for display
@@ -132,6 +134,7 @@ export interface ClientPackage {
   packageCategory?: PackageCategory;
   packageHoursIncluded?: number | null;
   packageSetupFee?: number;
+  packageBillingFrequency?: BillingFrequency;
 }
 
 // Client note / activity entry
