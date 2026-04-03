@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/admin-auth";
+
+export const dynamic = "force-dynamic";
+
 import {
   getNotifications,
   getUnreadCount,
