@@ -95,27 +95,64 @@ export default function ClientHoursSummary({ clientId, month }: ClientHoursSumma
         </div>
       </div>
 
-      {/* Progress bar */}
+      {/* Hour pools */}
       {data.includedHours > 0 ? (
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-[var(--foreground)]">
-              {formatHours(data.loggedHours)} / {formatHours(data.includedHours)}
-            </span>
-            <span className={`text-xs font-medium ${
-              data.status === "exceeded" ? "text-red-600" :
-              data.status === "warning" ? "text-yellow-600" :
-              "text-green-600"
-            }`}>
-              {data.percentUsed}%
-            </span>
-          </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${barColor}`}
-              style={{ width: `${barWidth}%` }}
-            />
-          </div>
+        <div className="mb-3 space-y-2.5">
+          {/* Monthly retainer */}
+          {data.monthlyRetainerHours > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-[var(--foreground)]">
+                  {formatHours(Math.min(data.loggedHours, data.monthlyRetainerHours))} / {formatHours(data.monthlyRetainerHours)}
+                  <span className="text-[var(--muted)] ml-1">monthly</span>
+                </span>
+                <span className={`text-xs font-medium ${
+                  data.loggedHours >= data.monthlyRetainerHours ? "text-red-600" :
+                  data.loggedHours / data.monthlyRetainerHours >= 0.8 ? "text-yellow-600" :
+                  "text-green-600"
+                }`}>
+                  {data.monthlyRetainerHours > 0 ? Math.round(Math.min(data.loggedHours, data.monthlyRetainerHours) / data.monthlyRetainerHours * 100) : 0}%
+                </span>
+              </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${barColor}`}
+                  style={{ width: `${Math.min(100, data.monthlyRetainerHours > 0 ? (Math.min(data.loggedHours, data.monthlyRetainerHours) / data.monthlyRetainerHours) * 100 : 0)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* One-time top-up balance */}
+          {(data.oneTimeBalanceHours > 0 || data.oneTimeUsedThisMonth > 0) && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[var(--foreground)]">
+                {formatHours(data.oneTimeBalanceHours)} remaining
+                <span className="text-[var(--muted)] ml-1">top-up</span>
+              </span>
+              {data.oneTimeUsedThisMonth > 0 && (
+                <span className="text-[var(--muted)]">
+                  {formatHours(data.oneTimeUsedThisMonth)} used this month
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Combined total */}
+          {data.monthlyRetainerHours > 0 && (data.oneTimeBalanceHours > 0 || data.oneTimeUsedThisMonth > 0) && (
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-gray-100">
+              <span className="text-[var(--foreground)] font-medium">
+                {formatHours(data.loggedHours)} / {formatHours(data.includedHours)} total
+              </span>
+              <span className={`font-medium ${
+                data.status === "exceeded" ? "text-red-600" :
+                data.status === "warning" ? "text-yellow-600" :
+                "text-green-600"
+              }`}>
+                {data.percentUsed}%
+              </span>
+            </div>
+          )}
         </div>
       ) : (
         <div className="mb-3">

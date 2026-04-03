@@ -243,6 +243,60 @@ export async function getMonthlyHoursForMember(
   return Math.round((totalSeconds / 3600) * 100) / 100;
 }
 
+// === Bulk Hours In Range (for one-time balance calculation) ===
+
+async function getClientHoursInRange(
+  clientId: number | string,
+  startDate: Date,
+  endDate: Date
+): Promise<Map<string, number>> {
+  const convex = getConvexClient();
+  const tickets = await convex.query(api.tickets.list, {
+    clientId: clientId as any,
+    archived: false,
+    limit: 500,
+  });
+
+  // Collect all time entries across all tickets in one pass
+  const monthlySeconds = new Map<string, number>();
+
+  for (const ticket of tickets as any[]) {
+    const entries = await convex.query(api.timeEntries.listByTicket, {
+      ticketId: ticket._id,
+    });
+
+    for (const entry of entries as any[]) {
+      if (!entry.startTime) continue;
+      const start = new Date(entry.startTime);
+      const end = entry.endTime ? new Date(entry.endTime) : new Date();
+      if (start >= endDate || end <= startDate) continue;
+
+      const clampedStart = start < startDate ? startDate : start;
+      const clampedEnd = end > endDate ? endDate : end;
+      const seconds = (clampedEnd.getTime() - clampedStart.getTime()) / 1000;
+      if (seconds <= 0) continue;
+
+      // Bucket by month — an entry spanning months gets split
+      let cursor = new Date(clampedStart);
+      while (cursor < clampedEnd) {
+        const monthKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+        const monthBoundary = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+        const segEnd = monthBoundary < clampedEnd ? monthBoundary : clampedEnd;
+        const segSeconds = (segEnd.getTime() - cursor.getTime()) / 1000;
+        monthlySeconds.set(monthKey, (monthlySeconds.get(monthKey) ?? 0) + segSeconds);
+        cursor = segEnd;
+      }
+    }
+  }
+
+  // Convert seconds to hours
+  const monthlyHours = new Map<string, number>();
+  for (const [key, secs] of monthlySeconds) {
+    monthlyHours.set(key, Math.round((secs / 3600) * 100) / 100);
+  }
+  return monthlyHours;
+}
+
 // === Client Hour Cap ===
 
 export async function getClientHourCap(
@@ -251,28 +305,72 @@ export async function getClientHourCap(
 ): Promise<ClientHoursSummary> {
   const { totalHours, byTicket } = await getMonthlyHoursForClient(clientId, month);
 
-  // Get total included hours from all active packages
   const convex = getConvexClient();
-  let includedHours = 0;
-  let hasHourCap = false;
   let clientName = "";
+  let monthlyRetainerHours = 0;
+  let oneTimeTotal = 0;
+  let hasHourCap = false;
+  let earliestOneTimeDate: string | null = null;
+
   try {
     const client = await convex.query(api.clients.getById, { id: clientId as any });
     clientName = (client as any)?.name ?? "";
     const packages = await convex.query(api.clientPackages.listByClient, { clientId: clientId as any });
+
     for (const cp of packages as any[]) {
-      if (cp.active) {
-        // null/undefined = unlimited (not tracked), 0 = zero hours, number = cap
-        const hours = cp.customHours ?? cp.packageHoursIncluded ?? null;
-        if (hours !== null) {
-          hasHourCap = true;
-          includedHours += hours;
+      if (!cp.active) continue;
+      const hours = cp.customHours ?? cp.packageHoursIncluded ?? null;
+      if (hours === null) continue;
+
+      hasHourCap = true;
+
+      if (cp.isOneTime) {
+        oneTimeTotal += hours;
+        const oneTimeStart = cp.paidDate ?? cp.signupDate ?? null;
+        if (oneTimeStart && (!earliestOneTimeDate || oneTimeStart < earliestOneTimeDate)) {
+          earliestOneTimeDate = oneTimeStart;
         }
+      } else {
+        monthlyRetainerHours += hours;
       }
     }
   } catch {}
 
-  // If no packages define an hour cap, treat as unlimited (0% used, always "ok")
+  // Calculate one-time balance by computing historical spillover
+  let oneTimeBalanceHours = oneTimeTotal;
+
+  if (oneTimeTotal > 0 && earliestOneTimeDate) {
+    const rangeStart = new Date(earliestOneTimeDate.slice(0, 7) + "-01");
+    const currentMonth = new Date(month);
+    const rangeEnd = new Date(currentMonth);
+    rangeEnd.setMonth(rangeEnd.getMonth() + 1);
+
+    const monthlyHoursMap = await getClientHoursInRange(clientId, rangeStart, rangeEnd);
+
+    // Iterate each historical month (before current) to compute spillover
+    const cursor = new Date(rangeStart);
+    const currentMonthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, "0")}`;
+
+    while (cursor < currentMonth) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+      if (key !== currentMonthKey) {
+        const hoursLogged = monthlyHoursMap.get(key) ?? 0;
+        const spillover = Math.max(0, hoursLogged - monthlyRetainerHours);
+        oneTimeBalanceHours = Math.max(0, oneTimeBalanceHours - spillover);
+      }
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+  }
+
+  // Current month deduction: monthly retainer consumed first, then one-time
+  const monthlyUsed = Math.min(totalHours, monthlyRetainerHours);
+  const monthlyUnused = monthlyRetainerHours - monthlyUsed;
+  const currentSpillover = Math.max(0, totalHours - monthlyRetainerHours);
+  const oneTimeUsedThisMonth = Math.min(currentSpillover, oneTimeBalanceHours);
+  const oneTimeRemainingAfter = oneTimeBalanceHours - oneTimeUsedThisMonth;
+
+  // Total available = monthly retainer + remaining one-time (before this month)
+  const includedHours = monthlyRetainerHours + oneTimeBalanceHours;
   const percentUsed = hasHourCap && includedHours > 0 ? Math.round((totalHours / includedHours) * 100) : 0;
   const status = !hasHourCap ? "ok" : percentUsed >= 100 ? "exceeded" : percentUsed >= 80 ? "warning" : "ok";
 
@@ -285,6 +383,10 @@ export async function getClientHourCap(
     percentUsed,
     status,
     byTicket,
+    monthlyRetainerHours,
+    oneTimeBalanceHours: Math.round(oneTimeRemainingAfter * 100) / 100,
+    oneTimeUsedThisMonth: Math.round(oneTimeUsedThisMonth * 100) / 100,
+    monthlyUnused: Math.round(monthlyUnused * 100) / 100,
   };
 }
 

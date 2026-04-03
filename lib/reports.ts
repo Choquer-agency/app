@@ -30,6 +30,9 @@ export interface ProfitabilityClient {
   overageCost: number;
   monthlyRevenue: number;
   status: "ok" | "warning" | "exceeded";
+  monthlyRetainerHours: number;
+  unusedMonthlyHours: number;
+  oneTimeBalance: number;
 }
 
 export interface ProfitabilityTrendMonth {
@@ -240,17 +243,24 @@ export async function getProfitabilityReport(month: string): Promise<Profitabili
   const profClients: ProfitabilityClient[] = [];
 
   for (const client of clients as any[]) {
-    // Get packages for this client
+    // Get packages for this client — split by type
     const packages = await convex.query(api.clientPackages.listByClient, { clientId: client._id });
-    let includedHours = 0;
+    let monthlyRetainerHours = 0;
+    let oneTimeHours = 0;
     let monthlyRevenue = 0;
     for (const cp of packages as any[]) {
       if (cp.active) {
-        includedHours += cp.customHours ?? cp.packageHoursIncluded ?? 0;
+        const hours = cp.customHours ?? cp.packageHoursIncluded ?? 0;
+        if (cp.isOneTime) {
+          oneTimeHours += hours;
+        } else {
+          monthlyRetainerHours += hours;
+        }
         monthlyRevenue += cp.customPrice ?? cp.packageDefaultPrice ?? 0;
       }
     }
 
+    const includedHours = monthlyRetainerHours + oneTimeHours;
     if (monthlyRevenue === 0 && includedHours === 0) continue;
 
     // Get tickets for this client to compute logged hours
@@ -275,6 +285,8 @@ export async function getProfitabilityReport(month: string): Promise<Profitabili
     }
 
     const loggedHours = Math.round((totalSeconds / 3600) * 100) / 100;
+    const monthlyUsed = Math.min(loggedHours, monthlyRetainerHours);
+    const unusedMonthlyHours = Math.round((monthlyRetainerHours - monthlyUsed) * 100) / 100;
     const overage = Math.max(0, loggedHours - includedHours);
     const overageCost = Math.round(overage * 75 * 100) / 100; // $75/hr assumed overage rate
     const status = includedHours > 0
@@ -290,6 +302,9 @@ export async function getProfitabilityReport(month: string): Promise<Profitabili
       overageCost,
       monthlyRevenue,
       status: status as "ok" | "warning" | "exceeded",
+      monthlyRetainerHours,
+      unusedMonthlyHours,
+      oneTimeBalance: oneTimeHours,
     });
   }
 

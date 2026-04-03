@@ -391,7 +391,7 @@ export interface ClientHoursSummary {
   clientName: string;
   month: string;
   loggedHours: number;
-  includedHours: number;
+  includedHours: number; // total available = monthlyRetainerHours + oneTimeBalanceHours
   percentUsed: number;
   status: "ok" | "warning" | "exceeded";
   byTicket: Array<{
@@ -400,6 +400,11 @@ export interface ClientHoursSummary {
     ticketTitle: string;
     hours: number;
   }>;
+  // Package pool breakdown
+  monthlyRetainerHours: number; // from recurring packages only (resets each month)
+  oneTimeBalanceHours: number; // remaining one-time top-up hours (before this month's usage)
+  oneTimeUsedThisMonth: number; // one-time hours consumed this month
+  monthlyUnused: number; // unused monthly retainer hours (for profitability)
 }
 
 export interface TeamTimeReportEntry {
