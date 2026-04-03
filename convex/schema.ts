@@ -94,6 +94,10 @@ export default defineSchema({
     notes: v.optional(v.string()),
     isOneTime: v.optional(v.boolean()),
     paidDate: v.optional(v.string()),
+    canceledAt: v.optional(v.string()),
+    effectiveEndDate: v.optional(v.string()),
+    cancellationFee: v.optional(v.number()),
+    canceledBy: v.optional(v.string()),
   })
     .index("by_client", ["clientId"])
     .index("by_package", ["packageId"])

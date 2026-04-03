@@ -126,6 +126,10 @@ export interface ClientPackage {
   notes: string;
   isOneTime?: boolean;
   paidDate?: string | null;
+  canceledAt?: string | null;
+  effectiveEndDate?: string | null;
+  cancellationFee?: number | null;
+  canceledBy?: string | null;
   createdAt?: string;
   updatedAt?: string;
   // Joined fields for display
@@ -169,6 +173,8 @@ export interface TeamMember {
   salary: number | null;
   payType: "hourly" | "salary";
   sickDaysTotal?: number;
+  vacationDaysTotal?: number;
+  vacationDaysUsed?: number;
   tags: string[];
   bypassClockIn?: boolean;
   createdAt?: string;

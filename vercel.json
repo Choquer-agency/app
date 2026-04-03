@@ -31,6 +31,10 @@
     {
       "path": "/api/cron/blocker-escalation",
       "schedule": "0 16 * * 1-5"
+    },
+    {
+      "path": "/api/cron/deactivate-packages",
+      "schedule": "0 7 * * *"
     }
   ]
 }

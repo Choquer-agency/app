@@ -17,6 +17,10 @@ function docToClientPackage(doc: any): ClientPackage {
     notes: doc.notes ?? "",
     isOneTime: doc.isOneTime ?? false,
     paidDate: doc.paidDate ?? null,
+    canceledAt: doc.canceledAt ?? null,
+    effectiveEndDate: doc.effectiveEndDate ?? null,
+    cancellationFee: doc.cancellationFee ?? null,
+    canceledBy: doc.canceledBy ?? null,
     createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : undefined,
     updatedAt: undefined,
     // Enriched fields from the Convex query
@@ -105,6 +109,23 @@ export async function updateAssignment(
     isOneTime: data.isOneTime,
     paidDate: data.paidDate,
   } as any);
+  if (!doc) return null;
+  return docToClientPackage(doc);
+}
+
+export async function cancelAssignment(
+  id: string,
+  cancelType: "30_day" | "immediate",
+  cancellationFee?: number,
+  canceledBy?: string
+): Promise<ClientPackage | null> {
+  const convex = getConvexClient();
+  const doc = await convex.mutation(api.clientPackages.cancelPackage, {
+    id: id as any,
+    cancelType,
+    cancellationFee,
+    canceledBy: canceledBy ?? "Unknown",
+  });
   if (!doc) return null;
   return docToClientPackage(doc);
 }

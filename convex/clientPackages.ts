@@ -145,6 +145,105 @@ export const listActiveByCategory = query({
   },
 });
 
+// === Package Cancellation ===
+
+export const cancelPackage = mutation({
+  args: {
+    id: v.id("clientPackages"),
+    cancelType: v.union(v.literal("30_day"), v.literal("immediate")),
+    cancellationFee: v.optional(v.number()),
+    canceledBy: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (!existing) return null;
+    if (existing.canceledAt) return existing; // Already canceled
+
+    const today = new Date().toISOString().split("T")[0];
+    let effectiveEndDate: string;
+
+    if (args.cancelType === "immediate") {
+      effectiveEndDate = today;
+    } else {
+      // 30-day notice: last day of next month
+      const now = new Date();
+      const lastDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+      effectiveEndDate = lastDayNextMonth.toISOString().split("T")[0];
+    }
+
+    const patch: Record<string, unknown> = {
+      canceledAt: today,
+      effectiveEndDate,
+      canceledBy: args.canceledBy,
+    };
+    if (args.cancellationFee !== undefined) {
+      patch.cancellationFee = args.cancellationFee;
+    }
+    if (args.cancelType === "immediate") {
+      patch.active = false;
+    }
+
+    await ctx.db.patch(args.id, patch);
+
+    if (args.cancelType === "immediate") {
+      await syncClientMrr(ctx, existing.clientId);
+    }
+
+    // Check if this was the last active recurring package → trigger offboarding
+    const allPackages = await ctx.db
+      .query("clientPackages")
+      .withIndex("by_client", (q) => q.eq("clientId", existing.clientId))
+      .collect();
+    const hasActiveRecurring = allPackages.some(
+      (cp) => cp._id !== args.id && cp.active && !cp.isOneTime && !cp.canceledAt
+    );
+    if (!hasActiveRecurring) {
+      await ctx.db.patch(existing.clientId, {
+        clientStatus: "offboarding",
+        offboardingDate: effectiveEndDate,
+      });
+    }
+
+    return await ctx.db.get(args.id);
+  },
+});
+
+export const listCanceledActive = query({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db
+      .query("clientPackages")
+      .withIndex("by_active", (q) => q.eq("active", true))
+      .collect();
+    return all.filter((cp) => cp.canceledAt && cp.effectiveEndDate);
+  },
+});
+
+export const deactivateExpired = mutation({
+  args: { id: v.id("clientPackages") },
+  handler: async (ctx, args) => {
+    const cp = await ctx.db.get(args.id);
+    if (!cp || !cp.active) return false;
+    await ctx.db.patch(args.id, { active: false });
+    await syncClientMrr(ctx, cp.clientId);
+
+    // Check if client should transition to inactive
+    const allPackages = await ctx.db
+      .query("clientPackages")
+      .withIndex("by_client", (q) => q.eq("clientId", cp.clientId))
+      .collect();
+    const hasActive = allPackages.some((p) => p._id !== args.id && p.active && !p.isOneTime);
+    if (!hasActive) {
+      const client = await ctx.db.get(cp.clientId);
+      if (client?.clientStatus === "offboarding") {
+        await ctx.db.patch(cp.clientId, { clientStatus: "inactive" });
+      }
+    }
+
+    return true;
+  },
+});
+
 // Helper: recalculate client MRR from active package assignments (excludes one-time payments)
 async function syncClientMrr(ctx: MutationCtx, clientId: Id<"clients">) {
   const assignments = await ctx.db

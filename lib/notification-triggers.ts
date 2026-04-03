@@ -422,7 +422,7 @@ export async function notifyTimeAdjustmentResolved(
 export async function notifyPackageChanged(
   clientId: string,
   clientName: string,
-  action: "added" | "updated" | "removed",
+  action: "added" | "updated" | "removed" | "canceled",
   packageName: string,
   actorId: string
 ): Promise<void> {
@@ -430,7 +430,7 @@ export async function notifyPackageChanged(
   const recipientIds = adminIds.filter((id) => id !== actorId);
   if (recipientIds.length === 0) return;
 
-  const actionLabel = action === "added" ? "added to" : action === "removed" ? "removed from" : "updated on";
+  const actionLabel = action === "added" ? "added to" : action === "removed" ? "removed from" : action === "canceled" ? "canceled on" : "updated on";
   await createBulkNotifications(
     recipientIds,
     null,
