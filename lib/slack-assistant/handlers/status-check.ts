@@ -49,7 +49,7 @@ const ERP_TOOLS = [
   },
   {
     name: "list_clients",
-    description: "List all clients with their status, MRR, contract dates, contact info.",
+    description: "List all clients with their status, MRR (monthly recurring revenue), contract dates, contact info. For accurate MRR totals, use get_revenue_summary instead.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -147,6 +147,25 @@ const ERP_TOOLS = [
     },
   },
   {
+    name: "get_revenue_summary",
+    description: "Get the agency's revenue summary: total MRR, client count, MRR by client. This is the source of truth for revenue — matches the revenue page exactly.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "get_client_hours_remaining",
+    description: "Get how many hours a client has remaining this month. Calculates: total hours in active packages minus hours logged in time entries this month.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "string", description: "The client ID" },
+      },
+      required: ["clientId"],
+    },
+  },
+  {
     name: "resolve_name_to_id",
     description: "Resolve a person or client name to their database ID. ALWAYS call this first when you need to filter by team member or client.",
     input_schema: {
@@ -196,13 +215,16 @@ User asking: ${userName}
 
 RULES:
 - Use the resolve_name_to_id tool FIRST when you need to filter by a person or client name
+- For MRR/revenue questions, use get_revenue_summary — it's the source of truth
+- For "hours remaining" questions, use get_client_hours_remaining — it calculates used vs included
 - Be specific with numbers and dates — never guess
 - Format responses for Slack (use *bold*, bullet points)
-- Keep answers concise but complete
+- Keep answers concise but complete — don't ask the user if they want more data, just provide it
 - If data is empty, say so clearly
 - For time/duration questions, convert seconds to hours and minutes
-- For money/revenue questions, format as currency
-- When listing items, show the most relevant fields (don't dump everything)`;
+- For money/revenue questions, format as currency with $ and commas
+- When listing items, show the most relevant fields (don't dump everything)
+- Don't offer follow-up questions — just answer what was asked`;
 
     try {
       // Allow up to 5 tool-calling rounds
@@ -507,6 +529,62 @@ RULES:
             source: l.source,
             notes: l.notes,
           }));
+        }
+
+        case "get_revenue_summary": {
+          const clients = await convex.query(api.clients.list, {});
+          const activeWithMrr = (clients as any[]).filter((c: any) => (c.mrr || 0) > 0);
+          const totalMrr = activeWithMrr.reduce((sum: number, c: any) => sum + (c.mrr || 0), 0);
+
+          // Sort by MRR descending
+          const sorted = activeWithMrr
+            .sort((a: any, b: any) => (b.mrr || 0) - (a.mrr || 0))
+            .map((c: any) => ({ name: c.name, mrr: c.mrr || 0, status: c.clientStatus }));
+
+          return {
+            totalMrr: Math.round(totalMrr * 100) / 100,
+            activeClientCount: activeWithMrr.length,
+            totalClientCount: (clients as any[]).length,
+            clientsByMrr: sorted,
+          };
+        }
+
+        case "get_client_hours_remaining": {
+          // Get client packages (hours included)
+          const packages = await convex.query(api.clientPackages.listByClient, { clientId: input.clientId as any });
+          const activePackages = (packages as any[]).filter((p: any) => p.active);
+          const totalHoursIncluded = activePackages.reduce((sum: number, p: any) => {
+            return sum + (p.customHours ?? p.hoursIncluded ?? 0);
+          }, 0);
+
+          // Get time entries for this client's tickets this month
+          const now = new Date();
+          const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+          const allTickets = await convex.query(api.tickets.list, { clientId: input.clientId as any, limit: 500 });
+          let totalSecondsUsed = 0;
+          for (const ticket of (allTickets as any[])) {
+            const entries = await convex.query(api.timeEntries.listByTicket, { ticketId: ticket._id, limit: 200 });
+            for (const entry of (entries as any[])) {
+              if (entry.startTime >= monthStart && entry.durationSeconds) {
+                totalSecondsUsed += entry.durationSeconds;
+              }
+            }
+          }
+
+          const hoursUsed = Math.round(totalSecondsUsed / 36) / 100;
+          const hoursRemaining = Math.round((totalHoursIncluded - hoursUsed) * 100) / 100;
+
+          return {
+            totalHoursIncluded,
+            hoursUsedThisMonth: hoursUsed,
+            hoursRemaining,
+            packages: activePackages.map((p: any) => ({
+              name: p.packageName || p.name,
+              hours: p.customHours ?? p.hoursIncluded ?? 0,
+              price: p.customPrice ?? p.defaultPrice ?? 0,
+            })),
+            month: monthStart,
+          };
         }
 
         case "resolve_name_to_id": {
