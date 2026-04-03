@@ -270,9 +270,15 @@ export async function getProfitabilityReport(month: string): Promise<Profitabili
       limit: 500,
     });
 
+    // Fetch all time entries in parallel
+    const allEntries = await Promise.all(
+      (tickets as any[]).map((ticket) =>
+        convex.query(api.timeEntries.listByTicket, { ticketId: ticket._id })
+      )
+    );
+
     let totalSeconds = 0;
-    for (const ticket of tickets as any[]) {
-      const entries = await convex.query(api.timeEntries.listByTicket, { ticketId: ticket._id });
+    for (const entries of allEntries) {
       for (const entry of entries as any[]) {
         if (!entry.startTime) continue;
         const start = new Date(entry.startTime);

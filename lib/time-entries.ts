@@ -176,16 +176,20 @@ export async function getMonthlyHoursForClient(
     limit: 500,
   });
 
+  // Fetch all time entries in parallel
+  const ticketEntries = await Promise.all(
+    (tickets as any[]).map((ticket) =>
+      convex.query(api.timeEntries.listByTicket, { ticketId: ticket._id })
+        .then((entries) => ({ ticket, entries: entries as any[] }))
+    )
+  );
+
   const byTicket: Array<{ ticketId: string; ticketNumber: string; ticketTitle: string; hours: number }> = [];
   let totalSeconds = 0;
 
-  for (const ticket of tickets as any[]) {
-    const entries = await convex.query(api.timeEntries.listByTicket, {
-      ticketId: ticket._id,
-    });
-
+  for (const { ticket, entries } of ticketEntries) {
     let ticketSeconds = 0;
-    for (const entry of entries as any[]) {
+    for (const entry of entries) {
       if (!entry.startTime) continue;
       const start = new Date(entry.startTime);
       const end = entry.endTime ? new Date(entry.endTime) : new Date();
@@ -257,14 +261,16 @@ async function getClientHoursInRange(
     limit: 500,
   });
 
-  // Collect all time entries across all tickets in one pass
+  // Fetch all time entries in parallel
+  const allEntries = await Promise.all(
+    (tickets as any[]).map((ticket) =>
+      convex.query(api.timeEntries.listByTicket, { ticketId: ticket._id })
+    )
+  );
+
   const monthlySeconds = new Map<string, number>();
 
-  for (const ticket of tickets as any[]) {
-    const entries = await convex.query(api.timeEntries.listByTicket, {
-      ticketId: ticket._id,
-    });
-
+  for (const entries of allEntries) {
     for (const entry of entries as any[]) {
       if (!entry.startTime) continue;
       const start = new Date(entry.startTime);
@@ -411,16 +417,20 @@ export async function getServiceHoursForClient(
   // Filter tickets by service category
   const categoryTickets = (tickets as any[]).filter((t) => t.serviceCategory === category);
 
+  // Fetch all time entries in parallel
+  const ticketEntries = await Promise.all(
+    categoryTickets.map((ticket) =>
+      convex.query(api.timeEntries.listByTicket, { ticketId: ticket._id })
+        .then((entries) => ({ ticket, entries: entries as any[] }))
+    )
+  );
+
   const byTicket: Array<{ ticketId: string; ticketNumber: string; ticketTitle: string; hours: number }> = [];
   let totalSeconds = 0;
 
-  for (const ticket of categoryTickets) {
-    const entries = await convex.query(api.timeEntries.listByTicket, {
-      ticketId: ticket._id,
-    });
-
+  for (const { ticket, entries } of ticketEntries) {
     let ticketSeconds = 0;
-    for (const entry of entries as any[]) {
+    for (const entry of entries) {
       if (!entry.startTime) continue;
       const start = new Date(entry.startTime);
       const end = entry.endTime ? new Date(entry.endTime) : new Date();
