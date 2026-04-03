@@ -368,7 +368,6 @@ export default function KanbanBoard({
   return (
     <div
       className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1"
-      style={{ minHeight: "calc(100vh - 220px)" }}
     >
       {groups.map((group) => {
         const isDropTarget = dragOverColumn === group.key && dragSourceColumn.current !== group.key;
