@@ -3,6 +3,7 @@ import { getSession } from "@/lib/admin-auth";
 import { hasPermission } from "@/lib/permissions";
 import { approveVacationRequest, denyVacationRequest } from "@/lib/timesheet";
 import { notifyVacationResolved } from "@/lib/notification-triggers";
+import { markReadByType } from "@/lib/notifications";
 
 export async function POST(request: NextRequest) {
   const session = getSession(request);
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest) {
     if (result) {
       notifyVacationResolved(result.teamMemberId, "approved", session.name);
     }
+    markReadByType(session.teamMemberId, "vacation_requested").catch(() => {});
   } else if (body.action === "deny") {
     result = await denyVacationRequest(
       body.requestId,
@@ -37,6 +39,7 @@ export async function POST(request: NextRequest) {
     if (result) {
       notifyVacationResolved(result.teamMemberId, "denied", session.name);
     }
+    markReadByType(session.teamMemberId, "vacation_requested").catch(() => {});
   } else {
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }

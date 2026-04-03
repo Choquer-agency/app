@@ -438,7 +438,8 @@ export type NotificationType =
   | "vacation_resolved"
   | "time_adjustment_requested"
   | "time_adjustment_resolved"
-  | "team_announcement";
+  | "team_announcement"
+  | "package_changed";
 
 export interface Notification {
   id: string;

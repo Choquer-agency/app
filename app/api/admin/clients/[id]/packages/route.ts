@@ -3,6 +3,8 @@ import { getClientPackages, assignPackage, syncClientMrr } from "@/lib/client-pa
 import { addNote } from "@/lib/client-notes";
 import { getPackageById } from "@/lib/packages";
 import { getSession } from "@/lib/admin-auth";
+import { notifyPackageChanged } from "@/lib/notification-triggers";
+import { getClientById } from "@/lib/clients";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +80,12 @@ export async function POST(
       noteType: "package_change",
       content: parts.join(", "),
     }).catch(() => {});
+
+    // Notify owner/c_suite of package change
+    const client = await getClientById(id).catch(() => null);
+    if (client) {
+      notifyPackageChanged(id, client.name, "added", pkgName, session.teamMemberId).catch(() => {});
+    }
 
     return NextResponse.json(assignment, { status: 201 });
   } catch (error) {

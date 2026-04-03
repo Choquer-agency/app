@@ -364,6 +364,7 @@ export default defineSchema({
     hour_cap_warning: v.optional(v.boolean()),
     hour_cap_exceeded: v.optional(v.boolean()),
     runaway_timer: v.optional(v.boolean()),
+    package_changed: v.optional(v.boolean()),
   }).index("by_teamMemberId", ["teamMemberId"]),
 
   // === SAVED VIEWS ===

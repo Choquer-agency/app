@@ -116,6 +116,19 @@ export default function TicketDetailModal({
     fetchSubTickets(currentTicketId);
   }, [currentTicketId, fetchTicket, fetchActivity, fetchComments, fetchSubTickets]);
 
+  // Auto-dismiss notifications for this ticket (user is actively viewing it)
+  useEffect(() => {
+    fetch("/api/admin/notifications", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "markReadByTicket", ticketId: currentTicketId }),
+    })
+      .then(() => {
+        window.dispatchEvent(new Event("notificationChange"));
+      })
+      .catch(() => {});
+  }, [currentTicketId]);
+
   // Escape key to close
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

@@ -80,3 +80,69 @@ export const markAllRead = mutation({
     }
   },
 });
+
+// Auto-dismiss: mark all unread notifications of a specific type as read for a recipient
+export const markReadByType = mutation({
+  args: {
+    recipientId: v.id("teamMembers"),
+    type: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const unread = await ctx.db
+      .query("notifications")
+      .withIndex("by_recipient_unread", (q) =>
+        q.eq("recipientId", args.recipientId).eq("isRead", false)
+      )
+      .collect();
+
+    let count = 0;
+    for (const n of unread) {
+      if (n.type === args.type) {
+        await ctx.db.patch(n._id, { isRead: true });
+        count++;
+      }
+    }
+    return count;
+  },
+});
+
+// Auto-dismiss: mark all unread notifications for a specific ticket as read
+export const markReadByTicket = mutation({
+  args: {
+    recipientId: v.id("teamMembers"),
+    ticketId: v.id("tickets"),
+  },
+  handler: async (ctx, args) => {
+    const unread = await ctx.db
+      .query("notifications")
+      .withIndex("by_recipient_unread", (q) =>
+        q.eq("recipientId", args.recipientId).eq("isRead", false)
+      )
+      .collect();
+
+    let count = 0;
+    for (const n of unread) {
+      if (n.ticketId === args.ticketId) {
+        await ctx.db.patch(n._id, { isRead: true });
+        count++;
+      }
+    }
+    return count;
+  },
+});
+
+// One-time: mark all notifications as read for every member
+export const markAllReadForAllMembers = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const unread = await ctx.db
+      .query("notifications")
+      .filter((q) => q.eq(q.field("isRead"), false))
+      .collect();
+
+    for (const n of unread) {
+      await ctx.db.patch(n._id, { isRead: true });
+    }
+    return unread.length;
+  },
+});

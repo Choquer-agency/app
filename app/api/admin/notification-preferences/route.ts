@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/admin-auth";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@/convex/_generated/api";
-import { PREFERENCE_DEFAULTS } from "@/lib/notification-preferences";
+import { PREFERENCE_DEFAULTS, getPreferenceDefaults } from "@/lib/notification-preferences";
 
 export async function GET(request: NextRequest) {
   const session = getSession(request);
@@ -16,9 +16,10 @@ export async function GET(request: NextRequest) {
       teamMemberId: session.teamMemberId as any,
     });
 
-    // Build preferences object with defaults for missing values
+    // Build preferences object with role-aware defaults for missing values
+    const defaults = getPreferenceDefaults(session.roleLevel);
     const prefs: Record<string, boolean> = {};
-    for (const [key, defaultVal] of Object.entries(PREFERENCE_DEFAULTS)) {
+    for (const [key, defaultVal] of Object.entries(defaults)) {
       prefs[key] = doc ? ((doc as any)[key] ?? defaultVal) : defaultVal;
     }
 
@@ -43,9 +44,9 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "prefs object required" }, { status: 400 });
   }
 
-  // Only allow known preference keys
+  // Only allow known preference keys (use full defaults set which includes all keys)
   const cleanPrefs: Record<string, boolean> = {};
-  for (const key of Object.keys(PREFERENCE_DEFAULTS)) {
+  for (const key of Object.keys(getPreferenceDefaults("owner"))) {
     if (key in body.prefs && typeof body.prefs[key] === "boolean") {
       cleanPrefs[key] = body.prefs[key];
     }

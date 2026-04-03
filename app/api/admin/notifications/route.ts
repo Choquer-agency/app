@@ -5,6 +5,7 @@ import {
   getUnreadCount,
   markRead,
   markAllRead,
+  markReadByTicket,
   deleteNotification,
 } from "@/lib/notifications";
 import { hasMinRole } from "@/lib/permissions";
@@ -78,6 +79,8 @@ export async function PUT(request: NextRequest) {
       await markRead(id);
     } else if (action === "markAllRead") {
       await markAllRead(session.teamMemberId);
+    } else if (action === "markReadByTicket" && body.ticketId) {
+      await markReadByTicket(session.teamMemberId, body.ticketId);
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }

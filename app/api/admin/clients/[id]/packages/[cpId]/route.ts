@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateAssignment, removeAssignment, syncClientMrr, getClientPackages } from "@/lib/client-packages";
 import { addNote } from "@/lib/client-notes";
 import { getSession } from "@/lib/admin-auth";
+import { notifyPackageChanged } from "@/lib/notification-triggers";
+import { getClientById } from "@/lib/clients";
 
 export async function PUT(
   request: NextRequest,
@@ -37,6 +39,14 @@ export async function PUT(
         noteType: "package_change",
         content: `${pkgName} updated: ${changes.join(", ")}`,
       }).catch(() => {});
+    }
+
+    // Notify owner/c_suite of package update
+    if (changes.length > 0) {
+      const client = await getClientById(id).catch(() => null);
+      if (client) {
+        notifyPackageChanged(id, client.name, "updated", pkgName, session.teamMemberId).catch(() => {});
+      }
     }
 
     return NextResponse.json(assignment);
@@ -80,6 +90,12 @@ export async function DELETE(
       noteType: "package_change",
       content: `${pkgName} removed ($${price.toLocaleString()}/mo)`,
     }).catch(() => {});
+
+    // Notify owner/c_suite of package removal
+    const client = await getClientById(id).catch(() => null);
+    if (client) {
+      notifyPackageChanged(id, client.name, "removed", pkgName, session.teamMemberId).catch(() => {});
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -37,6 +37,7 @@ const OPERATIONAL_TOGGLES: ToggleItem[] = [
   { key: "hour_cap_warning", label: "Hour cap warning (80%)", description: "When a client reaches 80% of their monthly hours", minRole: "bookkeeper" as RoleLevel },
   { key: "hour_cap_exceeded", label: "Hour cap exceeded", description: "When a client exceeds their monthly hours", minRole: "bookkeeper" as RoleLevel },
   { key: "runaway_timer", label: "Runaway timer", description: "When your timer has been running for over 10 hours" },
+  { key: "package_changed", label: "Package changed on client", description: "When a package is added, updated, or removed from a client", minRole: "c_suite" as RoleLevel },
 ];
 
 function Toggle({

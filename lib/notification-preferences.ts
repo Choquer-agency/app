@@ -22,15 +22,16 @@ export type PreferenceKey =
   | "team_announcement"
   | "hour_cap_warning"
   | "hour_cap_exceeded"
-  | "runaway_timer";
+  | "runaway_timer"
+  | "package_changed";
 
-// Defaults: true = ON, false = OFF
-export const PREFERENCE_DEFAULTS: Record<PreferenceKey, boolean> = {
+// Conservative employee defaults: only essentials ON
+const EMPLOYEE_DEFAULTS: Record<PreferenceKey, boolean> = {
   ticket_assigned: true,
-  ticket_status_stuck: true,
-  ticket_status_qa_ready: true,
-  ticket_status_needs_attention: true,
-  ticket_status_change: true,
+  ticket_status_stuck: false,
+  ticket_status_qa_ready: false,
+  ticket_status_needs_attention: false,
+  ticket_status_change: false,
   ticket_created: false,
   ticket_comment: true,
   ticket_mention: true,
@@ -38,15 +39,38 @@ export const PREFERENCE_DEFAULTS: Record<PreferenceKey, boolean> = {
   ticket_overdue: true,
   ticket_due_date_changed: false,
   ticket_closed: false,
-  vacation_requested: true,
+  vacation_requested: false,
   vacation_resolved: true,
-  time_adjustment_requested: true,
+  time_adjustment_requested: false,
   time_adjustment_resolved: true,
-  team_announcement: true,
+  team_announcement: false,
+  hour_cap_warning: false,
+  hour_cap_exceeded: false,
+  runaway_timer: false,
+  package_changed: false,
+};
+
+// Additional keys that owner/c_suite get ON by default
+const OWNER_EXTRAS: Partial<Record<PreferenceKey, boolean>> = {
+  time_adjustment_requested: true,
+  vacation_requested: true,
+  ticket_status_qa_ready: true,
+  ticket_status_stuck: true,
+  package_changed: true,
   hour_cap_warning: true,
   hour_cap_exceeded: true,
-  runaway_timer: true,
 };
+
+// Backward compat export — equals employee defaults
+export const PREFERENCE_DEFAULTS = EMPLOYEE_DEFAULTS;
+
+// Role-aware defaults: owner/c_suite get more notifications ON
+export function getPreferenceDefaults(roleLevel?: string): Record<PreferenceKey, boolean> {
+  if (roleLevel === "owner" || roleLevel === "c_suite") {
+    return { ...EMPLOYEE_DEFAULTS, ...OWNER_EXTRAS };
+  }
+  return { ...EMPLOYEE_DEFAULTS };
+}
 
 export interface NotificationMetadata {
   newStatus?: string;
@@ -97,6 +121,8 @@ export function getPreferenceKey(
       return "hour_cap_exceeded";
     case "runaway_timer":
       return "runaway_timer";
+    case "package_changed":
+      return "package_changed";
     default:
       return "ticket_status_change";
   }
@@ -135,19 +161,21 @@ async function fetchPreferences(
 export async function shouldNotify(
   recipientId: string,
   type: string,
-  metadata?: NotificationMetadata
+  metadata?: NotificationMetadata,
+  roleLevel?: string
 ): Promise<boolean> {
   const prefKey = getPreferenceKey(type, metadata);
   const prefs = await fetchPreferences(recipientId);
+  const defaults = getPreferenceDefaults(roleLevel);
 
   if (!prefs) {
-    // No preferences row = use defaults
-    return PREFERENCE_DEFAULTS[prefKey] ?? true;
+    // No preferences row = use role-aware defaults
+    return defaults[prefKey] ?? true;
   }
 
   const value = (prefs as any)[prefKey];
   if (value === undefined || value === null) {
-    return PREFERENCE_DEFAULTS[prefKey] ?? true;
+    return defaults[prefKey] ?? true;
   }
 
   return value;

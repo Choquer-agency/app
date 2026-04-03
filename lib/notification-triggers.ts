@@ -417,6 +417,30 @@ export async function notifyTimeAdjustmentResolved(
   );
 }
 
+// === Trigger: Package Changed (admin notification) ===
+
+export async function notifyPackageChanged(
+  clientId: string,
+  clientName: string,
+  action: "added" | "updated" | "removed",
+  packageName: string,
+  actorId: string
+): Promise<void> {
+  const adminIds = await getAdminIds();
+  const recipientIds = adminIds.filter((id) => id !== actorId);
+  if (recipientIds.length === 0) return;
+
+  const actionLabel = action === "added" ? "added to" : action === "removed" ? "removed from" : "updated on";
+  await createBulkNotifications(
+    recipientIds,
+    null,
+    "package_changed" as any,
+    `Package ${actionLabel} ${clientName}`,
+    packageName,
+    `/admin/clients/${clientId}`
+  );
+}
+
 // === Trigger: Team Announcement ===
 
 export async function notifyTeamAnnouncement(

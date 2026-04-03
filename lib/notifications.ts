@@ -34,11 +34,12 @@ export async function createNotification(
   title: string,
   body: string,
   link: string,
-  metadata?: NotificationMetadata
+  metadata?: NotificationMetadata,
+  roleLevel?: string
 ): Promise<Notification | null> {
   try {
     // Check user preferences before sending
-    const allowed = await shouldNotify(String(recipientId), type, metadata);
+    const allowed = await shouldNotify(String(recipientId), type, metadata, roleLevel);
     if (!allowed) return null;
 
     const convex = getConvexClient();
@@ -112,6 +113,24 @@ export async function markAllRead(recipientId: number | string): Promise<void> {
   });
 }
 
+// === Auto-Dismiss Helpers ===
+
+export async function markReadByType(recipientId: string, type: string): Promise<void> {
+  const convex = getConvexClient();
+  await convex.mutation(api.notifications.markReadByType, {
+    recipientId: recipientId as any,
+    type,
+  });
+}
+
+export async function markReadByTicket(recipientId: string, ticketId: string): Promise<void> {
+  const convex = getConvexClient();
+  await convex.mutation(api.notifications.markReadByTicket, {
+    recipientId: recipientId as any,
+    ticketId: ticketId as any,
+  });
+}
+
 // === Dedup Check (for cron-driven notifications) ===
 
 export async function hasRecentNotification(
@@ -138,6 +157,7 @@ export async function hasRecentNotification(
 }
 
 export async function deleteNotification(notificationId: string): Promise<void> {
+  const convex = getConvexClient();
   await convex.mutation(api.notifications.remove, {
     id: notificationId as any,
   });

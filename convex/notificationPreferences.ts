@@ -32,7 +32,20 @@ const prefsValidator = {
   hour_cap_warning: v.optional(v.boolean()),
   hour_cap_exceeded: v.optional(v.boolean()),
   runaway_timer: v.optional(v.boolean()),
+  package_changed: v.optional(v.boolean()),
 };
+
+// One-time: delete all preference rows so everyone falls back to new defaults
+export const deleteAll = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("notificationPreferences").collect();
+    for (const doc of all) {
+      await ctx.db.delete(doc._id);
+    }
+    return all.length;
+  },
+});
 
 export const upsert = mutation({
   args: {
