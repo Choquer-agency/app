@@ -186,14 +186,6 @@ export default function NotificationList({
     <div>
       <div className="px-3 py-2 border-b border-[var(--border)] flex items-center justify-between">
         <span className="text-xs font-semibold text-[var(--foreground)]">Notifications</span>
-        {hasUnread && (
-          <button
-            onClick={onMarkAllRead}
-            className="text-xs text-[var(--accent)] hover:underline"
-          >
-            Mark all as read
-          </button>
-        )}
       </div>
       <div className="max-h-[360px] overflow-y-auto">
         {notifications.length === 0 ? (
