@@ -15,7 +15,7 @@ export default function NotificationBell({ canDelete = false }: { canDelete?: bo
   // Fetch unread count (lightweight polling)
   const fetchCount = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/notifications/count");
+      const res = await fetch("/api/admin/notifications/count", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setUnreadCount(data.unreadCount ?? 0);
@@ -26,7 +26,7 @@ export default function NotificationBell({ canDelete = false }: { canDelete?: bo
   // Fetch full notification list
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/notifications?limit=20");
+      const res = await fetch("/api/admin/notifications?limit=20", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications ?? []);
