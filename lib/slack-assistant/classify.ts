@@ -123,7 +123,7 @@ INTENTS (pick exactly one):
 1. "meeting_transcript" — A meeting transcript, long dictation, or detailed task briefing with action items. Usually 300+ characters.
 2. "quick_ticket" — Wants to create a new task/ticket. Phrases: "add a ticket", "create a task", "new ticket", "assign [person] to [task]".
 3. "modify_ticket" — Wants to change an existing ticket. References CHQ-XXX and mentions changing something. Also: "mark as done", "close it", "done", "mark complete", "change status", "move to in progress".
-4. "status_check" — Asking about current state: "what's the status of CHQ-045", "what tickets does Sarah have".
+4. "status_check" — ANY question about the business, ERP data, or current state. Tickets, team workload, time tracking, client info, revenue, timesheets, projects, leads — anything that requires looking up data. Examples: "what's the status of CHQ-045", "what tickets does Sarah have", "how long has the oldest ticket been open", "how many hours did Lauren work yesterday", "what's our total MRR", "which clients are on retainer", "who has the most overdue tickets".
 5. "announcement" — A message for the whole team. Phrases: "announce", "hey team", "reminder everyone".
 6. "calendar_event" — Wants to add/manage a calendar event.
 7. "holiday_schedule" — Wants to change/move an existing calendar event or holiday.
@@ -135,7 +135,9 @@ RULES:
 - If it mentions CHQ-XXX and wants to change something → "modify_ticket"
 - If it mentions CHQ-XXX with "done", "mark as done", "close", "complete", "mark complete", "finished" → "modify_ticket" with status change to "closed"
 - "Hey team" or team-wide messages → "announcement"
+- ANY question about business data, metrics, team performance, time tracking, clients, revenue, workload → "status_check"
 - If unclear between announcement and quick_ticket, prefer "quick_ticket" if it mentions a specific person or task
+- When in doubt between "status_check" and "unknown", prefer "status_check" — the ERP assistant can handle broad questions
 - Resolve all relative dates to absolute dates (YYYY-MM-DD). "Today" = ${todayStr}.
 
 Also determine these for ALL intents:
@@ -184,7 +186,7 @@ INTENTS (pick exactly one):
 
 3. "modify_ticket" — Wants to change an existing ticket they're assigned to. References CHQ-XXX and mentions changing something (status, due date). Also: "mark as done", "close it", "done", "mark complete", "finished".
 
-4. "status_check" — Asking about a specific ticket or team status: "what's the status of CHQ-045", "is CHQ-045 done".
+4. "status_check" — ANY question about business data, tickets, team, clients, time tracking, projects. Examples: "what's the status of CHQ-045", "is CHQ-045 done", "how many open tickets do we have", "who has the most tickets".
 
 5. "unknown" — Cannot determine intent.
 
@@ -194,6 +196,8 @@ RULES:
 - If they mention CHQ-XXX and want to change something → "modify_ticket"
 - If they mention CHQ-XXX with "done", "mark as done", "close", "finished", "complete" → "modify_ticket" with status change to "closed"
 - If they mention CHQ-XXX and just want to know about it → "status_check"
+- ANY question about data, metrics, or information → "status_check"
+- When in doubt, prefer "status_check" over "unknown"
 - Resolve all relative dates to YYYY-MM-DD. "Today" = ${todayStr}.
 
 Return ONLY this JSON (no markdown fences):
