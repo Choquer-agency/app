@@ -140,7 +140,7 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
           </svg>
         </button>
         {isOpen && (
-          <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-[var(--border)] py-1 z-20 min-w-[160px]">
+          <div className="absolute right-0 bottom-full mb-1 bg-white rounded-lg shadow-lg border border-[var(--border)] py-1 z-50 min-w-[160px]">
             <button
               onClick={() => {
                 setOpenMenuId(null);
@@ -285,7 +285,7 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
         <>
           {/* Active + Canceling recurring */}
           {(active.length > 0 || canceling.length > 0) && (
-            <div className="overflow-x-auto">
+            <div className="overflow-visible">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
