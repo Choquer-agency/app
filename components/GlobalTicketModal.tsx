@@ -5,7 +5,7 @@ import { TeamMember } from "@/types";
 import TicketDetailModal from "./TicketDetailModal";
 
 export default function GlobalTicketModal() {
-  const [ticketId, setTicketId] = useState<number | null>(null);
+  const [ticketId, setTicketId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   useEffect(() => {

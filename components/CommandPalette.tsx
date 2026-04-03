@@ -297,17 +297,17 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
       subtitle: item.subtitle,
       url: item.url,
     });
-    onClose();
-
     // For tickets/comments, open the detail modal on the current page instead of navigating
     if (item.url.includes("?ticket=")) {
       const ticketId = item.url.split("ticket=")[1];
       if (ticketId) {
-        window.dispatchEvent(new CustomEvent("command-palette:open-ticket", { detail: { ticketId: Number(ticketId) } }));
+        onClose();
+        window.dispatchEvent(new CustomEvent("command-palette:open-ticket", { detail: { ticketId } }));
         return;
       }
     }
 
+    onClose();
     router.push(item.url);
   }
 
