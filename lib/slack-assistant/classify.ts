@@ -122,7 +122,7 @@ INTENTS (pick exactly one):
 
 1. "meeting_transcript" — A meeting transcript, long dictation, or detailed task briefing with action items. Usually 300+ characters.
 2. "quick_ticket" — Wants to create a new task/ticket. Phrases: "add a ticket", "create a task", "new ticket", "assign [person] to [task]".
-3. "modify_ticket" — Wants to change an existing ticket. Will reference CHQ-XXX and mention changing something.
+3. "modify_ticket" — Wants to change an existing ticket. References CHQ-XXX and mentions changing something. Also: "mark as done", "close it", "done", "mark complete", "change status", "move to in progress".
 4. "status_check" — Asking about current state: "what's the status of CHQ-045", "what tickets does Sarah have".
 5. "announcement" — A message for the whole team. Phrases: "announce", "hey team", "reminder everyone".
 6. "calendar_event" — Wants to add/manage a calendar event.
@@ -133,6 +133,7 @@ RULES:
 - Messages over 300 characters with conversational content → "meeting_transcript"
 - If it mentions CHQ-XXX and asks about it → "status_check"
 - If it mentions CHQ-XXX and wants to change something → "modify_ticket"
+- If it mentions CHQ-XXX with "done", "mark as done", "close", "complete", "mark complete", "finished" → "modify_ticket" with status change to "closed"
 - "Hey team" or team-wide messages → "announcement"
 - If unclear between announcement and quick_ticket, prefer "quick_ticket" if it mentions a specific person or task
 - Resolve all relative dates to absolute dates (YYYY-MM-DD). "Today" = ${todayStr}.
@@ -181,7 +182,7 @@ INTENTS (pick exactly one):
 
 2. "log_time" — Wants to log time on a ticket. Phrases: "I spent 2 hours on CHQ-045", "log 1.5h on CHQ-045", "worked on CHQ-045 for 3 hours".
 
-3. "modify_ticket" — Wants to change an existing ticket they're assigned to. References CHQ-XXX and mentions changing something (status, due date).
+3. "modify_ticket" — Wants to change an existing ticket they're assigned to. References CHQ-XXX and mentions changing something (status, due date). Also: "mark as done", "close it", "done", "mark complete", "finished".
 
 4. "status_check" — Asking about a specific ticket or team status: "what's the status of CHQ-045", "is CHQ-045 done".
 
@@ -191,6 +192,7 @@ RULES:
 - If they ask about their own work without mentioning a specific ticket → "my_tickets"
 - If they mention logging or spending time → "log_time"
 - If they mention CHQ-XXX and want to change something → "modify_ticket"
+- If they mention CHQ-XXX with "done", "mark as done", "close", "finished", "complete" → "modify_ticket" with status change to "closed"
 - If they mention CHQ-XXX and just want to know about it → "status_check"
 - Resolve all relative dates to YYYY-MM-DD. "Today" = ${todayStr}.
 

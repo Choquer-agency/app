@@ -141,6 +141,44 @@ async function isEodCheckinThread(threadTs: string, channelId: string): Promise<
 }
 
 /**
+ * Check if a thread is about a specific ticket (e.g., ticket assignment notification).
+ * Extracts ticket number from the parent message if found.
+ */
+async function getTicketContextFromThread(threadTs: string, channelId: string): Promise<{ ticketNumber: string; ticketId: string; title: string } | null> {
+  try {
+    const token = process.env.SLACK_BOT_TOKEN || process.env.SLACK_USER_TOKEN;
+    if (!token) return null;
+
+    const res = await fetch(`https://slack.com/api/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=1&inclusive=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (!data.ok || !data.messages?.length) return null;
+
+    const parentMsg = data.messages[0];
+    if (!parentMsg.text) return null;
+
+    // Look for ticket number pattern in the parent message (e.g., from ticket notifications or status checks)
+    const ticketMatch = parentMsg.text.match(/\b(CHQ-\d+)\b/);
+    if (!ticketMatch) return null;
+
+    const ticketNumber = ticketMatch[1];
+    console.log("[slack] Thread context: found ticket", ticketNumber, "in parent message");
+
+    // Resolve ticket ID
+    const convex = getConvexClient();
+    const allTickets = await convex.query(api.tickets.list, {});
+    const ticket = (allTickets as any[]).find((t: any) => t.ticketNumber === ticketNumber);
+    if (!ticket) return null;
+
+    return { ticketNumber, ticketId: ticket._id as string, title: ticket.title as string };
+  } catch (err) {
+    console.log("[slack] Failed to get ticket context from thread:", err);
+    return null;
+  }
+}
+
+/**
  * Main entry point — called from the Slack events route.
  * Handles both new messages and conversation continuations.
  * Works for any team member, not just the owner.
@@ -196,6 +234,40 @@ export async function handleSlackMessage(event: {
             confidence: 1.0,
             data: { eodMessageData: eodMsg.data },
           },
+        };
+        await handler.handle(ctx);
+        return;
+      }
+    }
+
+    // Check if this is a reply to a ticket notification thread
+    const ticketContext = await getTicketContextFromThread(threadTs, event.channel);
+    if (ticketContext) {
+      // Inject ticket number into the message for the classifier
+      const enrichedText = messageText.includes(ticketContext.ticketNumber)
+        ? messageText
+        : `${ticketContext.ticketNumber}: ${messageText}`;
+
+      // Add thinking reaction
+      await addSlackReaction(event.channel, event.ts, "hourglass_flowing_sand");
+
+      const { teamMemberNames, clientNames } = await getContextNames();
+      const classification = await classifyIntent(enrichedText, teamMemberNames, clientNames, {
+        isOwner: user.isOwner,
+        userName: user.name,
+      });
+
+      const handler = await getHandler(classification.intent);
+      if (handler) {
+        const ctx: HandlerContext = {
+          messageText: applyVoiceCorrections(enrichedText),
+          channelId: event.channel,
+          messageTs: event.ts,
+          threadTs,
+          files,
+          user,
+          conversation: null,
+          classification,
         };
         await handler.handle(ctx);
         return;
