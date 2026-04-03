@@ -147,6 +147,26 @@ const ERP_TOOLS = [
     },
   },
   {
+    name: "list_packages",
+    description: "List all available service packages (e.g., SEO, Google Ads, Hosting, Retainer). Shows package names, prices, hours included, categories.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        activeOnly: { type: "boolean", description: "Only active packages (default true)" },
+      },
+    },
+  },
+  {
+    name: "list_all_client_package_assignments",
+    description: "List ALL active client-package assignments across all clients. Shows which clients have which packages. Use this to answer questions like 'how many clients are on hosting' or 'who has a retainer package'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        packageNameFilter: { type: "string", description: "Optional: filter by package name (case-insensitive partial match, e.g., 'hosting', 'seo', 'retainer')" },
+      },
+    },
+  },
+  {
     name: "get_revenue_summary",
     description: "Get the agency's revenue summary: total MRR, client count, MRR by client. This is the source of truth for revenue — matches the revenue page exactly.",
     input_schema: {
@@ -529,6 +549,54 @@ RULES:
             source: l.source,
             notes: l.notes,
           }));
+        }
+
+        case "list_packages": {
+          const packages = await convex.query(api.packages.list, { activeOnly: input.activeOnly !== false });
+          return (packages as any[]).map((p: any) => ({
+            id: p._id,
+            name: p.name,
+            description: p.description,
+            defaultPrice: p.defaultPrice,
+            category: p.category,
+            billingFrequency: p.billingFrequency,
+            hoursIncluded: p.hoursIncluded,
+            active: p.active,
+          }));
+        }
+
+        case "list_all_client_package_assignments": {
+          // Get all clients and their packages
+          const clients = await convex.query(api.clients.list, {});
+          const allAssignments: any[] = [];
+
+          for (const client of (clients as any[])) {
+            const packages = await convex.query(api.clientPackages.listByClient, { clientId: client._id as any });
+            for (const pkg of (packages as any[])) {
+              if (!pkg.active) continue;
+              const packageName = pkg.packageName || pkg.name || "";
+              // Apply name filter if provided
+              if (input.packageNameFilter) {
+                if (!packageName.toLowerCase().includes(input.packageNameFilter.toLowerCase())) continue;
+              }
+              allAssignments.push({
+                clientName: client.name,
+                clientId: client._id,
+                packageName,
+                customPrice: pkg.customPrice,
+                defaultPrice: pkg.defaultPrice,
+                customHours: pkg.customHours,
+                hoursIncluded: pkg.hoursIncluded,
+                active: pkg.active,
+                isOneTime: pkg.isOneTime || false,
+              });
+            }
+          }
+
+          return {
+            totalAssignments: allAssignments.length,
+            assignments: allAssignments,
+          };
         }
 
         case "get_revenue_summary": {
