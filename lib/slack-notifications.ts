@@ -9,6 +9,54 @@ import { sendSlackDM } from "./slack";
 import { CreateTicketInput } from "@/types";
 
 /**
+ * Extract plain text from a description that may be:
+ * - TipTap JSON ({"type":"doc","content":[...]})
+ * - HTML (<p>text</p>)
+ * - Plain text
+ */
+function extractPlainText(description: string): string {
+  const trimmed = description.trim();
+
+  // Check if it's TipTap JSON
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const doc = JSON.parse(trimmed);
+      return extractTextFromTipTapNode(doc).trim();
+    } catch {
+      // Not valid JSON, fall through
+    }
+  }
+
+  // Strip HTML tags
+  return trimmed.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Recursively extract text content from a TipTap JSON node.
+ */
+function extractTextFromTipTapNode(node: any): string {
+  if (!node) return "";
+
+  // Text node
+  if (node.type === "text" && typeof node.text === "string") {
+    return node.text;
+  }
+
+  // Container node with children
+  if (Array.isArray(node.content)) {
+    const parts = node.content.map((child: any) => extractTextFromTipTapNode(child));
+    // Add newlines between block-level elements
+    const blockTypes = ["paragraph", "heading", "bulletList", "orderedList", "listItem", "blockquote"];
+    if (blockTypes.includes(node.type)) {
+      return parts.join("") + "\n";
+    }
+    return parts.join("");
+  }
+
+  return "";
+}
+
+/**
  * Notify assignees via Slack DM when a ticket is created and assigned to them.
  * Fire-and-forget — does not block ticket creation.
  */
@@ -53,7 +101,7 @@ export async function notifyAssigneesViaSlack(
 
       // Brief description summary (first 150 chars)
       if (ticketData.description && ticketData.description.length > 0) {
-        const desc = ticketData.description.replace(/<[^>]*>/g, "").trim();
+        const desc = extractPlainText(ticketData.description);
         if (desc.length > 0) {
           const summary = desc.length > 150 ? desc.slice(0, 147) + "..." : desc;
           parts.push(`\n${summary}`);

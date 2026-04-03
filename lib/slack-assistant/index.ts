@@ -78,14 +78,66 @@ async function getContextNames(): Promise<{ teamMemberNames: string[]; clientNam
 
 /**
  * Check if a thread_ts corresponds to an EOD check-in message.
- * Returns the slack message data if found.
+ * Primary: looks up by slackTs in the database.
+ * Fallback: fetches the thread parent from Slack and checks the text pattern.
  */
-async function isEodCheckinThread(threadTs: string): Promise<{ teamMemberId: string; data: any } | null> {
+async function isEodCheckinThread(threadTs: string, channelId: string): Promise<{ teamMemberId: string; data: any } | null> {
   const convex = getConvexClient();
-  const msg = await convex.query(api.slackMessages.getBySlackTs, { slackTs: threadTs });
-  if (!msg) return null;
-  if (msg.messageType !== "eod_checkin") return null;
-  return { teamMemberId: msg.teamMemberId, data: msg.data };
+
+  // Primary: database lookup by slackTs
+  try {
+    const msg = await convex.query(api.slackMessages.getBySlackTs, { slackTs: threadTs });
+    if (msg && msg.messageType === "eod_checkin") {
+      console.log("[slack] EOD check-in found via DB lookup, slackTs:", threadTs);
+      return { teamMemberId: msg.teamMemberId, data: msg.data };
+    }
+  } catch (err) {
+    console.log("[slack] DB lookup for EOD check-in failed:", err);
+  }
+
+  // Fallback: fetch the thread parent from Slack and check the text
+  try {
+    const token = process.env.SLACK_BOT_TOKEN || process.env.SLACK_USER_TOKEN;
+    if (!token) return null;
+
+    const res = await fetch(`https://slack.com/api/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=1&inclusive=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (!data.ok || !data.messages?.length) return null;
+
+    const parentMsg = data.messages[0];
+    // Check if it matches the EOD check-in pattern
+    if (parentMsg.text && parentMsg.text.includes("quick EOD check-in")) {
+      console.log("[slack] EOD check-in detected via Slack fallback, threadTs:", threadTs);
+      // Try to extract ticket info from the message text
+      const ticketRegex = /• (CHQ-\d+): (.+)/g;
+      const tickets: Array<{ ticketNumber: string; title: string }> = [];
+      let match;
+      while ((match = ticketRegex.exec(parentMsg.text)) !== null) {
+        tickets.push({ ticketNumber: match[1], title: match[2].split(" (you committed")[0].trim() });
+      }
+
+      // Resolve ticket IDs
+      const allTickets = await convex.query(api.tickets.list, {});
+      const resolvedTickets = tickets.map((t) => {
+        const ticket = (allTickets as any[]).find((at: any) => at.ticketNumber === t.ticketNumber);
+        return {
+          ticketId: ticket?._id || "",
+          ticketNumber: t.ticketNumber,
+          title: t.title,
+          clientName: null,
+          isCommitmentDue: parentMsg.text.includes(`${t.ticketNumber}`) && parentMsg.text.includes("committed"),
+        };
+      }).filter((t) => t.ticketId);
+
+      return { teamMemberId: "", data: { tickets: resolvedTickets } };
+    }
+  } catch (err) {
+    console.log("[slack] Slack fallback for EOD check-in failed:", err);
+  }
+
+  return null;
 }
 
 /**
@@ -127,7 +179,7 @@ export async function handleSlackMessage(event: {
     }
 
     // Check if this is a reply to an EOD check-in message
-    const eodMsg = await isEodCheckinThread(threadTs);
+    const eodMsg = await isEodCheckinThread(threadTs, event.channel);
     if (eodMsg) {
       const handler = await getHandler("eod_reply");
       if (handler) {
