@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "Download Choquer.Agency Desktop",
@@ -55,96 +56,95 @@ export default async function DownloadPage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-8">
-      <div className="max-w-lg w-full">
-        <div className="text-center mb-10">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Choquer.Agency Desktop
-          </h1>
-          <p className="text-sm text-gray-500 mt-2">
-            Native macOS app with real-time notifications and auto-updates
-          </p>
+    <div className="min-h-screen bg-[#FAF9F5] flex items-center justify-center p-8">
+      <div className="max-w-md w-full text-center">
+        {/* Logo */}
+        <div className="mb-6">
+          <Image
+            src="/choquer-icon.png"
+            alt="Choquer Agency"
+            width={80}
+            height={80}
+            className="mx-auto rounded-2xl shadow-lg"
+          />
         </div>
 
-        <div className="border border-gray-200 rounded-xl p-6">
+        <h1 className="text-2xl font-bold text-[#263926]">
+          Choquer.Agency
+        </h1>
+        <p className="text-sm text-[#6B6B6B] mt-1.5">
+          Native macOS app with real-time notifications and auto-updates
+        </p>
+
+        {/* Download card */}
+        <div className="mt-8 bg-white border border-[#E8E6DF] rounded-2xl p-6 shadow-sm">
           {dmgAsset ? (
             <>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-5 text-left">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-semibold text-[#263926]">
                     macOS (Universal)
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-[#6B6B6B] mt-0.5">
                     Intel &amp; Apple Silicon
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-semibold text-[#263926]">
                     v{version}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-[#6B6B6B] mt-0.5">
                     {formatBytes(dmgAsset.size)}
                   </p>
                 </div>
               </div>
               <a
                 href={dmgAsset.browser_download_url}
-                className="block w-full text-center px-4 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+                className="block w-full text-center px-4 py-3 text-sm font-semibold text-white bg-[#F7941D] rounded-xl hover:bg-[#E8851A] transition-colors shadow-sm"
               >
                 Download for macOS
               </a>
               {publishedDate && (
-                <p className="text-xs text-gray-400 text-center mt-3">
+                <p className="text-xs text-[#9CA3AF] mt-3">
                   Released {publishedDate}
                 </p>
               )}
             </>
           ) : (
-            <p className="text-sm text-gray-500 text-center py-4">
+            <p className="text-sm text-[#6B6B6B] py-4">
               No releases available yet.
             </p>
           )}
         </div>
 
-        <div className="mt-8">
-          <h2 className="text-sm font-medium text-gray-900 mb-3">
-            Installation
-          </h2>
-          <ol className="text-xs text-gray-600 space-y-2 list-decimal list-inside">
-            <li>Download the DMG file above</li>
-            <li>
-              Open the DMG &mdash; drag Choquer.Agency to your Applications
-              folder
-            </li>
-            <li>
-              Open Choquer.Agency from Applications &mdash; log in with your
-              admin credentials
-            </li>
-            <li>The app will auto-update when new versions are available</li>
-          </ol>
-        </div>
-
-        <div className="mt-6">
-          <h2 className="text-sm font-medium text-gray-900 mb-2">
-            Requirements
-          </h2>
-          <ul className="text-xs text-gray-500 space-y-1">
-            <li>macOS 11 (Big Sur) or later</li>
-            <li>Intel or Apple Silicon Mac</li>
-            <li>Internet connection required</li>
-          </ul>
-        </div>
-
-        {release?.body && (
-          <div className="mt-6">
-            <h2 className="text-sm font-medium text-gray-900 mb-2">
-              What&apos;s New
+        {/* Install + Requirements side by side */}
+        <div className="mt-6 grid grid-cols-2 gap-4 text-left">
+          <div>
+            <h2 className="text-xs font-semibold text-[#263926] uppercase tracking-wide mb-2">
+              Installation
             </h2>
-            <pre className="text-xs text-gray-600 whitespace-pre-wrap font-sans">
-              {release.body}
-            </pre>
+            <ol className="text-xs text-[#6B6B6B] space-y-1.5 list-decimal list-inside">
+              <li>Download the DMG file</li>
+              <li>Drag to Applications</li>
+              <li>Open and log in</li>
+              <li>Auto-updates enabled</li>
+            </ol>
           </div>
-        )}
+          <div>
+            <h2 className="text-xs font-semibold text-[#263926] uppercase tracking-wide mb-2">
+              Requirements
+            </h2>
+            <ul className="text-xs text-[#6B6B6B] space-y-1.5">
+              <li>macOS 11 (Big Sur)+</li>
+              <li>Intel or Apple Silicon</li>
+              <li>Internet connection</li>
+            </ul>
+          </div>
+        </div>
+
+        <p className="text-xs text-[#9CA3AF] mt-8">
+          Choquer Agency
+        </p>
       </div>
     </div>
   );
