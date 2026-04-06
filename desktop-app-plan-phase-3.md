@@ -9,13 +9,14 @@ Convex notifications appear as native macOS notifications instantly — even whe
 ## What This Phase Delivers
 
 - **Instant native macOS notifications** — ticket assigned, comment, mention, etc. appear as macOS notification center popups within ~1 second of creation (via Convex real-time, not 30-second polling)
-- **Notification click → navigate** — clicking a native notification shows/focuses the app and navigates directly to the relevant page (e.g., the ticket)
+- **Notification click → app focus** — clicking a native notification activates and focuses the app window (standard macOS behavior)
 - **Real-time dock badge** — unread count on the dock icon updates instantly via Convex subscription (replaces Phase 2's 30-second fetch monkey-patch)
-- **Real-time NotificationBell** — the in-app bell icon upgrades from 30-second polling to instant Convex subscription
-- **Lazy permission prompt** — macOS notification permission is requested only when the first real notification arrives, not on app launch
+- **Real-time NotificationBell** — the in-app bell icon was already upgraded from 30-second polling to instant Convex subscription in Phase 2
 - **Batch handling** — 4+ simultaneous notifications show a single summary ("You have 5 new notifications") instead of spamming
-- **Permission status banner** — Settings > Notifications shows whether desktop notifications are enabled/disabled with guidance to re-enable
+- **Desktop notification banner** — Settings > Notifications shows that desktop notifications are active with guidance on macOS notification settings
 - **Background notifications** — notifications appear even when the window is hidden in the system tray (Phase 2 feature)
+
+> **Note on macOS desktop notifications:** `tauri-plugin-notification` uses `notify-rust` on macOS desktop, which provides title + body notifications with automatic permission (always granted). Click handling navigates to a specific page is not supported at this level — clicking a notification activates/focuses the app. For page-specific navigation, users can check the in-app notification bell. Action-based click handling (`on_action`, `register_action_types`) is available on mobile only.
 
 ---
 

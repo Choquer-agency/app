@@ -1,29 +1,34 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { ApiConnection, PlatformConfig } from "@/types";
 import { getOrgPlatforms } from "@/lib/platform-configs";
 import ConnectionCard from "./ConnectionCard";
 
 export default function OrgConnections({ canManage }: { canManage: boolean }) {
-  const [connections, setConnections] = useState<ApiConnection[]>([]);
-  const [loading, setLoading] = useState(true);
+  const rawConnections = useQuery(api.apiConnections.list, { scope: "org" });
+  const loading = rawConnections === undefined;
 
-  const fetchConnections = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/connections");
-      if (res.ok) {
-        setConnections(await res.json());
-      }
-    } catch {
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchConnections();
-  }, [fetchConnections]);
+  const connections: ApiConnection[] = useMemo(
+    () =>
+      (rawConnections ?? []).map((c: any) => ({
+        id: c._id,
+        platform: c.platform,
+        scope: c.scope,
+        clientId: c.clientId ?? null,
+        authType: c.authType,
+        status: c.status,
+        lastVerifiedAt: c.lastVerifiedAt ?? null,
+        lastError: c.lastError ?? null,
+        displayName: c.displayName ?? null,
+        oauthAccountName: c.oauthAccountName ?? null,
+        oauthAccountId: c.oauthAccountId ?? null,
+        createdAt: new Date(c._creationTime).toISOString(),
+      })),
+    [rawConnections]
+  );
 
   const platforms = getOrgPlatforms();
   const connectionMap = new Map(connections.map((c) => [c.platform, c]));
@@ -45,7 +50,7 @@ export default function OrgConnections({ canManage }: { canManage: boolean }) {
           connection={connectionMap.get(p.platform)}
           scope="org"
           canManage={canManage}
-          onRefresh={fetchConnections}
+          onRefresh={() => {/* Convex auto-updates via useQuery */}}
         />
       ))}
     </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ClientConfig, TeamMember } from "@/types";
+import { useState } from "react";
+import { ClientConfig } from "@/types";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface ClientDetailsFormProps {
   client: ClientConfig;
@@ -102,13 +103,7 @@ export default function ClientDetailsForm({
   const [deleting, setDeleting] = useState(false);
 
   // Team members for specialist dropdown
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  useEffect(() => {
-    fetch("/api/admin/team")
-      .then((res) => res.ok ? res.json() : [])
-      .then((members) => setTeamMembers(members))
-      .catch(() => {});
-  }, []);
+  const { teamMembers } = useTeamMembers();
 
   function update(key: string, value: unknown) {
     setForm((prev) => ({ ...prev, [key]: value }));

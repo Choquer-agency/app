@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import type { VacationRequest } from "@/types";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 
 export default function MyVacationRequests({
   teamMemberId,
@@ -10,24 +11,11 @@ export default function MyVacationRequests({
   teamMemberId: string;
   refreshKey: number;
 }) {
-  const [requests, setRequests] = useState<VacationRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const rawRequests = useQuery(api.vacationRequests.listByMember, {
+    teamMemberId: teamMemberId as Id<"teamMembers">,
+  });
 
-  useEffect(() => {
-    async function fetch_() {
-      try {
-        const res = await fetch("/api/admin/timesheet/vacation/request");
-        if (res.ok) setRequests(await res.json());
-      } catch {
-        // silent
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetch_();
-  }, [refreshKey]);
-
-  if (loading || requests.length === 0) return null;
+  if (!rawRequests || rawRequests.length === 0) return null;
 
   return (
     <div className="mt-8 border-t border-[#F6F5F1] pt-6">
@@ -35,7 +23,7 @@ export default function MyVacationRequests({
         My Vacation Requests
       </h3>
       <div className="space-y-3">
-        {requests.map((req) => {
+        {rawRequests.map((req) => {
           const startLabel = new Date(
             req.startDate + "T12:00:00"
           ).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -49,7 +37,7 @@ export default function MyVacationRequests({
 
           return (
             <div
-              key={req.id}
+              key={req._id}
               className={`bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] border p-4 ${
                 req.status === "pending"
                   ? "border-amber-200"

@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 
 interface Lead {
   _id: string;
@@ -54,68 +57,63 @@ function LeadStatusBadge({ status, size = "sm" }: { status: string; size?: "xs" 
 // ────────────────────────────────────────────────────────────────────────────
 
 export default function AdminLeadsList() {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const leadsData = useQuery(api.leads.list);
+  const leads: Lead[] = (leadsData ?? []) as Lead[];
+  const loading = leadsData === undefined;
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  const fetchLeads = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/leads");
-      if (res.ok) {
-        setLeads(await res.json());
-      }
-    } catch {
-      // Failed to fetch
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const createLead = useMutation(api.leads.create);
+  const updateLead = useMutation(api.leads.update);
+  const removeLead = useMutation(api.leads.remove);
 
+  // Keep selectedLead in sync with real-time data
   useEffect(() => {
-    fetchLeads();
-  }, [fetchLeads]);
+    if (selectedLead && leads.length > 0) {
+      const updated = leads.find((l) => l._id === selectedLead._id);
+      if (updated) setSelectedLead(updated);
+    }
+  }, [leads]);
 
   async function handleCreate(data: Partial<Lead>) {
     try {
-      const res = await fetch("/api/admin/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+      await createLead({
+        company: data.company || "",
+        contactName: data.contactName,
+        contactRole: data.contactRole,
+        contactEmail: data.contactEmail,
+        website: data.website,
+        status: data.status,
+        notes: data.notes,
+        source: data.source,
       });
-      if (res.ok) {
-        setShowAddPanel(false);
-        fetchLeads();
-      }
+      setShowAddPanel(false);
     } catch {}
   }
 
   async function handleUpdate(id: string, data: Partial<Lead>) {
     try {
-      const res = await fetch("/api/admin/leads", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, ...data }),
+      await updateLead({
+        id: id as Id<"leads">,
+        company: data.company,
+        contactName: data.contactName,
+        contactRole: data.contactRole,
+        contactEmail: data.contactEmail,
+        website: data.website,
+        status: data.status,
+        notes: data.notes,
+        source: data.source,
       });
-      if (res.ok) {
-        // Refresh the selected lead in-place
-        const updated = await res.json();
-        setSelectedLead(updated);
-        fetchLeads();
-      }
     } catch {}
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this lead?")) return;
     try {
-      const res = await fetch(`/api/admin/leads?id=${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setSelectedLead(null);
-        fetchLeads();
-      }
+      await removeLead({ id: id as Id<"leads"> });
+      setSelectedLead(null);
     } catch {}
   }
 

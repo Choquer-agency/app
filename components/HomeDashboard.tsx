@@ -14,6 +14,9 @@ import {
 import { hasMinRole, type RoleLevel } from "@/lib/permissions";
 import WhosInWidget from "./WhosInWidget";
 import QuickClockBar from "./timesheet/QuickClockBar";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -396,6 +399,14 @@ export default function HomeDashboard({
   const [changelogSubmitting, setChangelogSubmitting] = useState(false);
   const [showAllChangelog, setShowAllChangelog] = useState(false);
 
+  // Convex mutations for CRUD operations
+  const createAnnouncementMut = useMutation(api.bulletin.createAnnouncement);
+  const deleteAnnouncementMut = useMutation(api.bulletin.deleteAnnouncement);
+  const toggleReactionMut = useMutation(api.bulletin.toggleReaction);
+  const createChangelogMut = useMutation(api.changelog.create);
+  const deleteChangelogMut = useMutation(api.changelog.remove);
+
+  // Bulletin data still fetched as aggregate (bundles projects, calendar, announcements+reactions, quote)
   const fetchBulletin = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/bulletin");
@@ -417,17 +428,15 @@ export default function HomeDashboard({
     if (!announcementTitle.trim()) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/bulletin/announcements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: announcementTitle, content: announcementContent }),
+      await createAnnouncementMut({
+        authorId: teamMemberId as Id<"teamMembers">,
+        title: announcementTitle,
+        content: announcementContent || undefined,
       });
-      if (res.ok) {
-        setAnnouncementTitle("");
-        setAnnouncementContent("");
-        setShowAnnouncementForm(false);
-        fetchBulletin();
-      }
+      setAnnouncementTitle("");
+      setAnnouncementContent("");
+      setShowAnnouncementForm(false);
+      fetchBulletin();
     } catch {
     } finally {
       setSubmitting(false);
@@ -454,18 +463,18 @@ export default function HomeDashboard({
       }),
     });
 
-    // Fire and forget
-    fetch("/api/admin/bulletin/reactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ announcementId, emoji }),
+    // Fire and forget — Convex mutation
+    toggleReactionMut({
+      announcementId: announcementId as Id<"announcements">,
+      teamMemberId: teamMemberId as Id<"teamMembers">,
+      emoji,
     }).catch(() => {});
   }
 
   async function handleDeleteAnnouncement(id: string) {
     try {
-      const res = await fetch(`/api/admin/bulletin/announcements?id=${id}`, { method: "DELETE" });
-      if (res.ok) fetchBulletin();
+      await deleteAnnouncementMut({ id: id as Id<"announcements"> });
+      fetchBulletin();
     } catch {}
   }
 
@@ -473,24 +482,18 @@ export default function HomeDashboard({
     if (!changelogTitle.trim() || !changelogDescription.trim()) return;
     setChangelogSubmitting(true);
     try {
-      const res = await fetch("/api/admin/changelog", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: changelogTitle,
-          description: changelogDescription,
-          category: changelogCategory,
-          imageUrl: changelogImageUrl || undefined,
-        }),
+      await createChangelogMut({
+        title: changelogTitle,
+        description: changelogDescription,
+        category: changelogCategory,
+        imageUrl: changelogImageUrl || undefined,
       });
-      if (res.ok) {
-        setChangelogTitle("");
-        setChangelogDescription("");
-        setChangelogCategory("feature");
-        setChangelogImageUrl("");
-        setShowChangelogForm(false);
-        fetchBulletin();
-      }
+      setChangelogTitle("");
+      setChangelogDescription("");
+      setChangelogCategory("feature");
+      setChangelogImageUrl("");
+      setShowChangelogForm(false);
+      fetchBulletin();
     } catch {
     } finally {
       setChangelogSubmitting(false);
@@ -499,8 +502,8 @@ export default function HomeDashboard({
 
   async function handleDeleteChangelog(id: string) {
     try {
-      const res = await fetch(`/api/admin/changelog?id=${id}`, { method: "DELETE" });
-      if (res.ok) fetchBulletin();
+      await deleteChangelogMut({ id: id as Id<"changelog"> });
+      fetchBulletin();
     } catch {}
   }
 

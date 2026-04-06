@@ -7,6 +7,7 @@ import HourCountdown from "./HourCountdown";
 import ServiceBoardStatusBadge from "./ServiceBoardStatusBadge";
 import ServiceBoardDetailPanel from "./ServiceBoardDetailPanel";
 import TimeTracker from "./TimeTracker";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 // Wrapper that lazily gets/creates the service ticket for a board entry
 function ServiceTimeTracker({ entryId }: { entryId: number }) {
@@ -84,7 +85,13 @@ interface ServiceBoardProps {
 export default function ServiceBoard({ category }: ServiceBoardProps) {
   const [month, setMonth] = useState(getCurrentMonth);
   const [entries, setEntries] = useState<ServiceBoardEntry[]>([]);
-  const [teamMembers, setTeamMembers] = useState<Array<{ id: number; name: string; color: string; profilePicUrl: string }>>([]);
+  const { teamMembers: rawTeamMembers } = useTeamMembers();
+  const teamMembers = rawTeamMembers.map((m) => ({
+    id: m.id,
+    name: m.name,
+    color: m.color || "#6B7280",
+    profilePicUrl: m.profilePicUrl || "",
+  }));
   const [loading, setLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<ServiceBoardEntry | null>(null);
 
@@ -106,34 +113,9 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
     }
   }, [category, month]);
 
-  const fetchTeam = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/team");
-      if (res.ok) {
-        const data = await res.json();
-        setTeamMembers(
-          data
-            .filter((m: TeamMember) => m.active)
-            .map((m: TeamMember) => ({
-              id: m.id,
-              name: m.name,
-              color: m.color || "#6B7280",
-              profilePicUrl: m.profilePicUrl || "",
-            }))
-        );
-      }
-    } catch (e) {
-      console.error("Failed to fetch team:", e);
-    }
-  }, []);
-
   useEffect(() => {
     fetchEntries();
   }, [fetchEntries]);
-
-  useEffect(() => {
-    fetchTeam();
-  }, [fetchTeam]);
 
   async function handleStatusChange(entryId: number, status: ServiceBoardStatus) {
     try {

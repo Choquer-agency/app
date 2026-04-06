@@ -11,16 +11,16 @@ import GanttDependencyLayer from "./GanttDependencyLayer";
 
 interface GanttChartProps {
   flatRows: GanttRow[];
-  dependencyMap: Map<number, number[]>;
-  ticketRowMap: Map<number, number>;
+  dependencyMap: Map<string, string[]>;
+  ticketRowMap: Map<string, number>;
   timelineBounds: { start: Date; end: Date };
   dayWidth: number;
   zoom: "week" | "month";
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
-  onTicketClick: (ticketId: number) => void;
-  onDragStart: (ticketId: number, startX: number) => void;
+  onTicketClick: (ticketId: string) => void;
+  onDragStart: (ticketId: string, startX: number) => void;
   dragDayDelta?: number;
-  dragAffectedIds?: Set<number> | null;
+  dragAffectedIds?: Set<string> | null;
 }
 
 export default function GanttChart({

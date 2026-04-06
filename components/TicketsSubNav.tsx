@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { usePathname } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import ProjectCreateFlow from "./ProjectCreateFlow";
 
 interface SubNavProject {
-  id: number;
+  id: string;
   name: string;
   status: string;
   clientName?: string;
@@ -13,29 +17,33 @@ interface SubNavProject {
 
 export default function TicketsSubNav() {
   const pathname = usePathname();
-  const [projects, setProjects] = useState<SubNavProject[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [showCreateFlow, setShowCreateFlow] = useState(false);
-  const [userTags, setUserTags] = useState<string[]>([]);
-  const [userRole, setUserRole] = useState<string>("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const plusRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetch("/api/admin/projects/mine")
-      .then((r) => r.ok ? r.json() : [])
-      .then((data) => setProjects(data))
-      .catch(() => {});
-    // Fetch current user tags for board visibility
-    fetch("/api/admin/me")
-      .then((r) => r.ok ? r.json() : {})
-      .then((data: { tags?: string[]; roleLevel?: string }) => {
-        setUserTags(data.tags || []);
-        setUserRole(data.roleLevel || "");
-      })
-      .catch(() => {});
-  }, []);
+  const { user, userId, roleLevel } = useCurrentUser();
+
+  // Real-time project list
+  const projectDocs = useQuery(
+    api.projects.listByMember,
+    userId ? { teamMemberId: userId as Id<"teamMembers"> } : "skip"
+  );
+
+  const projects: SubNavProject[] = useMemo(
+    () =>
+      projectDocs?.map((p: any) => ({
+        id: p._id,
+        name: p.name,
+        status: p.status ?? "active",
+        clientName: p.clientName,
+      })) ?? [],
+    [projectDocs]
+  );
+
+  const userTags = user?.tags ?? [];
+  const userRole = roleLevel ?? "";
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -186,11 +194,7 @@ export default function TicketsSubNav() {
           onClose={() => setShowCreateFlow(false)}
           onCreated={() => {
             setShowCreateFlow(false);
-            // Refresh project list in sub-nav
-            fetch("/api/admin/projects/mine")
-              .then((r) => r.ok ? r.json() : [])
-              .then((data) => setProjects(data))
-              .catch(() => {});
+            // Projects auto-refresh via useQuery
           }}
         />
       )}

@@ -1,7 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import type { TimesheetEntry, TimesheetBreak, VacationRequest, TimesheetChangeRequest } from "@/types";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { docToTimesheetEntry, docToVacationRequest, docToChangeRequest } from "@/lib/timesheet";
 import PeriodDetailModal from "./PeriodDetailModal";
 import TimeCardModal from "./TimeCardModal";
 
@@ -30,11 +36,6 @@ const CLOCK_IN_ROLES = new Set(["employee", "intern"]);
 
 export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId: string }) {
   const [activeTab, setActiveTab] = useState<"daily" | "period">("daily");
-  const [entries, setEntries] = useState<TimesheetEntry[]>([]);
-  const [pendingVacation, setPendingVacation] = useState<VacationRequest[]>([]);
-  const [pendingChanges, setPendingChanges] = useState<TimesheetChangeRequest[]>([]);
-  const [members, setMembers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [viewDate, setViewDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [showReviewOnly, setShowReviewOnly] = useState(false);
   const [dateRange, setDateRange] = useState(() => {
@@ -43,6 +44,39 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
     start.setDate(start.getDate() - 13);
     return { start: start.toISOString().split("T")[0], end: end.toISOString().split("T")[0] };
   });
+
+  // Convex real-time data
+  const { teamMembers: members, isLoading: membersLoading } = useTeamMembers(false);
+  const { userId: currentUserId } = useCurrentUser();
+
+  const startDate = activeTab === "daily" ? viewDate : dateRange.start;
+  const endDate = activeTab === "daily" ? viewDate : dateRange.end;
+
+  const rawEntries = useQuery(api.timesheetEntries.listByDateRange, { startDate, endDate });
+  const rawPendingVacation = useQuery(api.vacationRequests.listPending);
+  const rawPendingChanges = useQuery(api.timesheetChangeRequests.listPending);
+
+  // Mutations for approve/deny
+  const approveVacation = useMutation(api.vacationRequests.approve);
+  const denyVacation = useMutation(api.vacationRequests.deny);
+  const approveChange = useMutation(api.timesheetChangeRequests.approve);
+  const denyChange = useMutation(api.timesheetChangeRequests.deny);
+
+  // Map Convex docs to typed objects
+  const entries: TimesheetEntry[] = useMemo(
+    () => rawEntries?.map(docToTimesheetEntry) ?? [],
+    [rawEntries]
+  );
+  const pendingVacation: VacationRequest[] = useMemo(
+    () => rawPendingVacation?.map(docToVacationRequest) ?? [],
+    [rawPendingVacation]
+  );
+  const pendingChanges: TimesheetChangeRequest[] = useMemo(
+    () => rawPendingChanges?.map(docToChangeRequest) ?? [],
+    [rawPendingChanges]
+  );
+
+  const loading = membersLoading || rawEntries === undefined;
 
   // TimeCardModal state
   const [selectedEntry, setSelectedEntry] = useState<TimesheetEntry | null>(null);
@@ -94,7 +128,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
         body: JSON.stringify({ entryId: selectedEntry.id, ...updates }),
       });
       closeTimeCard();
-      fetchAll();
+      // No manual refresh needed — Convex auto-updates
     } catch { /* silent */ }
   }
 
@@ -102,32 +136,11 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
     try {
       await fetch(`/api/admin/timesheet/entries?id=${entryId}`, { method: "DELETE" });
       closeTimeCard();
-      fetchAll();
+      // No manual refresh needed — Convex auto-updates
     } catch { /* silent */ }
   }
 
-  async function fetchAll() {
-    setLoading(true);
-    try {
-      const startDate = activeTab === "daily" ? viewDate : dateRange.start;
-      const endDate = activeTab === "daily" ? viewDate : dateRange.end;
-      const [entriesRes, vacRes, changeRes, membersRes] = await Promise.all([
-        fetch(`/api/admin/timesheet/entries?startDate=${startDate}&endDate=${endDate}`),
-        fetch("/api/admin/timesheet/vacation/pending"),
-        fetch("/api/admin/timesheet/change-request/pending"),
-        fetch("/api/admin/team"),
-      ]);
-      if (entriesRes.ok) setEntries(await entriesRes.json());
-      if (vacRes.ok) setPendingVacation(await vacRes.json());
-      if (changeRes.ok) setPendingChanges(await changeRes.json());
-      if (membersRes.ok) setMembers(await membersRes.json());
-    } catch { /* silent */ } finally { setLoading(false); }
-  }
-
-  useEffect(() => { fetchAll(); }, [viewDate, dateRange, activeTab]);
-
-  const memberMap = new Map(members.map((m: any) => [m.id ?? m._id, m]));
-  function getMember(id: string) { return memberMap.get(id); }
+  const memberMap = new Map(members.map((m) => [m.id, m]));
   function getMemberName(id: string) { return memberMap.get(id)?.name ?? "Unknown"; }
 
   const today = new Date().toISOString().split("T")[0];
@@ -140,39 +153,54 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
   }
 
   async function handleVacationReview(requestId: string, action: "approve" | "deny") {
+    if (!currentUserId) return;
     const note = action === "deny" ? prompt("Reason for denial (optional):") : undefined;
-    await fetch("/api/admin/timesheet/vacation/review", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requestId, action, reviewNote: note ?? undefined }),
-    });
-    fetchAll();
+    const mutationArgs = {
+      id: requestId as Id<"vacationRequests">,
+      reviewedById: currentUserId as Id<"teamMembers">,
+      reviewNote: note ?? undefined,
+    };
+    if (action === "approve") {
+      await approveVacation(mutationArgs);
+    } else {
+      await denyVacation(mutationArgs);
+    }
+    // No manual refresh needed — Convex auto-updates
   }
 
   async function handleChangeReview(requestId: string, action: "approve" | "deny") {
+    if (!currentUserId) return;
     const note = action === "deny" ? prompt("Reason for denial (optional):") : undefined;
-    await fetch("/api/admin/timesheet/change-request/review", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requestId, action, reviewNote: note ?? undefined }),
-    });
-    fetchAll();
+    const mutationArgs = {
+      id: requestId as Id<"timesheetChangeRequests">,
+      reviewedById: currentUserId as Id<"teamMembers">,
+      reviewNote: note ?? undefined,
+    };
+    if (action === "approve") {
+      await approveChange(mutationArgs);
+    } else {
+      await denyChange(mutationArgs);
+    }
+    // No manual refresh needed — Convex auto-updates
   }
 
   // Deduplicate members by email, only clock-in roles
-  // Build email → all member IDs mapping so we can find entries across duplicate records
-  const emailToIds = new Map<string, string[]>();
-  for (const m of members) {
-    const email = (m.email || "").toLowerCase();
-    const id = m.id ?? m._id;
-    const existing = emailToIds.get(email) ?? [];
-    existing.push(id);
-    emailToIds.set(email, existing);
-  }
+  // Build email -> all member IDs mapping so we can find entries across duplicate records
+  const emailToIds = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const m of members) {
+      const email = (m.email || "").toLowerCase();
+      const existing = map.get(email) ?? [];
+      existing.push(m.id);
+      map.set(email, existing);
+    }
+    return map;
+  }, [members]);
 
-  const deduped = (() => {
+  const deduped = useMemo(() => {
     const seen = new Set<string>();
-    return members.filter((m: any) => {
+    return members.filter((m) => {
       if (m.active === false) return false;
-      // Hide employees on leave, terminated, etc.
       const status = m.employeeStatus;
       if (status && status !== "active") return false;
       if (!CLOCK_IN_ROLES.has(m.roleLevel ?? "employee")) return false;
@@ -180,13 +208,13 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
       if (seen.has(email)) return false;
       seen.add(email);
       return true;
-    }).sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
-  })();
+    }).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [members]);
 
   // Helper: find entry for a member, checking ALL duplicate IDs for same email
   function findEntryForMember(m: any, date: string): TimesheetEntry | null {
     const email = (m.email || "").toLowerCase();
-    const allIds = emailToIds.get(email) ?? [m.id ?? m._id];
+    const allIds = emailToIds.get(email) ?? [m.id];
     for (const id of allIds) {
       const entry = entries.find((e) => e.teamMemberId === id && e.date === date);
       if (entry) return entry;
@@ -197,7 +225,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
   // Helper: find ALL entries for a member across duplicate IDs
   function findAllEntriesForMember(m: any): TimesheetEntry[] {
     const email = (m.email || "").toLowerCase();
-    const allIds = new Set(emailToIds.get(email) ?? [m.id ?? m._id]);
+    const allIds = new Set(emailToIds.get(email) ?? [m.id]);
     return entries.filter((e) => allIds.has(e.teamMemberId));
   }
 
@@ -361,7 +389,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
           <div className="md:hidden space-y-4">
             {dailySummaries.map(({ member, entry }) => (
               <div
-                key={member.id ?? member._id}
+                key={member.id}
                 onClick={() => openTimeCard(entry, viewDate, member.name)}
                 className="bg-white p-4 rounded-2xl shadow-sm border border-[#F6F5F1] active:scale-[0.98] transition-transform cursor-pointer"
               >
@@ -410,7 +438,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
               <tbody className="divide-y divide-[#F6F5F1]">
                 {dailySummaries.map(({ member, entry }) => (
                   <tr
-                    key={member.id ?? member._id}
+                    key={member.id}
                     className="hover:bg-[#F0EEE6] cursor-pointer transition-colors"
                     onClick={() => openTimeCard(entry, viewDate, member.name)}
                   >
@@ -521,7 +549,7 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
               <tbody className="divide-y divide-[#F6F5F1]">
                 {periodSummaries.map((s: any) => (
                   <tr
-                    key={s.employee.id ?? s.employee._id}
+                    key={s.employee.id}
                     className="hover:bg-[#F0EEE6] cursor-pointer transition-colors"
                     onClick={() => openPeriodDetail(s.employee, findAllEntriesForMember(s.employee))}
                   >

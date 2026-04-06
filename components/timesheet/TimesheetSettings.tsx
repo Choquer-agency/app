@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 interface Settings {
   halfDaySickCutoffTime: string;
@@ -12,37 +14,42 @@ interface Settings {
 }
 
 export default function TimesheetSettings() {
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const settingsDoc = useQuery(api.timesheetSettings.get);
+  const updateSettings = useMutation(api.timesheetSettings.update);
+
+  const [localSettings, setLocalSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  // Sync Convex data into local state for editing
   useEffect(() => {
-    fetch("/api/admin/timesheet/settings")
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (data) setSettings(data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    if (settingsDoc && !localSettings) {
+      setLocalSettings({
+        halfDaySickCutoffTime: settingsDoc.halfDaySickCutoffTime,
+        overtimeThresholdMinutes: settingsDoc.overtimeThresholdMinutes,
+        longShiftBreakThresholdMinutes: settingsDoc.longShiftBreakThresholdMinutes,
+        defaultVacationDaysPerYear: settingsDoc.defaultVacationDaysPerYear,
+        bookkeeperEmail: settingsDoc.bookkeeperEmail,
+        standardWorkDayHours: settingsDoc.standardWorkDayHours,
+      });
+    }
+  }, [settingsDoc, localSettings]);
 
   async function handleSave() {
-    if (!settings) return;
+    if (!localSettings) return;
     setSaving(true);
     setMessage("");
     try {
-      const res = await fetch("/api/admin/timesheet/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+      await updateSettings({
+        halfDaySickCutoffTime: localSettings.halfDaySickCutoffTime,
+        overtimeThresholdMinutes: localSettings.overtimeThresholdMinutes,
+        longShiftBreakThresholdMinutes: localSettings.longShiftBreakThresholdMinutes,
+        defaultVacationDaysPerYear: localSettings.defaultVacationDaysPerYear,
+        bookkeeperEmail: localSettings.bookkeeperEmail,
+        standardWorkDayHours: localSettings.standardWorkDayHours,
       });
-      if (res.ok) {
-        setMessage("Settings saved!");
-        setTimeout(() => setMessage(""), 3000);
-      } else {
-        setMessage("Failed to save settings.");
-      }
+      setMessage("Settings saved!");
+      setTimeout(() => setMessage(""), 3000);
     } catch {
       setMessage("Failed to save settings.");
     } finally {
@@ -50,13 +57,15 @@ export default function TimesheetSettings() {
     }
   }
 
+  const loading = settingsDoc === undefined;
+
   if (loading) {
     return (
       <div className="py-8 text-center text-[#6B6B6B]">Loading settings...</div>
     );
   }
 
-  if (!settings) {
+  if (!localSettings) {
     return (
       <div className="py-8 text-center text-[#6B6B6B]">Failed to load settings.</div>
     );
@@ -73,8 +82,8 @@ export default function TimesheetSettings() {
             </label>
             <input
               type="email"
-              value={settings.bookkeeperEmail || ""}
-              onChange={(e) => setSettings({ ...settings, bookkeeperEmail: e.target.value })}
+              value={localSettings.bookkeeperEmail || ""}
+              onChange={(e) => setLocalSettings({ ...localSettings, bookkeeperEmail: e.target.value })}
               placeholder="payroll@company.com"
               className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
@@ -85,8 +94,8 @@ export default function TimesheetSettings() {
             </label>
             <input
               type="number"
-              value={settings.standardWorkDayHours ?? 8}
-              onChange={(e) => setSettings({ ...settings, standardWorkDayHours: parseFloat(e.target.value) })}
+              value={localSettings.standardWorkDayHours ?? 8}
+              onChange={(e) => setLocalSettings({ ...localSettings, standardWorkDayHours: parseFloat(e.target.value) })}
               min={1}
               max={24}
               step={0.5}
@@ -105,8 +114,8 @@ export default function TimesheetSettings() {
             </label>
             <input
               type="time"
-              value={settings.halfDaySickCutoffTime}
-              onChange={(e) => setSettings({ ...settings, halfDaySickCutoffTime: e.target.value })}
+              value={localSettings.halfDaySickCutoffTime}
+              onChange={(e) => setLocalSettings({ ...localSettings, halfDaySickCutoffTime: e.target.value })}
               className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
           </div>
@@ -116,8 +125,8 @@ export default function TimesheetSettings() {
             </label>
             <input
               type="number"
-              value={settings.overtimeThresholdMinutes}
-              onChange={(e) => setSettings({ ...settings, overtimeThresholdMinutes: parseInt(e.target.value) })}
+              value={localSettings.overtimeThresholdMinutes}
+              onChange={(e) => setLocalSettings({ ...localSettings, overtimeThresholdMinutes: parseInt(e.target.value) })}
               className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
             <p className="text-xs text-[#6B6B6B] mt-1">Default: 480 (8 hours)</p>
@@ -128,8 +137,8 @@ export default function TimesheetSettings() {
             </label>
             <input
               type="number"
-              value={settings.longShiftBreakThresholdMinutes}
-              onChange={(e) => setSettings({ ...settings, longShiftBreakThresholdMinutes: parseInt(e.target.value) })}
+              value={localSettings.longShiftBreakThresholdMinutes}
+              onChange={(e) => setLocalSettings({ ...localSettings, longShiftBreakThresholdMinutes: parseInt(e.target.value) })}
               className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
             <p className="text-xs text-[#6B6B6B] mt-1">Default: 300 (5 hours)</p>
@@ -140,8 +149,8 @@ export default function TimesheetSettings() {
             </label>
             <input
               type="number"
-              value={settings.defaultVacationDaysPerYear}
-              onChange={(e) => setSettings({ ...settings, defaultVacationDaysPerYear: parseInt(e.target.value) })}
+              value={localSettings.defaultVacationDaysPerYear}
+              onChange={(e) => setLocalSettings({ ...localSettings, defaultVacationDaysPerYear: parseInt(e.target.value) })}
               className="w-full p-3 bg-white border border-[#F6F5F1] rounded-2xl text-sm text-[#1A1A1A] focus:ring-2 focus:ring-[#FF9500] outline-none"
             />
           </div>

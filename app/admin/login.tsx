@@ -13,6 +13,11 @@ interface TeamProfile {
 export default function AdminLogin() {
   const [profiles, setProfiles] = useState<TeamProfile[]>([]);
   const [selected, setSelected] = useState<TeamProfile | null>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    setIsDesktop(typeof window !== "undefined" && !!(window as any).__TAURI__);
+  }, []);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -179,13 +184,15 @@ export default function AdminLogin() {
         )}
       </div>
 
-      <p
-        className="mt-8 text-xs text-orange-500 text-center"
-        style={{ maxWidth: "calc(24rem * 0.8)" }}
-      >
-        Looking for your client dashboard? Check your email from Choquer Agency
-        for the correct link.
-      </p>
+      {!isDesktop && (
+        <p
+          className="mt-8 text-xs text-orange-500 text-center"
+          style={{ maxWidth: "calc(24rem * 0.8)" }}
+        >
+          Looking for your client dashboard? Check your email from Choquer Agency
+          for the correct link.
+        </p>
+      )}
     </div>
   );
 }

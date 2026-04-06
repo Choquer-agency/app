@@ -1,29 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { ClientConfig } from "@/types";
+import { useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { docToClient } from "@/lib/clients";
 import ClientStatusBadge from "./ClientStatusBadge";
 
 export default function PastClientList() {
-  const [clients, setClients] = useState<ClientConfig[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchClients = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/clients?past=true");
-      if (res.ok) {
-        setClients(await res.json());
-      }
-    } catch {
-      // Failed to fetch
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchClients();
-  }, [fetchClients]);
+  const docs = useQuery(api.clients.getPastClients);
+  const clients = useMemo(() => docs?.map(docToClient) ?? [], [docs]);
+  const loading = docs === undefined;
 
   if (loading) {
     return (

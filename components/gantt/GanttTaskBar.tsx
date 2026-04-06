@@ -13,8 +13,8 @@ interface GanttTaskBarProps {
   width: number;
   top: number;
   color: string;
-  onDragStart?: (ticketId: number, startX: number) => void;
-  onClick?: (ticketId: number) => void;
+  onDragStart?: (ticketId: string, startX: number) => void;
+  onClick?: (ticketId: string) => void;
   isDragging?: boolean;
 }
 

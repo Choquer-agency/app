@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
-import { ClientConfig } from "@/types";
+import { useClients } from "@/hooks/useClients";
 
 export default function ClientDropdown({
   clientId,
@@ -15,25 +15,11 @@ export default function ClientDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [clients, setClients] = useState<ClientConfig[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { clients, isLoading } = useClients();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
-
-  // Fetch clients once on first open
-  useEffect(() => {
-    if (open && !loaded) {
-      fetch("/api/admin/clients")
-        .then((r) => (r.ok ? r.json() : []))
-        .then((data: ClientConfig[]) => {
-          setClients(data.filter((c) => c.active));
-          setLoaded(true);
-        })
-        .catch(() => {});
-    }
-  }, [open, loaded]);
 
   // Focus search input when opened
   useEffect(() => {
@@ -142,7 +128,7 @@ export default function ClientDropdown({
                 </button>
               )}
 
-              {!loaded ? (
+              {isLoading ? (
                 <div className="px-3 py-3 text-xs text-[var(--muted)]">Loading...</div>
               ) : filtered.length === 0 ? (
                 <div className="px-3 py-3 text-xs text-[var(--muted)]">No clients found</div>

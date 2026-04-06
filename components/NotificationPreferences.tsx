@@ -1,6 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useSession } from "@/hooks/useSession";
 import { hasMinRole, type RoleLevel } from "@/lib/permissions";
 
 interface ToggleItem {
@@ -9,6 +13,32 @@ interface ToggleItem {
   description: string;
   minRole?: RoleLevel;
 }
+
+const PREF_KEYS = [
+  "ticket_assigned",
+  "ticket_status_stuck",
+  "ticket_status_qa_ready",
+  "ticket_status_needs_attention",
+  "ticket_status_change",
+  "ticket_created",
+  "ticket_comment",
+  "ticket_mention",
+  "ticket_due_soon",
+  "ticket_overdue",
+  "ticket_due_date_changed",
+  "ticket_closed",
+  "vacation_requested",
+  "vacation_resolved",
+  "time_adjustment_requested",
+  "time_adjustment_resolved",
+  "team_announcement",
+  "hour_cap_warning",
+  "hour_cap_exceeded",
+  "runaway_timer",
+  "package_changed",
+] as const;
+
+type PrefKey = (typeof PREF_KEYS)[number];
 
 const TICKET_TOGGLES: ToggleItem[] = [
   { key: "ticket_assigned", label: "Assigned to a ticket", description: "When you are assigned to a ticket" },
@@ -73,64 +103,92 @@ export default function NotificationPreferences({
 }: {
   roleLevel?: RoleLevel | string;
 }) {
-  const [prefs, setPrefs] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(true);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const session = useSession();
+  const teamMemberId = session?.teamMemberId as Id<"teamMembers"> | undefined;
 
-  // Ref always holds the latest prefs to avoid stale closures
-  const prefsRef = useRef(prefs);
-  prefsRef.current = prefs;
+  // Convex real-time query replaces the GET fetch + useEffect
+  const serverPrefs = useQuery(
+    api.notificationPreferences.getByMember,
+    teamMemberId ? { teamMemberId } : "skip"
+  );
+
+  // Convex mutation replaces the POST fetch
+  const upsertPrefs = useMutation(api.notificationPreferences.upsert);
+
+  // Local optimistic state layered on top of server data
+  const [optimisticOverrides, setOptimisticOverrides] = useState<Record<string, boolean>>({});
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // Debounce timer ref
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const overridesRef = useRef(optimisticOverrides);
+  overridesRef.current = optimisticOverrides;
 
-  const fetchPrefs = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/notification-preferences");
-      if (res.ok) {
-        const data = await res.json();
-        setPrefs(data.prefs);
+  // Derive the merged prefs: server data + optimistic overrides
+  const prefs = useMemo(() => {
+    const base: Record<string, boolean> = {};
+    if (serverPrefs) {
+      for (const key of PREF_KEYS) {
+        const val = serverPrefs[key as keyof typeof serverPrefs];
+        if (typeof val === "boolean") {
+          base[key] = val;
+        }
       }
-    } catch {
-      console.error("Failed to load notification preferences");
-    } finally {
-      setLoading(false);
     }
-  }, []);
+    return { ...base, ...optimisticOverrides };
+  }, [serverPrefs, optimisticOverrides]);
 
+  // Clear optimistic overrides once server catches up
   useEffect(() => {
-    fetchPrefs();
-  }, [fetchPrefs]);
+    if (serverPrefs && Object.keys(optimisticOverrides).length > 0) {
+      // Check if all overrides match server — if so, clear them
+      let allSynced = true;
+      for (const [key, val] of Object.entries(optimisticOverrides)) {
+        if (serverPrefs[key as keyof typeof serverPrefs] !== val) {
+          allSynced = false;
+          break;
+        }
+      }
+      if (allSynced) {
+        setOptimisticOverrides({});
+      }
+    }
+  }, [serverPrefs, optimisticOverrides]);
 
-  // Persist current prefsRef to backend (debounced)
   const persistPrefs = useCallback(async () => {
-    const current = prefsRef.current;
+    if (!teamMemberId) return;
+    const current = overridesRef.current;
+    if (Object.keys(current).length === 0) return;
+
     setSaveStatus("saving");
     try {
-      const res = await fetch("/api/admin/notification-preferences", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prefs: current }),
-      });
-      if (res.ok) {
-        setSaveStatus("saved");
-        setTimeout(() => setSaveStatus("idle"), 2000);
-      } else {
-        console.error("Failed to save preferences:", res.status);
-        setSaveStatus("error");
-        setTimeout(() => setSaveStatus("idle"), 3000);
+      // Build the full prefs object to send to upsert
+      const prefsToSend: Record<string, boolean> = {};
+      for (const key of PREF_KEYS) {
+        const overrideVal = current[key];
+        if (typeof overrideVal === "boolean") {
+          prefsToSend[key] = overrideVal;
+        }
       }
+
+      await upsertPrefs({
+        teamMemberId,
+        prefs: prefsToSend as Record<PrefKey, boolean>,
+      });
+
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
     } catch {
-      console.error("Network error saving preferences");
+      console.error("Failed to save notification preferences");
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, []);
+  }, [teamMemberId, upsertPrefs]);
 
   const handleToggle = useCallback(
     (key: string, value: boolean) => {
-      // Update state immediately for responsive UI
-      setPrefs((prev) => ({ ...prev, [key]: value }));
+      // Update optimistic state immediately for responsive UI
+      setOptimisticOverrides((prev) => ({ ...prev, [key]: value }));
 
       // Debounce the save: wait 500ms for more toggles before persisting
       if (saveTimerRef.current) {
@@ -158,6 +216,9 @@ export default function NotificationPreferences({
       if (!roleLevel) return false;
       return hasMinRole(roleLevel as RoleLevel, item.minRole);
     });
+
+  // Loading: serverPrefs is undefined while the query is in flight
+  const loading = serverPrefs === undefined && teamMemberId !== undefined;
 
   if (loading) {
     return (

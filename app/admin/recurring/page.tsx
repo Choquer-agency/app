@@ -1,18 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { TeamMember } from "@/types";
 import RecurringTicketManager from "@/components/RecurringTicketManager";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 export default function RecurringPage() {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-
-  useEffect(() => {
-    fetch("/api/admin/team")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setTeamMembers)
-      .catch(() => {});
-  }, []);
+  const { teamMembers } = useTeamMembers();
 
   return (
     <>

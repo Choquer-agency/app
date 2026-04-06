@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { RunningTimer } from "@/types";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useSession } from "@/hooks/useSession";
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -13,37 +16,18 @@ function formatDuration(seconds: number): string {
 
 export default function FloatingTimerBar() {
   const router = useRouter();
-  const [timer, setTimer] = useState<RunningTimer | null>(null);
+  const session = useSession();
   const [elapsed, setElapsed] = useState(0);
   const [stopping, setStopping] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
-  const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
-  const fetchRunning = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/time/running");
-      if (res.ok) {
-        const data = await res.json();
-        setTimer(data.timer || null);
-      }
-    } catch {}
-  }, []);
+  // Real-time query for running timer (replaces polling)
+  const timer = useQuery(
+    api.timeEntries.getRunning,
+    session ? { teamMemberId: session.teamMemberId as Id<"teamMembers"> } : "skip"
+  );
 
-  // Poll for running timer every 30s
-  useEffect(() => {
-    fetchRunning();
-    pollRef.current = setInterval(fetchRunning, 30000);
-    return () => clearInterval(pollRef.current);
-  }, [fetchRunning]);
-
-  // Listen for custom timer events from TimeTracker
-  useEffect(() => {
-    function handleTimerChange() {
-      fetchRunning();
-    }
-    window.addEventListener("timerChange", handleTimerChange);
-    return () => window.removeEventListener("timerChange", handleTimerChange);
-  }, [fetchRunning]);
+  const stopMutation = useMutation(api.timeEntries.stop);
 
   // Live counter
   useEffect(() => {
@@ -62,13 +46,11 @@ export default function FloatingTimerBar() {
   }, [timer]);
 
   async function handleStop() {
+    if (!timer) return;
     setStopping(true);
     try {
-      const res = await fetch("/api/admin/time/stop", { method: "POST" });
-      if (res.ok) {
-        setTimer(null);
-        window.dispatchEvent(new CustomEvent("timerChange"));
-      }
+      await stopMutation({ id: timer._id as Id<"timeEntries"> });
+      window.dispatchEvent(new CustomEvent("timerChange"));
     } catch {} finally {
       setStopping(false);
     }

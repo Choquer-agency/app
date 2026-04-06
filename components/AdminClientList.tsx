@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ClientConfig, TeamMember } from "@/types";
+import { ClientConfig } from "@/types";
 import ClientStatusBadge from "./ClientStatusBadge";
+import { useClients } from "@/hooks/useClients";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 function hasMissingConnections(client: ClientConfig): boolean {
   return !(client.ga4PropertyId && client.gscSiteUrl && client.notionPageUrl && client.calLink);
@@ -11,28 +13,14 @@ function hasMissingConnections(client: ClientConfig): boolean {
 type SortField = "name" | "mrr" | "specialist" | "contact";
 
 export default function AdminClientList() {
-  const [clients, setClients] = useState<ClientConfig[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { clients, isLoading: loading } = useClients();
+  const { teamMembers } = useTeamMembers();
   const [enrichingSlug, setEnrichingSlug] = useState<string | null>(null);
   const [enrichResult, setEnrichResult] = useState<{ slug: string; message: string; success: boolean } | null>(null);
-  const [copiedClientId, setCopiedClientId] = useState<number | null>(null);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [copiedClientId, setCopiedClientId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-
-  const fetchClients = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/clients");
-      if (res.ok) {
-        setClients(await res.json());
-      }
-    } catch {
-      // Failed to fetch
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   // Run enrichment for a given slug (used by both manual click and auto-trigger)
   const runEnrichment = useCallback(async (slug: string) => {
@@ -56,14 +44,6 @@ export default function AdminClientList() {
       setEnrichingSlug(null);
     }
   }, [enrichingSlug]);
-
-  useEffect(() => {
-    fetchClients();
-    fetch("/api/admin/team")
-      .then((res) => res.ok ? res.json() : [])
-      .then(setTeamMembers)
-      .catch(() => {});
-  }, [fetchClients]);
 
   // Auto-trigger enrichment when redirected from client creation with ?enrich=slug
   useEffect(() => {
@@ -269,7 +249,7 @@ export default function AdminClientList() {
                             onClick={(e) => {
                               e.stopPropagation();
                               navigator.clipboard.writeText(client.contactEmail);
-                              setCopiedClientId(client.id);
+                              setCopiedClientId(client.id as string);
                               setTimeout(() => setCopiedClientId(null), 1500);
                             }}
                             className={`shrink-0 p-0.5 rounded transition ${

@@ -1,15 +1,18 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import useGanttData from "@/hooks/useGanttData";
 import { buildBusinessDays, dateToBusinessDayIndex } from "./gantt/ganttUtils";
 import GanttToolbar from "./gantt/GanttToolbar";
 import GanttChart from "./gantt/GanttChart";
 import TicketDetailModal from "./TicketDetailModal";
-import { TeamMember } from "@/types";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface GanttViewProps {
-  projectId: number;
+  projectId: string | number;
 }
 
 export default function GanttView({ projectId }: GanttViewProps) {
@@ -17,27 +20,20 @@ export default function GanttView({ projectId }: GanttViewProps) {
   const [zoom, setZoom] = useState<"week" | "month">("week");
   const [dayWidth, setDayWidth] = useState(40);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [detailTicketId, setDetailTicketId] = useState<number | null>(null);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [detailTicketId, setDetailTicketId] = useState<string | null>(null);
+  const { teamMembers } = useTeamMembers();
+  const updateTicket = useMutation(api.tickets.update);
 
   // Drag state — all visual, no backend calls during drag
   const dragRef = useRef<{
-    ticketId: number;
+    ticketId: string;
     startX: number;
-    affectedIds: Set<number>;
+    affectedIds: Set<string>;
   } | null>(null);
   const [dragDayDelta, setDragDayDelta] = useState(0);
-  const [dragAffectedIds, setDragAffectedIds] = useState<Set<number>>(new Set());
+  const [dragAffectedIds, setDragAffectedIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  // Fetch team members for detail modal
-  useEffect(() => {
-    fetch("/api/admin/team")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d) => setTeamMembers(d.filter((m: TeamMember) => m.active)))
-      .catch(() => {});
-  }, []);
 
   const businessDays = useMemo(
     () => buildBusinessDays(data.timelineBounds.start, data.timelineBounds.end),
@@ -79,8 +75,8 @@ export default function GanttView({ projectId }: GanttViewProps) {
 
   // Compute downstream dependents for a ticket (BFS)
   const getAffectedIds = useCallback(
-    (ticketId: number): Set<number> => {
-      const affected = new Set<number>();
+    (ticketId: string): Set<string> => {
+      const affected = new Set<string>();
       affected.add(ticketId);
       const queue = [ticketId];
       while (queue.length > 0) {
@@ -100,7 +96,7 @@ export default function GanttView({ projectId }: GanttViewProps) {
 
   // Drag start — just set up refs, compute affected set once
   const handleDragStart = useCallback(
-    (ticketId: number, startX: number) => {
+    (ticketId: string, startX: number) => {
       const affected = getAffectedIds(ticketId);
       dragRef.current = { ticketId, startX, affectedIds: affected };
       setDragAffectedIds(affected);
@@ -143,7 +139,7 @@ export default function GanttView({ projectId }: GanttViewProps) {
       // Save to backend in background
       setSaving(true);
       try {
-        const updates: Promise<Response>[] = [];
+        const updates: Promise<any>[] = [];
         for (const tid of drag.affectedIds) {
           const row = data.flatRows.find(
             (r) => r.type === "ticket" && r.ticket.id === tid
@@ -152,13 +148,10 @@ export default function GanttView({ projectId }: GanttViewProps) {
             const ticket = row.ticket;
             // Dates were already shifted by applyDateShift, use the current values
             updates.push(
-              fetch(`/api/admin/tickets/${tid}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  startDate: ticket.startDate,
-                  dueDate: ticket.dueDate,
-                }),
+              updateTicket({
+                id: tid as Id<"tickets">,
+                startDate: ticket.startDate ?? undefined,
+                dueDate: ticket.dueDate ?? undefined,
               })
             );
           }
@@ -178,7 +171,7 @@ export default function GanttView({ projectId }: GanttViewProps) {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, dayWidth, dragDayDelta, data]);
+  }, [isDragging, dayWidth, dragDayDelta, data, updateTicket]);
 
   if (data.loading) {
     return (

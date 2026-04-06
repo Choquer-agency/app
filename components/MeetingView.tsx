@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { TeamMember, isOverdueEligible } from "@/types";
 import type { MeetingMemberData, MeetingTicket } from "@/lib/commitments";
 import DatePicker from "./DatePicker";
 import { StatusDot } from "./TicketStatusBadge";
 import { friendlyDate } from "@/lib/date-format";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 const PRIORITY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   urgent: { label: "Urgent", color: "text-red-700", bg: "bg-red-50" },
@@ -22,7 +23,15 @@ interface MemberStats {
 
 export default function MeetingView({ roleLevel, teamMemberId }: { roleLevel?: string; teamMemberId?: string | number }) {
   const isAdmin = roleLevel === "owner" || roleLevel === "c_suite";
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const { teamMembers: allTeamMembers } = useTeamMembers();
+  const teamMembers = useMemo(() => {
+    let active = allTeamMembers.filter((m) => m.active);
+    if (!isAdmin && teamMemberId) {
+      active = active.filter((m) => String(m.id) === String(teamMemberId));
+    }
+    return active;
+  }, [allTeamMembers, isAdmin, teamMemberId]);
+
   const [memberStats, setMemberStats] = useState<Map<number, MemberStats>>(new Map());
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [data, setData] = useState<MeetingMemberData | null>(null);
@@ -31,21 +40,16 @@ export default function MeetingView({ roleLevel, teamMemberId }: { roleLevel?: s
   const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Auto-select for non-admin employees
   useEffect(() => {
-    fetch("/api/admin/team")
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => {
-        let active = (d as TeamMember[]).filter((m) => m.active);
-        // Employees only see themselves
-        if (!isAdmin && teamMemberId) {
-          active = active.filter((m) => String(m.id) === String(teamMemberId));
-          if (active[0]) setSelectedMemberId(Number(active[0].id));
-        }
-        setTeamMembers(active);
-      })
-      .catch(() => {});
+    if (!isAdmin && teamMemberId && teamMembers.length > 0 && !selectedMemberId) {
+      const self = teamMembers[0];
+      if (self) setSelectedMemberId(Number(self.id));
+    }
+  }, [isAdmin, teamMemberId, teamMembers, selectedMemberId]);
 
-    // Fetch ticket stats per member
+  // Fetch ticket stats per member (keep as fetch — computed server-side)
+  useEffect(() => {
     fetch("/api/admin/meetings/stats")
       .then((r) => r.ok ? r.json() : [])
       .then((stats: { id: number; openTickets: number; overdueTickets: number }[]) => {

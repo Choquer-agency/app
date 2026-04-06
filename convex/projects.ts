@@ -56,6 +56,29 @@ export const list = query({
   },
 });
 
+export const listByMember = query({
+  args: { teamMemberId: v.id("teamMembers") },
+  handler: async (ctx, args) => {
+    const memberships = await ctx.db
+      .query("projectMembers")
+      .withIndex("by_member", (q) => q.eq("teamMemberId", args.teamMemberId))
+      .collect();
+
+    const projects = [];
+    for (const m of memberships) {
+      const project = await ctx.db.get(m.projectId);
+      if (project && !project.archived && !project.isTemplate) {
+        const client = project.clientId ? await ctx.db.get(project.clientId) : null;
+        projects.push({
+          ...project,
+          clientName: client?.name,
+        });
+      }
+    }
+    return projects;
+  },
+});
+
 export const getById = query({
   args: { id: v.id("projects") },
   handler: async (ctx, args) => {

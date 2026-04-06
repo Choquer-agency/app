@@ -1,6 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { TimesheetEntry } from "@/types";
 import HoursDisplay from "./HoursDisplay";
 
@@ -37,11 +41,9 @@ export default function MyTimesheetHistory({
   teamMemberId: string;
   refreshKey: number;
 }) {
-  const [entries, setEntries] = useState<TimesheetEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const typedId = teamMemberId as Id<"teamMembers">;
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
-  const [memberInfo, setMemberInfo] = useState<{ vacationDaysTotal?: number; vacationDaysUsed?: number; sickDaysTotal?: number } | null>(null);
 
   // Change request modal state
   const [selectedEntry, setSelectedEntry] = useState<TimesheetEntry | null>(null);
@@ -51,32 +53,39 @@ export default function MyTimesheetHistory({
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState("");
 
-  useEffect(() => {
-    async function fetch_() {
-      setLoading(true);
-      try {
-        let url = "/api/admin/timesheet/history?";
-        if (filterStartDate) url += `startDate=${filterStartDate}&`;
-        if (filterEndDate) url += `endDate=${filterEndDate}&`;
-        const [entriesRes, memberRes] = await Promise.all([
-          fetch(url),
-          fetch("/api/admin/team/me"),
-        ]);
-        if (entriesRes.ok) {
-          setEntries(await entriesRes.json());
-        }
-        if (memberRes.ok) {
-          const data = await memberRes.json();
-          setMemberInfo(data);
-        }
-      } catch {
-        // silent
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetch_();
-  }, [filterStartDate, filterEndDate, refreshKey]);
+  // ── Convex queries ──
+  const rawEntries = useQuery(api.timesheetEntries.listByMember, {
+    teamMemberId: typedId,
+    startDate: filterStartDate || undefined,
+    endDate: filterEndDate || undefined,
+  });
+  const { user: memberInfo } = useCurrentUser();
+
+  const createChangeRequest = useMutation(api.timesheetChangeRequests.create);
+
+  // Map Convex docs to TimesheetEntry shape
+  const entries: TimesheetEntry[] = useMemo(() => {
+    if (!rawEntries) return [];
+    return rawEntries.map((e) => ({
+      id: e._id,
+      teamMemberId: e.teamMemberId,
+      date: e.date,
+      clockInTime: e.clockInTime,
+      clockOutTime: e.clockOutTime ?? null,
+      totalBreakMinutes: e.totalBreakMinutes ?? 0,
+      workedMinutes: e.workedMinutes ?? null,
+      isSickDay: e.isSickDay ?? false,
+      isHalfSickDay: e.isHalfSickDay ?? false,
+      isVacation: e.isVacation ?? false,
+      note: e.note ?? "",
+      issues: e.issues ?? [],
+      pendingApproval: e.pendingApproval,
+      sickHoursUsed: e.sickHoursUsed,
+      changeRequest: (e as any).changeRequest,
+    } as unknown as TimesheetEntry));
+  }, [rawEntries]);
+
+  const loading = rawEntries === undefined;
 
   function openEntryModal(entry: TimesheetEntry) {
     setSelectedEntry(entry);
@@ -113,28 +122,17 @@ export default function MyTimesheetHistory({
         return d.toISOString();
       };
 
-      const res = await fetch("/api/admin/timesheet/change-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          timesheetEntryId: selectedEntry.id,
-          proposedClockIn: buildISO(selectedEntry.date, editClockIn) || selectedEntry.clockInTime,
-          proposedClockOut: buildISO(selectedEntry.date, editClockOut) || undefined,
-          reason: editReason.trim(),
-        }),
+      await createChangeRequest({
+        timesheetEntryId: selectedEntry.id as Id<"timesheetEntries">,
+        teamMemberId: typedId,
+        proposedClockIn: buildISO(selectedEntry.date, editClockIn) || selectedEntry.clockInTime,
+        proposedClockOut: buildISO(selectedEntry.date, editClockOut) || undefined,
+        reason: editReason.trim(),
       });
-      if (!res.ok) {
-        const data = await res.json();
-        setEditError(data.error || "Failed to submit request");
-        return;
-      }
       setSelectedEntry(null);
-      // Refresh entries
-      const url = `/api/admin/timesheet/history?${filterStartDate ? `startDate=${filterStartDate}&` : ""}${filterEndDate ? `endDate=${filterEndDate}` : ""}`;
-      const refreshRes = await fetch(url);
-      if (refreshRes.ok) setEntries(await refreshRes.json());
-    } catch {
-      setEditError("Failed to submit request");
+      // No manual refresh needed -- useQuery auto-updates
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Failed to submit request");
     } finally {
       setEditSubmitting(false);
     }
@@ -150,7 +148,7 @@ export default function MyTimesheetHistory({
     0
   );
   const sickDayCount = entries.filter((e) => e.isSickDay).length;
-  const sickDaysTotal = memberInfo?.sickDaysTotal ?? 5;
+  const sickDaysTotal = (memberInfo as any)?.sickDaysTotal ?? 5;
   const sickDaysRemaining = Math.max(0, sickDaysTotal - sickDayCount);
   const vacationDaysUsed = entries.filter((e) => e.isVacation).length;
   const vacationDaysTotal = memberInfo?.vacationDaysTotal ?? 10;

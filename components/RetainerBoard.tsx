@@ -13,6 +13,7 @@ import { PriorityDropdown } from "./TicketPriorityBadge";
 import AssigneeDropdown from "./AssigneeDropdown";
 import TimeTracker from "./TimeTracker";
 import DatePicker from "./DatePicker";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 function getCurrentMonth(): string {
   const now = new Date();
@@ -31,7 +32,7 @@ export default function RetainerBoard() {
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForClientId, setCreateForClientId] = useState<number | null>(null);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const { teamMembers } = useTeamMembers(false);
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -45,15 +46,7 @@ export default function RetainerBoard() {
     }
   }, [month]);
 
-  const fetchTeam = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/team");
-      if (res.ok) setTeamMembers(await res.json());
-    } catch {}
-  }, []);
-
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
-  useEffect(() => { fetchTeam(); }, [fetchTeam]);
 
   async function handleServiceStatusChange(entryId: number, status: ServiceBoardStatus) {
     try {

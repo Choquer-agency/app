@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { Project, ProjectTemplateRole, TeamMember } from "@/types";
 import DatePicker from "./DatePicker";
 import { useRouter } from "next/navigation";
+import { useClients } from "@/hooks/useClients";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface ProjectCreateFlowProps {
   onClose: () => void;
@@ -12,11 +17,6 @@ interface ProjectCreateFlowProps {
 
 type Step = "choose" | "blank" | "template-select" | "template-setup" | "role-mapping";
 
-interface Client {
-  id: number;
-  name: string;
-}
-
 export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateFlowProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("choose");
@@ -24,19 +24,18 @@ export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateF
   // Blank project form
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [clientId, setClientId] = useState<number | null>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState<string | null>(null);
 
   // Template flow
-  const [templates, setTemplates] = useState<Project[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Project | null>(null);
   const [templateRoles, setTemplateRoles] = useState<ProjectTemplateRole[]>([]);
-  const [roleAssignments, setRoleAssignments] = useState<Record<number, number>>({});
+  const [roleAssignments, setRoleAssignments] = useState<Record<string, string>>({});
 
-  // Shared
-  const [clients, setClients] = useState<Client[]>([]);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  // Shared — from hooks
+  const { clients } = useClients();
+  const { teamMembers } = useTeamMembers();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,32 +47,33 @@ export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateF
   const [newClientEmail, setNewClientEmail] = useState("");
   const [savingClient, setSavingClient] = useState(false);
 
-  // Fetch clients and team members on mount
-  useEffect(() => {
-    fetch("/api/admin/clients")
-      .then((r) => r.json())
-      .then((data) =>
-        setClients(data.map((c: Record<string, unknown>) => ({ id: c.id, name: c.name })))
-      )
-      .catch(() => {});
+  // Templates from Convex
+  const templateDocs = useQuery(api.projects.list, { isTemplate: true });
+  const templates: Project[] = useMemo(() => {
+    if (!templateDocs) return [];
+    return templateDocs.map((doc: any) => ({
+      id: doc._id,
+      name: doc.name ?? "",
+      description: doc.description ?? "",
+      clientId: doc.clientId ?? null,
+      isTemplate: doc.isTemplate ?? false,
+      status: doc.status ?? "active",
+      archived: doc.archived ?? false,
+      startDate: doc.startDate ?? null,
+      dueDate: doc.dueDate ?? null,
+      createdById: doc.createdById ?? null,
+      createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : "",
+      updatedAt: "",
+      ticketCount: doc.ticketCount ?? undefined,
+      completedTicketCount: doc.completedTicketCount ?? undefined,
+    })) as Project[];
+  }, [templateDocs]);
 
-    fetch("/api/admin/team")
-      .then((r) => r.json())
-      .then((data) => setTeamMembers(data.filter((m: TeamMember) => m.active)))
-      .catch(() => {});
-  }, []);
+  // Mutations
+  const createProject = useMutation(api.projects.create);
+  const createClient = useMutation(api.clients.create);
 
-  // Fetch templates when stepping to template-select
-  useEffect(() => {
-    if (step === "template-select" && templates.length === 0) {
-      fetch("/api/admin/projects?isTemplate=true")
-        .then((r) => r.json())
-        .then(setTemplates)
-        .catch(() => {});
-    }
-  }, [step, templates.length]);
-
-  // Fetch roles when a template is selected
+  // Fetch roles when a template is selected (still via API — no Convex query for roles yet)
   useEffect(() => {
     if (selectedTemplate) {
       fetch(`/api/admin/projects/${selectedTemplate.id}/roles`)
@@ -89,27 +89,19 @@ export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateF
     setError("");
 
     try {
-      const res = await fetch("/api/admin/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim(),
-          clientId,
-          startDate,
-          dueDate,
-        }),
+      const project = await createProject({
+        name: name.trim(),
+        description: description.trim(),
+        clientId: clientId ? (clientId as Id<"clients">) : undefined,
+        startDate: startDate ?? undefined,
+        dueDate: dueDate ?? undefined,
       });
-      if (res.ok) {
-        const project = await res.json();
+      if (project) {
         onCreated();
-        router.push(`/admin/projects/${project.id}`);
-      } else {
-        const data = await res.json().catch(() => null);
-        setError(data?.error || "Failed to create project");
+        router.push(`/admin/projects/${project._id}`);
       }
-    } catch {
-      setError("Failed to create project");
+    } catch (err: any) {
+      setError(err?.message || "Failed to create project");
     } finally {
       setSaving(false);
     }
@@ -151,29 +143,21 @@ export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateF
     if (!newClientName.trim()) return;
     setSavingClient(true);
     try {
-      const res = await fetch("/api/admin/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newClientName.trim(),
-          websiteUrl: newClientWebsite.trim() || undefined,
-          contactName: newClientContact.trim() || undefined,
-          contactEmail: newClientEmail.trim() || undefined,
-          active: true,
-        }),
+      const created = await createClient({
+        name: newClientName.trim(),
+        websiteUrl: newClientWebsite.trim() || undefined,
+        contactName: newClientContact.trim() || undefined,
+        contactEmail: newClientEmail.trim() || undefined,
+        active: true,
       });
-      if (res.ok) {
-        const created = await res.json();
-        // Add to clients list and auto-select
-        setClients((prev) => [...prev, { id: created.id, name: created.name }]);
-        setClientId(created.id);
-        // Reset and close
-        setShowAddClient(false);
-        setNewClientName("");
-        setNewClientWebsite("");
-        setNewClientContact("");
-        setNewClientEmail("");
-      }
+      // Auto-select the new client (useClients hook will auto-update the list)
+      if (created) setClientId(created._id as string);
+      // Reset and close
+      setShowAddClient(false);
+      setNewClientName("");
+      setNewClientWebsite("");
+      setNewClientContact("");
+      setNewClientEmail("");
     } catch {} finally {
       setSavingClient(false);
     }
@@ -290,7 +274,7 @@ export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateF
               <label className="text-xs font-medium text-[var(--muted)] mb-1.5 block">Client</label>
               <select
                 value={clientId ?? ""}
-                onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : null)}
+                onChange={(e) => setClientId(e.target.value || null)}
                 className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-lg bg-white"
               >
                 <option value="">No client</option>
@@ -401,7 +385,7 @@ export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateF
               <label className="text-xs font-medium text-[var(--muted)] mb-1.5 block">Client *</label>
               <select
                 value={clientId ?? ""}
-                onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : null)}
+                onChange={(e) => setClientId(e.target.value || null)}
                 className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-lg bg-white"
               >
                 <option value="">Select a client...</option>
@@ -471,7 +455,7 @@ export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateF
                   <select
                     value={roleAssignments[role.id] ?? ""}
                     onChange={(e) => {
-                      const val = e.target.value ? Number(e.target.value) : undefined;
+                      const val = e.target.value || undefined;
                       setRoleAssignments((prev) => {
                         const next = { ...prev };
                         if (val) {

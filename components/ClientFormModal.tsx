@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ClientConfig, CreateClientInput, TeamMember } from "@/types";
+import { ClientConfig, CreateClientInput } from "@/types";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 const BOOKING_OPTIONS = [
   { label: "Andreas - 15min", value: "https://cal.com/andres-agudelo-hqlknm/15min" },
@@ -68,7 +69,7 @@ export default function ClientFormModal({ client, onClose, onSaved }: ClientForm
 
   // UI state
   const [showOptional, setShowOptional] = useState(isEditing);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const { teamMembers } = useTeamMembers();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -78,13 +79,6 @@ export default function ClientFormModal({ client, onClose, onSaved }: ClientForm
       setCustomCalLink(client.calLink);
     }
   }, [client]);
-
-  useEffect(() => {
-    fetch("/api/admin/team")
-      .then((r) => r.ok ? r.json() : [])
-      .then((members: TeamMember[]) => setTeamMembers(members.filter((m) => m.active)))
-      .catch(() => {});
-  }, []);
 
   const slug = generateSlug(name);
   const notionPageId = extractNotionPageId(notionPageUrl);

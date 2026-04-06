@@ -10,8 +10,8 @@ const BAR_Y_OFFSET = (ROW_HEIGHT - BAR_HEIGHT) / 2;
 
 interface GanttDependencyLayerProps {
   flatRows: GanttRow[];
-  dependencyMap: Map<number, number[]>;
-  ticketRowMap: Map<number, number>;
+  dependencyMap: Map<string, string[]>;
+  ticketRowMap: Map<string, number>;
   businessDays: BusinessDay[];
   dayWidth: number;
   totalHeight: number;
@@ -26,7 +26,7 @@ export default function GanttDependencyLayer({
   totalHeight,
 }: GanttDependencyLayerProps) {
   // Build ticketId → actual Y pixel position
-  const ticketYMap = new Map<number, number>();
+  const ticketYMap = new Map<string, number>();
   let yOffset = 0;
   for (const row of flatRows) {
     if (row.type === "group") {
@@ -38,7 +38,7 @@ export default function GanttDependencyLayer({
   }
 
   // Build ticketId → bar X bounds
-  const ticketXMap = new Map<number, { left: number; right: number }>();
+  const ticketXMap = new Map<string, { left: number; right: number }>();
   for (const row of flatRows) {
     if (row.type !== "ticket") continue;
     const t = row.ticket;
@@ -55,7 +55,7 @@ export default function GanttDependencyLayer({
   }
 
   // Build reverse map: upstreamId → [downstreamIds] so we can group by upstream
-  const reverseMap = new Map<number, number[]>();
+  const reverseMap = new Map<string, string[]>();
   for (const [ticketId, depIds] of dependencyMap.entries()) {
     for (const depId of depIds) {
       if (!reverseMap.has(depId)) reverseMap.set(depId, []);

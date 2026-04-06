@@ -2,54 +2,62 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { ProjectGroup, ProjectTemplateRole, Ticket, TeamMember, TicketDependency } from "@/types";
 import TicketDetailModal from "./TicketDetailModal";
 import DatePicker from "./DatePicker";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface TemplateEditorViewProps {
-  projectId: number;
+  projectId: string | number;
 }
 
 export default function TemplateEditorView({ projectId }: TemplateEditorViewProps) {
   const [groups, setGroups] = useState<ProjectGroup[]>([]);
   const [roles, setRoles] = useState<ProjectTemplateRole[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [dependencies, setDependencies] = useState<Map<number, number | null>>(new Map()); // ticketId → dependsOnTicketId
+  const { teamMembers } = useTeamMembers();
+  const [dependencies, setDependencies] = useState<Map<string, string | null>>(new Map()); // ticketId → dependsOnTicketId
+
+  // Convex mutations
+  const createTicket = useMutation(api.tickets.create);
+  const reorderTickets = useMutation(api.tickets.reorder);
   const [loading, setLoading] = useState(true);
 
   // Group management
   const [addingGroup, setAddingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupColor, setNewGroupColor] = useState("");
-  const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupName, setEditGroupName] = useState("");
 
   // Role management
   const [addingRole, setAddingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
-  const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [editRoleName, setEditRoleName] = useState("");
 
   // Quick-add ticket
-  const [quickAddGroupId, setQuickAddGroupId] = useState<number | null>(null);
+  const [quickAddGroupId, setQuickAddGroupId] = useState<string | null>(null);
   const [quickAddTitle, setQuickAddTitle] = useState("");
-  const [quickAddRoleId, setQuickAddRoleId] = useState<number | null>(null);
+  const [quickAddRoleId, setQuickAddRoleId] = useState<string | null>(null);
   const [quickAddOffsetStart, setQuickAddOffsetStart] = useState("");
   const [quickAddOffsetDue, setQuickAddOffsetDue] = useState("");
 
   // Collapsed groups
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Role assignments (multi-role per ticket): ticketId → Set of roleIds
-  const [ticketRoleAssignments, setTicketRoleAssignments] = useState<Map<number, Set<number>>>(new Map());
+  const [ticketRoleAssignments, setTicketRoleAssignments] = useState<Map<string, Set<string>>>(new Map());
 
   // Detail modal
-  const [detailTicketId, setDetailTicketId] = useState<number | null>(null);
+  const [detailTicketId, setDetailTicketId] = useState<string | null>(null);
 
   // Drag reorder tickets
-  const [dragTicketId, setDragTicketId] = useState<number | null>(null);
-  const [dragOverTicketId, setDragOverTicketId] = useState<number | null>(null);
+  const [dragTicketId, setDragTicketId] = useState<string | null>(null);
+  const [dragOverTicketId, setDragOverTicketId] = useState<string | null>(null);
 
   // Reference start date for displaying readable dates instead of "Day X"
   // Default to next Monday
@@ -89,11 +97,10 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
 
   const fetchData = useCallback(async () => {
     try {
-      const [groupsRes, rolesRes, ticketsRes, teamRes, raRes] = await Promise.all([
+      const [groupsRes, rolesRes, ticketsRes, raRes] = await Promise.all([
         fetch(`/api/admin/projects/${projectId}/groups`),
         fetch(`/api/admin/projects/${projectId}/roles`),
         fetch(`/api/admin/tickets?projectId=${projectId}&archived=false`),
-        fetch("/api/admin/team"),
         fetch(`/api/admin/projects/${projectId}/role-assignments`),
       ]);
 
@@ -105,13 +112,9 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
         parsedTickets = Array.isArray(data) ? data : data.tickets || [];
         setTickets(parsedTickets);
       }
-      if (teamRes.ok) {
-        const data = await teamRes.json();
-        setTeamMembers(data.filter((m: TeamMember) => m.active));
-      }
       if (raRes.ok) {
-        const raData: { ticketId: number; templateRoleId: number }[] = await raRes.json();
-        const raMap = new Map<number, Set<number>>();
+        const raData: { ticketId: string; templateRoleId: string }[] = await raRes.json();
+        const raMap = new Map<string, Set<string>>();
         for (const ra of raData) {
           if (!raMap.has(ra.ticketId)) raMap.set(ra.ticketId, new Set());
           raMap.get(ra.ticketId)!.add(ra.templateRoleId);
@@ -121,7 +124,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
 
       // Fetch dependencies for all tickets
       if (parsedTickets.length > 0) {
-        const depMap = new Map<number, number | null>();
+        const depMap = new Map<string, string | null>();
         await Promise.all(
           parsedTickets.map(async (t: Ticket) => {
             try {
@@ -145,7 +148,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // === Group CRUD ===
-  async function handleAddGroup() {
+  async function handleAddGroup(): Promise<void> {
     if (!newGroupName.trim()) return;
     try {
       await fetch(`/api/admin/projects/${projectId}/groups`, {
@@ -164,7 +167,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
     } catch {}
   }
 
-  async function handleUpdateGroup(groupId: number) {
+  async function handleUpdateGroup(groupId: string) {
     if (!editGroupName.trim()) return;
     try {
       await fetch(`/api/admin/projects/${projectId}/groups/${groupId}`, {
@@ -177,7 +180,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
     } catch {}
   }
 
-  async function handleDeleteGroup(groupId: number) {
+  async function handleDeleteGroup(groupId: string) {
     if (!confirm("Delete this group? Tickets in this group will become ungrouped.")) return;
     try {
       await fetch(`/api/admin/projects/${projectId}/groups/${groupId}`, {
@@ -188,7 +191,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // === Role CRUD ===
-  async function handleAddRole() {
+  async function handleAddRole(): Promise<void> {
     if (!newRoleName.trim()) return;
     try {
       await fetch(`/api/admin/projects/${projectId}/roles`, {
@@ -205,7 +208,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
     } catch {}
   }
 
-  async function handleUpdateRole(roleId: number) {
+  async function handleUpdateRole(roleId: string) {
     if (!editRoleName.trim()) return;
     try {
       await fetch(`/api/admin/projects/${projectId}/roles/${roleId}`, {
@@ -218,7 +221,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
     } catch {}
   }
 
-  async function handleDeleteRole(roleId: number) {
+  async function handleDeleteRole(roleId: string) {
     if (!confirm("Delete this role? Tickets with this role will become unassigned.")) return;
     try {
       await fetch(`/api/admin/projects/${projectId}/roles/${roleId}`, {
@@ -229,7 +232,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // === Ticket Role Update ===
-  async function handleTicketRoleToggle(ticketId: number, roleId: number, action: "add" | "remove") {
+  async function handleTicketRoleToggle(ticketId: string, roleId: string, action: "add" | "remove") {
     try {
       await fetch(`/api/admin/tickets/${ticketId}/role-assignments`, {
         method: action === "add" ? "POST" : "DELETE",
@@ -249,7 +252,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
     } catch {}
   }
 
-  async function handleToggleAllTeam(ticketId: number, isAllTeam: boolean) {
+  async function handleToggleAllTeam(ticketId: string, isAllTeam: boolean) {
     try {
       await fetch(`/api/admin/tickets/${ticketId}`, {
         method: "PUT",
@@ -261,7 +264,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // === Ticket Group Update ===
-  async function handleTicketGroupChange(ticketId: number, groupId: number | null) {
+  async function handleTicketGroupChange(ticketId: string, groupId: string | null) {
     try {
       await fetch(`/api/admin/tickets/${ticketId}`, {
         method: "PUT",
@@ -273,7 +276,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // === Ticket Day Offset Update (with dependency cascade) ===
-  async function handleOffsetChange(ticketId: number, field: "dayOffsetStart" | "dayOffsetDue", value: string) {
+  async function handleOffsetChange(ticketId: string, field: "dayOffsetStart" | "dayOffsetDue", value: string) {
     const numVal = value === "" ? null : Number(value);
     const ticket = tickets.find((t) => t.id === ticketId);
     const oldVal = ticket ? (field === "dayOffsetStart" ? ticket.dayOffsetStart : ticket.dayOffsetDue) : null;
@@ -298,7 +301,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // Recursively cascade offset changes to dependent tickets
-  async function cascadeDependentOffsets(parentTicketId: number, delta: number) {
+  async function cascadeDependentOffsets(parentTicketId: string, delta: number) {
     // Find all tickets that depend on parentTicketId
     const dependents = tickets.filter((t) => dependencies.get(t.id) === parentTicketId);
     for (const dep of dependents) {
@@ -320,7 +323,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // === Dependency Change ===
-  async function handleDependencyChange(ticketId: number, dependsOnId: number | null) {
+  async function handleDependencyChange(ticketId: string, dependsOnId: string | null) {
     const currentDep = dependencies.get(ticketId);
 
     // Remove old dependency if exists
@@ -376,20 +379,16 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // === Quick Add Ticket ===
-  async function handleQuickAdd(groupId: number | null) {
+  async function handleQuickAdd(groupId: string | null) {
     if (!quickAddTitle.trim()) return;
     try {
-      await fetch("/api/admin/tickets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: quickAddTitle.trim(),
-          projectId,
-          groupId,
-          templateRoleId: quickAddRoleId,
-          dayOffsetStart: quickAddOffsetStart ? Number(quickAddOffsetStart) : null,
-          dayOffsetDue: quickAddOffsetDue ? Number(quickAddOffsetDue) : null,
-        }),
+      await createTicket({
+        title: quickAddTitle.trim(),
+        projectId: projectId as Id<"projects">,
+        groupId: groupId ? (groupId as Id<"projectGroups">) : undefined,
+        templateRoleId: quickAddRoleId ? (quickAddRoleId as Id<"projectTemplateRoles">) : undefined,
+        dayOffsetStart: quickAddOffsetStart ? Number(quickAddOffsetStart) : undefined,
+        dayOffsetDue: quickAddOffsetDue ? Number(quickAddOffsetDue) : undefined,
       });
       setQuickAddTitle("");
       setQuickAddRoleId(null);
@@ -401,7 +400,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // === Ticket Title Rename ===
-  async function handleRenameTicket(ticketId: number, newTitle: string) {
+  async function handleRenameTicket(ticketId: string, newTitle: string) {
     if (!newTitle.trim()) return;
     try {
       await fetch(`/api/admin/tickets/${ticketId}`, {
@@ -414,7 +413,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // === Toggle Meeting ===
-  async function handleToggleMeeting(ticketId: number, isMeeting: boolean) {
+  async function handleToggleMeeting(ticketId: string, isMeeting: boolean) {
     try {
       await fetch(`/api/admin/tickets/${ticketId}`, {
         method: "PUT",
@@ -426,7 +425,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // === Ticket Reorder ===
-  async function handleTicketDrop(droppedOnId: number, groupId: number | null) {
+  async function handleTicketDrop(droppedOnId: string, groupId: string | null) {
     if (dragTicketId === null || dragTicketId === droppedOnId) {
       setDragTicketId(null);
       setDragOverTicketId(null);
@@ -448,18 +447,17 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
     setDragOverTicketId(null);
 
     try {
-      await fetch("/api/admin/tickets/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderedIds: reordered.map((t) => t.id),
-        }),
+      await reorderTickets({
+        items: reordered.map((t, i) => ({
+          id: t.id as Id<"tickets">,
+          sortOrder: i,
+        })),
       });
       fetchData();
     } catch {}
   }
 
-  function toggleGroup(groupId: number) {
+  function toggleGroup(groupId: string) {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupId)) next.delete(groupId);
@@ -469,7 +467,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // Build subtask map: parentId → children
-  const subTicketMap = new Map<number, Ticket[]>();
+  const subTicketMap = new Map<string, Ticket[]>();
   for (const t of tickets) {
     if (t.parentTicketId) {
       if (!subTicketMap.has(t.parentTicketId)) subTicketMap.set(t.parentTicketId, []);
@@ -481,7 +479,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
   }
 
   // Group top-level tickets only
-  const ticketsByGroup = new Map<number | null, Ticket[]>();
+  const ticketsByGroup = new Map<string | null, Ticket[]>();
   for (const t of tickets) {
     if (t.parentTicketId) continue; // skip subtasks
     const gId = t.groupId ?? null;
@@ -724,7 +722,7 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
                       />
                       <select
                         value={quickAddRoleId ?? ""}
-                        onChange={(e) => setQuickAddRoleId(e.target.value ? Number(e.target.value) : null)}
+                        onChange={(e) => setQuickAddRoleId(e.target.value || null)}
                         className="px-1 py-1 text-xs border border-[var(--border)] rounded bg-white"
                       >
                         <option value="">No role</option>
@@ -929,15 +927,15 @@ function TemplateTicketRow({
   ticket: Ticket;
   roles: ProjectTemplateRole[];
   allTickets: Ticket[];
-  dependsOnId: number | null;
-  onRoleToggle: (ticketId: number, roleId: number, action: "add" | "remove") => void;
-  onToggleAllTeam: (ticketId: number, isAllTeam: boolean) => void;
-  assignedRoleIds: Set<number>;
-  onOffsetChange: (ticketId: number, field: "dayOffsetStart" | "dayOffsetDue", value: string) => void;
-  onDependencyChange: (ticketId: number, dependsOnId: number | null) => void;
-  onRename: (ticketId: number, newTitle: string) => void;
-  onToggleMeeting: (ticketId: number, isMeeting: boolean) => void;
-  onOpenDetail: (ticketId: number) => void;
+  dependsOnId: string | null;
+  onRoleToggle: (ticketId: string, roleId: string, action: "add" | "remove") => void;
+  onToggleAllTeam: (ticketId: string, isAllTeam: boolean) => void;
+  assignedRoleIds: Set<string>;
+  onOffsetChange: (ticketId: string, field: "dayOffsetStart" | "dayOffsetDue", value: string) => void;
+  onDependencyChange: (ticketId: string, dependsOnId: string | null) => void;
+  onRename: (ticketId: string, newTitle: string) => void;
+  onToggleMeeting: (ticketId: string, isMeeting: boolean) => void;
+  onOpenDetail: (ticketId: string) => void;
   offsetToDate: (offset: number | null) => string;
   dateToOffset: (dateStr: string) => number | null;
   refDate: string;
@@ -1125,12 +1123,12 @@ function TemplateRolePicker({
   onToggle,
   onToggleAllTeam,
 }: {
-  ticketId: number;
+  ticketId: string;
   roles: ProjectTemplateRole[];
-  assignedRoleIds: Set<number>;
+  assignedRoleIds: Set<string>;
   isAllTeam: boolean;
-  onToggle: (ticketId: number, roleId: number, action: "add" | "remove") => void;
-  onToggleAllTeam: (ticketId: number, isAllTeam: boolean) => void;
+  onToggle: (ticketId: string, roleId: string, action: "add" | "remove") => void;
+  onToggleAllTeam: (ticketId: string, isAllTeam: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -1259,10 +1257,10 @@ function DependencyPicker({
   allTickets,
   onChange,
 }: {
-  ticketId: number;
-  dependsOnId: number | null;
+  ticketId: string;
+  dependsOnId: string | null;
   allTickets: Ticket[];
-  onChange: (ticketId: number, dependsOnId: number | null) => void;
+  onChange: (ticketId: string, dependsOnId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");

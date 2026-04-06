@@ -1,57 +1,51 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { Notification } from "@/types";
+import { useSession } from "@/hooks/useSession";
 import NotificationList from "./NotificationList";
 
 export default function NotificationBell({ canDelete = false }: { canDelete?: boolean }) {
   const [open, setOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const session = useSession();
 
-  // Fetch unread count (lightweight polling)
-  const fetchCount = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/notifications/count", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setUnreadCount(data.unreadCount ?? 0);
-      }
-    } catch {}
-  }, []);
+  const recipientId = session?.teamMemberId as Id<"teamMembers"> | undefined;
 
-  // Fetch full notification list
-  const fetchNotifications = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/notifications?limit=20", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setNotifications(data.notifications ?? []);
-        setUnreadCount(data.unreadCount ?? 0);
-        setLoaded(true);
-      }
-    } catch {}
-  }, []);
+  // Real-time unread count — replaces polling
+  const unreadCount = useQuery(
+    api.notifications.getUnreadCount,
+    recipientId ? { recipientId } : "skip"
+  ) ?? 0;
 
-  // Poll count every 30s
-  useEffect(() => {
-    fetchCount();
-    pollRef.current = setInterval(fetchCount, 30000);
-    return () => clearInterval(pollRef.current);
-  }, [fetchCount]);
+  // Real-time notification list — replaces fetch on open
+  const rawNotifications = useQuery(
+    api.notifications.listByRecipient,
+    recipientId ? { recipientId, limit: 20 } : "skip"
+  );
 
-  // Listen for custom notification events
-  useEffect(() => {
-    function handleChange() {
-      fetchCount();
-      if (open) fetchNotifications();
-    }
-    window.addEventListener("notificationChange", handleChange);
-    return () => window.removeEventListener("notificationChange", handleChange);
-  }, [fetchCount, fetchNotifications, open]);
+  // Map Convex docs (_id, _creationTime) to component's expected shape (id, createdAt)
+  const notifications: Notification[] = useMemo(() => {
+    if (!rawNotifications) return [];
+    return rawNotifications.map((n) => ({
+      id: n._id as string,
+      recipientId: n.recipientId as string,
+      ticketId: (n.ticketId ?? null) as string | null,
+      type: n.type as Notification["type"],
+      title: n.title,
+      body: n.body ?? "",
+      link: n.link ?? "",
+      isRead: n.isRead,
+      createdAt: new Date(n._creationTime).toISOString(),
+    }));
+  }, [rawNotifications]);
+
+  const markRead = useMutation(api.notifications.markRead);
+  const markAllRead = useMutation(api.notifications.markAllRead);
+  const remove = useMutation(api.notifications.remove);
 
   // Close on outside click
   useEffect(() => {
@@ -66,56 +60,26 @@ export default function NotificationBell({ canDelete = false }: { canDelete?: bo
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  // Fetch notifications when dropdown opens
   function handleToggle() {
-    const willOpen = !open;
-    setOpen(willOpen);
-    if (willOpen) {
-      fetchNotifications();
-    }
+    setOpen((prev) => !prev);
   }
 
   async function handleMarkRead(id: string) {
-    // Optimistic update
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
-    setUnreadCount((prev) => Math.max(0, prev - 1));
-
     try {
-      await fetch("/api/admin/notifications", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "markRead", id }),
-      });
+      await markRead({ id: id as Id<"notifications"> });
     } catch {}
   }
 
   async function handleDelete(id: string) {
-    // Optimistic remove
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-
     try {
-      await fetch("/api/admin/notifications", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      fetchCount();
+      await remove({ id: id as Id<"notifications"> });
     } catch {}
   }
 
   async function handleMarkAllRead() {
-    // Optimistic update
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    setUnreadCount(0);
-
+    if (!recipientId) return;
     try {
-      await fetch("/api/admin/notifications", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "markAllRead" }),
-      });
+      await markAllRead({ recipientId });
     } catch {}
   }
 

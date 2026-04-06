@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { TeamMember } from "@/types";
+import { useState, useCallback } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { docToClient } from "@/lib/clients";
 
 const SERVICE_ACCOUNT_EMAIL =
   "insightpulse@gen-lang-client-0803026287.iam.gserviceaccount.com";
@@ -134,14 +137,8 @@ export default function ClientOnboardingForm({ onSaved, onCancel }: ClientOnboar
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-
-  useEffect(() => {
-    fetch("/api/admin/team")
-      .then((res) => (res.ok ? res.json() : []))
-      .then(setTeamMembers)
-      .catch(() => {});
-  }, []);
+  const { teamMembers } = useTeamMembers();
+  const createClient = useMutation(api.clients.create);
 
   function update(key: string, value: unknown) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -205,19 +202,9 @@ export default function ClientOnboardingForm({ onSaved, onCancel }: ClientOnboar
     };
 
     try {
-      const res = await fetch("/api/admin/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to create client");
-      }
-
-      onSaved(data.slug);
+      const doc = await createClient(body);
+      const created = docToClient(doc);
+      onSaved(created.slug);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

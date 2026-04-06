@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { friendlyDate } from "@/lib/date-format";
 import type { PerformanceReport, PerformanceOpenTicket } from "@/lib/reports";
-import { isOverdueEligible } from "@/types";
-import { TeamMember } from "@/types";
+import { isOverdueEligible, TeamMember } from "@/types";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface PerformanceTabProps {
   start: string;
@@ -36,19 +36,8 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string; bg: string
 export default function PerformanceTab({ start, end }: PerformanceTabProps) {
   const [data, setData] = useState<PerformanceReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const { teamMembers } = useTeamMembers();
   const [selectedMemberId, setSelectedMemberId] = useState<number | "all">("all");
-
-  // Fetch team members for filter dropdown
-  useEffect(() => {
-    fetch("/api/admin/team")
-      .then((r) => r.ok ? r.json() : [])
-      .then((data) => {
-        const active = (data as TeamMember[]).filter((m) => m.active);
-        setTeamMembers(active);
-      })
-      .catch(() => {});
-  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);

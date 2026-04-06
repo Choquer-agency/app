@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Project } from "@/types";
 import { friendlyDate } from "@/lib/date-format";
+import { useClients } from "@/hooks/useClients";
 import ProjectCreateFlow from "./ProjectCreateFlow";
-
-interface Client {
-  id: number;
-  name: string;
-}
+import { Id } from "@/convex/_generated/dataModel";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-blue-100 text-blue-700",
@@ -23,10 +22,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function ProjectList() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [filterClient, setFilterClient] = useState<number | null>(null);
+  const { clients, isLoading: clientsLoading } = useClients();
+  const [filterClient, setFilterClient] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [templatesCollapsed, setTemplatesCollapsed] = useState(false);
@@ -38,55 +35,58 @@ export default function ProjectList() {
   const [newTemplateDesc, setNewTemplateDesc] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
 
-  const fetchProjects = useCallback(async () => {
-    try {
-      const params = new URLSearchParams();
-      if (filterClient) params.set("clientId", String(filterClient));
-      if (search) params.set("search", search);
-      if (showArchived) params.set("archived", "true");
+  // Convex query for projects — pass filters as args
+  const queryArgs = useMemo(() => {
+    const args: Record<string, unknown> = {};
+    if (filterClient) args.clientId = filterClient as Id<"clients">;
+    if (showArchived) args.archived = true;
+    return args;
+  }, [filterClient, showArchived]);
+  const projectDocs = useQuery(api.projects.list, queryArgs);
+  const loading = projectDocs === undefined;
 
-      const res = await fetch(`/api/admin/projects?${params}`);
-      if (res.ok) {
-        setProjects(await res.json());
-      }
-    } catch {} finally {
-      setLoading(false);
-    }
-  }, [filterClient, search, showArchived]);
-
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
-
-  useEffect(() => {
-    fetch("/api/admin/clients")
-      .then((r) => r.json())
-      .then((data) => setClients(data.map((c: Record<string, unknown>) => ({ id: c.id, name: c.name }))))
-      .catch(() => {});
-  }, []);
+  // Map docs to Project type and apply client-side search filter
+  const projects: Project[] = useMemo(() => {
+    if (!projectDocs) return [];
+    const mapped = projectDocs.map((doc: any) => ({
+      id: doc._id,
+      name: doc.name ?? "",
+      description: doc.description ?? "",
+      clientId: doc.clientId ?? null,
+      isTemplate: doc.isTemplate ?? false,
+      status: doc.status ?? "active",
+      archived: doc.archived ?? false,
+      startDate: doc.startDate ?? null,
+      dueDate: doc.dueDate ?? null,
+      createdById: doc.createdById ?? null,
+      createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : "",
+      updatedAt: "",
+      clientName: doc.clientName ?? undefined,
+      ticketCount: doc.ticketCount ?? undefined,
+      completedTicketCount: doc.completedTicketCount ?? undefined,
+    })) as Project[];
+    if (!search) return mapped;
+    const q = search.toLowerCase();
+    return mapped.filter((p) => p.name.toLowerCase().includes(q));
+  }, [projectDocs, search]);
 
   const templates = projects.filter((p) => p.isTemplate);
   const activeProjects = projects.filter((p) => !p.isTemplate);
+
+  const createProject = useMutation(api.projects.create);
 
   async function handleCreateTemplate() {
     if (!newTemplateName.trim()) return;
     setSavingTemplate(true);
     try {
-      const res = await fetch("/api/admin/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newTemplateName.trim(),
-          description: newTemplateDesc.trim(),
-          isTemplate: true,
-        }),
+      await createProject({
+        name: newTemplateName.trim(),
+        description: newTemplateDesc.trim(),
+        isTemplate: true,
       });
-      if (res.ok) {
-        setShowTemplateCreateModal(false);
-        setNewTemplateName("");
-        setNewTemplateDesc("");
-        fetchProjects();
-      }
+      setShowTemplateCreateModal(false);
+      setNewTemplateName("");
+      setNewTemplateDesc("");
     } catch {} finally {
       setSavingTemplate(false);
     }
@@ -136,7 +136,7 @@ export default function ProjectList() {
         />
         <select
           value={filterClient ?? ""}
-          onChange={(e) => setFilterClient(e.target.value ? Number(e.target.value) : null)}
+          onChange={(e) => setFilterClient(e.target.value || null)}
           className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-white"
         >
           <option value="">All Clients</option>
@@ -213,7 +213,6 @@ export default function ProjectList() {
           onClose={() => setShowCreateFlow(false)}
           onCreated={() => {
             setShowCreateFlow(false);
-            fetchProjects();
           }}
         />
       )}

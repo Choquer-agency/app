@@ -2,7 +2,7 @@ import { getConvexClient } from "./convex-server";
 import { api } from "@/convex/_generated/api";
 import { ClientConfig, CreateClientInput } from "@/types";
 
-function docToClient(doc: any): ClientConfig {
+export function docToClient(doc: any): ClientConfig {
   return {
     id: doc._id,
     name: doc.name ?? "",

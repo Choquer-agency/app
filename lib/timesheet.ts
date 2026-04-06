@@ -11,7 +11,7 @@ import type {
 
 // === Doc Mappers ===
 
-function docToTimesheetEntry(doc: any): TimesheetEntry {
+export function docToTimesheetEntry(doc: any): TimesheetEntry {
   return {
     id: doc._id,
     teamMemberId: doc.teamMemberId,
@@ -31,7 +31,7 @@ function docToTimesheetEntry(doc: any): TimesheetEntry {
   };
 }
 
-function docToTimesheetBreak(doc: any): TimesheetBreak {
+export function docToTimesheetBreak(doc: any): TimesheetBreak {
   return {
     id: doc._id,
     timesheetEntryId: doc.timesheetEntryId,
@@ -42,7 +42,7 @@ function docToTimesheetBreak(doc: any): TimesheetBreak {
   };
 }
 
-function docToVacationRequest(doc: any): VacationRequest {
+export function docToVacationRequest(doc: any): VacationRequest {
   return {
     id: doc._id,
     teamMemberId: doc.teamMemberId,
@@ -60,7 +60,7 @@ function docToVacationRequest(doc: any): VacationRequest {
   };
 }
 
-function docToChangeRequest(doc: any): TimesheetChangeRequest {
+export function docToChangeRequest(doc: any): TimesheetChangeRequest {
   return {
     id: doc._id,
     timesheetEntryId: doc.timesheetEntryId,

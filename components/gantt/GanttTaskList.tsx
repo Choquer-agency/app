@@ -9,7 +9,7 @@ const GROUP_HEADER_HEIGHT = 36;
 
 interface GanttTaskListProps {
   flatRows: GanttRow[];
-  onTicketClick: (ticketId: number) => void;
+  onTicketClick: (ticketId: string) => void;
 }
 
 export default function GanttTaskList({ flatRows, onTicketClick }: GanttTaskListProps) {

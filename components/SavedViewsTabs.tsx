@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import ReactDOM from "react-dom";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useSession } from "@/hooks/useSession";
 import { SavedView, TicketFilters } from "@/types";
 
 interface SavedViewsTabsProps {
@@ -25,7 +29,33 @@ export default function SavedViewsTabs({
   viewMode,
   onViewModeChange,
 }: SavedViewsTabsProps) {
-  const [views, setViews] = useState<SavedView[]>([]);
+  const session = useSession();
+  const teamMemberId = session?.teamMemberId as Id<"teamMembers"> | undefined;
+
+  const rawViews = useQuery(
+    api.savedViews.listByMember,
+    teamMemberId ? { teamMemberId } : "skip"
+  );
+
+  // Map Convex documents to SavedView shape used by the UI
+  const views: SavedView[] = useMemo(() => {
+    if (!rawViews) return [];
+    return rawViews.map((v) => ({
+      id: v._id as string,
+      teamMemberId: v.teamMemberId as string,
+      name: v.name,
+      filters: v.filters as TicketFilters,
+      isDefault: v.isDefault ?? false,
+      sortOrder: v.sortOrder ?? 0,
+      createdAt: new Date(v._creationTime).toISOString(),
+      updatedAt: new Date(v._creationTime).toISOString(),
+    }));
+  }, [rawViews]);
+
+  const createView = useMutation(api.savedViews.create);
+  const updateView = useMutation(api.savedViews.update);
+  const removeView = useMutation(api.savedViews.remove);
+
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saveAsDefault, setSaveAsDefault] = useState(false);
@@ -35,17 +65,6 @@ export default function SavedViewsTabs({
   const [renameName, setRenameName] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const saveInputRef = useRef<HTMLInputElement>(null);
-
-  async function fetchViews() {
-    try {
-      const res = await fetch("/api/admin/saved-views");
-      if (res.ok) setViews(await res.json());
-    } catch {}
-  }
-
-  useEffect(() => {
-    fetchViews();
-  }, []);
 
   // Auto-load default view on mount
   useEffect(() => {
@@ -74,48 +93,48 @@ export default function SavedViewsTabs({
   }, [showSaveForm]);
 
   async function handleSave() {
-    if (!saveName.trim()) return;
+    if (!saveName.trim() || !teamMemberId) return;
     try {
-      const res = await fetch("/api/admin/saved-views", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: saveName.trim(),
-          filters: currentFilters,
-          isDefault: saveAsDefault,
-        }),
+      const created = await createView({
+        teamMemberId,
+        name: saveName.trim(),
+        filters: currentFilters,
+        isDefault: saveAsDefault,
       });
-      if (res.ok) {
-        const view = await res.json();
-        await fetchViews();
-        onViewSelect(view);
-        setShowSaveForm(false);
-        setSaveName("");
-        setSaveAsDefault(false);
+      if (created) {
+        onViewSelect({
+          id: created._id as string,
+          teamMemberId: created.teamMemberId as string,
+          name: created.name,
+          filters: created.filters as TicketFilters,
+          isDefault: created.isDefault ?? false,
+          sortOrder: created.sortOrder ?? 0,
+          createdAt: new Date(created._creationTime).toISOString(),
+          updatedAt: new Date(created._creationTime).toISOString(),
+        });
       }
+      setShowSaveForm(false);
+      setSaveName("");
+      setSaveAsDefault(false);
     } catch {}
   }
 
   async function handleUpdateFilters(viewId: string) {
     try {
-      await fetch(`/api/admin/saved-views/${viewId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filters: currentFilters }),
+      await updateView({
+        id: viewId as Id<"savedViews">,
+        filters: currentFilters,
       });
-      await fetchViews();
       setMenuViewId(null);
     } catch {}
   }
 
   async function handleSetDefault(viewId: string) {
     try {
-      await fetch(`/api/admin/saved-views/${viewId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isDefault: true }),
+      await updateView({
+        id: viewId as Id<"savedViews">,
+        isDefault: true,
       });
-      await fetchViews();
       setMenuViewId(null);
     } catch {}
   }
@@ -123,12 +142,10 @@ export default function SavedViewsTabs({
   async function handleRename(viewId: string) {
     if (!renameName.trim()) return;
     try {
-      await fetch(`/api/admin/saved-views/${viewId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: renameName.trim() }),
+      await updateView({
+        id: viewId as Id<"savedViews">,
+        name: renameName.trim(),
       });
-      await fetchViews();
       setRenaming(null);
       setRenameName("");
     } catch {}
@@ -136,9 +153,8 @@ export default function SavedViewsTabs({
 
   async function handleDelete(viewId: string) {
     try {
-      await fetch(`/api/admin/saved-views/${viewId}`, { method: "DELETE" });
+      await removeView({ id: viewId as Id<"savedViews"> });
       if (activeViewId === viewId) onViewSelect(null);
-      await fetchViews();
       setMenuViewId(null);
     } catch {}
   }
@@ -231,12 +247,10 @@ export default function SavedViewsTabs({
             onClick={async () => {
               if (!activeViewId) return;
               try {
-                await fetch(`/api/admin/saved-views/${activeViewId}`, {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ filters: currentFilters }),
+                await updateView({
+                  id: activeViewId as Id<"savedViews">,
+                  filters: currentFilters,
                 });
-                await fetchViews();
                 onChangesSaved?.();
               } catch {}
             }}

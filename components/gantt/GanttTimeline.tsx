@@ -9,10 +9,10 @@ interface GanttTimelineProps {
   flatRows: GanttRow[];
   businessDays: BusinessDay[];
   dayWidth: number;
-  onDragStart?: (ticketId: number, startX: number) => void;
-  onTicketClick?: (ticketId: number) => void;
+  onDragStart?: (ticketId: string, startX: number) => void;
+  onTicketClick?: (ticketId: string) => void;
   dragDayDelta?: number;
-  dragAffectedIds?: Set<number> | null;
+  dragAffectedIds?: Set<string> | null;
 }
 
 export default function GanttTimeline({

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { TicketStatus, TicketPriority, TeamMember } from "@/types";
 import { STATUS_ORDER, getStatusLabel } from "./TicketStatusBadge";
 import { getPriorityLabel } from "./TicketPriorityBadge";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface TicketBulkActionsProps {
   selectedCount: number;
@@ -18,14 +18,7 @@ export default function TicketBulkActions({
   onClear,
   onDelete,
 }: TicketBulkActionsProps) {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-
-  useEffect(() => {
-    fetch("/api/admin/team")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setTeamMembers)
-      .catch(() => {});
-  }, []);
+  const { teamMembers } = useTeamMembers();
 
   if (selectedCount === 0) return null;
 

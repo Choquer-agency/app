@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 
 interface CalendarEvent {
-  id: number;
+  id: string;
   title: string;
   eventDate: string;
   eventType: string;
@@ -62,31 +65,21 @@ function RecurringIcon({ active }: { active: boolean }) {
 function EventRow({
   event,
   onDelete,
-  onUpdate,
 }: {
   event: CalendarEvent;
-  onDelete: (id: number) => void;
-  onUpdate: () => void;
+  onDelete: (id: string) => void;
 }) {
   const [showRecurrenceDropdown, setShowRecurrenceDropdown] = useState(false);
   const isRecurring = event.recurrence !== "none";
+  const updateEvent = useMutation(api.bulletin.updateCalendarEvent);
 
   async function handleRecurrenceChange(newRecurrence: string) {
     setShowRecurrenceDropdown(false);
     try {
-      // Update via a PATCH-style call — we'll use POST with an id
-      await fetch("/api/admin/bulletin/calendar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: event.id,
-          title: event.title,
-          eventDate: event.eventDate,
-          eventType: event.eventType,
-          recurrence: newRecurrence,
-        }),
+      await updateEvent({
+        id: event.id as Id<"calendarEvents">,
+        recurrence: newRecurrence,
       });
-      onUpdate();
     } catch {}
   }
 
@@ -159,8 +152,19 @@ function EventRow({
 }
 
 export default function CalendarSettings() {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const rawEvents = useQuery(api.bulletin.listCalendarEvents, {});
+  const createEvent = useMutation(api.bulletin.createCalendarEvent);
+  const deleteEvent = useMutation(api.bulletin.deleteCalendarEvent);
+
+  const events: CalendarEvent[] = (rawEvents ?? []).map((e) => ({
+    id: e._id,
+    title: e.title,
+    eventDate: e.eventDate,
+    eventType: e.eventType ?? "custom",
+    recurrence: e.recurrence ?? "none",
+  }));
+  const loading = rawEvents === undefined;
+
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -168,47 +172,25 @@ export default function CalendarSettings() {
   const [recurrence, setRecurrence] = useState("none");
   const [submitting, setSubmitting] = useState(false);
 
-  async function fetchEvents() {
-    try {
-      const res = await fetch("/api/admin/bulletin/calendar");
-      if (res.ok) setEvents(await res.json());
-    } catch {
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
   async function handleAdd() {
     if (!title.trim() || !eventDate) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/bulletin/calendar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, eventDate, eventType, recurrence }),
-      });
-      if (res.ok) {
-        setTitle("");
-        setEventDate("");
-        setEventType("holiday");
-        setRecurrence("none");
-        setShowForm(false);
-        fetchEvents();
-      }
+      await createEvent({ title, eventDate, eventType, recurrence });
+      setTitle("");
+      setEventDate("");
+      setEventType("holiday");
+      setRecurrence("none");
+      setShowForm(false);
     } catch {
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleDelete(id: number) {
+  async function handleDelete(id: string) {
     try {
-      const res = await fetch(`/api/admin/bulletin/calendar?id=${id}`, { method: "DELETE" });
-      if (res.ok) fetchEvents();
+      await deleteEvent({ id: id as Id<"calendarEvents"> });
     } catch {}
   }
 
@@ -311,7 +293,7 @@ export default function CalendarSettings() {
       ) : (
         <div className="rounded-xl border border-[var(--border)] bg-white divide-y divide-[var(--border)]">
           {events.map((event) => (
-            <EventRow key={event.id} event={event} onDelete={handleDelete} onUpdate={fetchEvents} />
+            <EventRow key={event.id} event={event} onDelete={handleDelete} />
           ))}
         </div>
       )}

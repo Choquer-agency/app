@@ -1,42 +1,45 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { ApiConnection, PlatformConfig, ConnectionStatus } from "@/types";
 import { getClientPlatforms } from "@/lib/platform-configs";
+import { useClients } from "@/hooks/useClients";
 import ConnectionStatusBadge from "./ConnectionStatusBadge";
 
 export default function AllClientPlatforms({ canManage }: { canManage: boolean }) {
-  const [connections, setConnections] = useState<ApiConnection[]>([]);
-  const [clients, setClients] = useState<Array<{ id: string; name: string }>>([]);
-  const [loading, setLoading] = useState(true);
+  const rawConnections = useQuery(api.apiConnections.list, { scope: "client" });
+  const { clients: allClients, isLoading: clientsLoading } = useClients();
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [connRes, clientRes] = await Promise.all([
-        fetch("/api/admin/connections"),
-        fetch("/api/admin/clients"),
-      ]);
-      if (connRes.ok) {
-        const allConns = await connRes.json();
-        setConnections(allConns.filter((c: ApiConnection) => c.scope === "client"));
-      }
-      if (clientRes.ok) {
-        const allClients = await clientRes.json();
-        setClients(
-          allClients
-            .filter((c: any) => c.clientStatus === "active")
-            .map((c: any) => ({ id: c.id, name: c.name }))
-        );
-      }
-    } catch {
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const connections: ApiConnection[] = useMemo(
+    () =>
+      (rawConnections ?? []).map((c: any) => ({
+        id: c._id,
+        platform: c.platform,
+        scope: c.scope,
+        clientId: c.clientId ?? null,
+        authType: c.authType,
+        status: c.status,
+        lastVerifiedAt: c.lastVerifiedAt ?? null,
+        lastError: c.lastError ?? null,
+        displayName: c.displayName ?? null,
+        oauthAccountName: c.oauthAccountName ?? null,
+        oauthAccountId: c.oauthAccountId ?? null,
+        createdAt: new Date(c._creationTime).toISOString(),
+      })),
+    [rawConnections]
+  );
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const clients = useMemo(
+    () =>
+      allClients
+        .filter((c) => c.clientStatus === "active")
+        .map((c) => ({ id: String(c.id), name: c.name })),
+    [allClients]
+  );
+
+  const loading = rawConnections === undefined || clientsLoading;
 
   const platforms = getClientPlatforms();
 

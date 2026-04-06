@@ -1,24 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Project } from "@/types";
 import TemplateEditorView from "@/components/TemplateEditorView";
 
 export default function TemplatesSettingsPage() {
-  const [templates, setTemplates] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const templateDocs = useQuery(api.projects.list, { isTemplate: true });
+  const loading = templateDocs === undefined;
+
+  const templates: Project[] = useMemo(() => {
+    if (!templateDocs) return [];
+    return templateDocs.map((doc: any) => ({
+      id: doc._id,
+      name: doc.name ?? "",
+      description: doc.description ?? "",
+      clientId: doc.clientId ?? null,
+      isTemplate: doc.isTemplate ?? false,
+      status: doc.status ?? "active",
+      archived: doc.archived ?? false,
+      startDate: doc.startDate ?? null,
+      dueDate: doc.dueDate ?? null,
+      createdById: doc.createdById ?? null,
+      createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : "",
+      updatedAt: "",
+      ticketCount: doc.ticketCount ?? undefined,
+      completedTicketCount: doc.completedTicketCount ?? undefined,
+    })) as Project[];
+  }, [templateDocs]);
+
+  // Auto-select first template when data loads
   useEffect(() => {
-    fetch("/api/admin/projects?isTemplate=true")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        setTemplates(data);
-        if (data.length > 0 && !selectedId) setSelectedId(data[0].id);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    if (templates.length > 0 && !selectedId) {
+      setSelectedId(templates[0].id);
+    }
+  }, [templates, selectedId]);
 
   if (loading) {
     return (

@@ -2,8 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { Ticket, TicketActivity, TicketComment, TeamMember } from "@/types";
+import { docToTicket, docToAssignee } from "@/lib/ticket-mappers";
 import { friendlyDate } from "@/lib/date-format";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import TicketDetailContent from "./TicketDetailContent";
 import TicketActivitySidebar from "./TicketActivitySidebar";
 import TicketCreateModal from "./TicketCreateModal";
@@ -13,7 +18,7 @@ interface TicketDetailModalProps {
   ticketId: string;
   teamMembers: TeamMember[];
   onClose: () => void;
-  onTicketUpdated: () => void;
+  onTicketUpdated?: () => void;
 }
 
 function formatCreatedDate(isoString: string): string {
@@ -26,15 +31,6 @@ export default function TicketDetailModal({
   onClose,
   onTicketUpdated,
 }: TicketDetailModalProps) {
-  const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [activity, setActivity] = useState<TicketActivity[]>([]);
-  const [comments, setComments] = useState<TicketComment[]>([]);
-  const [subTickets, setSubTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activityLoading, setActivityLoading] = useState(true);
-  const [commentsLoading, setCommentsLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentTicketId, setCurrentTicketId] = useState(ticketId);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -46,88 +42,71 @@ export default function TicketDetailModal({
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const fetchTicket = useCallback(async (id: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/admin/tickets/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        try {
-          const aRes = await fetch(`/api/admin/tickets/${id}/assignees`);
-          if (aRes.ok) data.assignees = await aRes.json();
-        } catch {}
-        setTicket(data);
-      }
-    } catch {} finally {
-      setLoading(false);
-    }
-  }, []);
+  // Real-time queries
+  const ticketDoc = useQuery(api.tickets.getById, {
+    id: currentTicketId as Id<"tickets">,
+  });
+  const activityDocs = useQuery(api.ticketActivity.listByTicket, {
+    ticketId: currentTicketId as Id<"tickets">,
+  });
+  const commentDocs = useQuery(api.ticketComments.listByTicket, {
+    ticketId: currentTicketId as Id<"tickets">,
+  });
+  const subTicketDocs = useQuery(api.tickets.list, {
+    parentTicketId: currentTicketId as Id<"tickets">,
+  });
 
-  const fetchActivity = useCallback(async (id: string) => {
-    setActivityLoading(true);
-    try {
-      const res = await fetch(`/api/admin/tickets/${id}/activity`);
-      if (res.ok) {
-        setActivity(await res.json());
-      }
-    } catch {} finally {
-      setActivityLoading(false);
-    }
-  }, []);
+  const { userId: currentUserId, roleLevel: currentUserRole } = useCurrentUser();
 
-  const fetchComments = useCallback(async (id: string) => {
-    setCommentsLoading(true);
-    try {
-      const res = await fetch(`/api/admin/tickets/${id}/comments`);
-      if (res.ok) {
-        setComments(await res.json());
-      }
-    } catch {} finally {
-      setCommentsLoading(false);
-    }
-  }, []);
+  // Mutations
+  const updateTicket = useMutation(api.tickets.update);
+  const archiveTicket = useMutation(api.tickets.archive);
+  const addAssignee = useMutation(api.tickets.addAssignee);
+  const removeAssignee = useMutation(api.tickets.removeAssignee);
+  const addComment = useMutation(api.ticketComments.create);
+  const editComment = useMutation(api.ticketComments.update);
+  const deleteComment = useMutation(api.ticketComments.remove);
+  const createActivity = useMutation(api.ticketActivity.create);
+  const markReadByTicket = useMutation(api.notifications.markReadByTicket);
 
-  const fetchSubTickets = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/admin/tickets?parentTicketId=${id}`);
-      if (res.ok) {
-        setSubTickets(await res.json());
-      }
-    } catch {}
-  }, []);
+  // Map Convex docs to typed objects
+  const ticket: Ticket | null = ticketDoc ? docToTicket(ticketDoc) : null;
+  const loading = ticketDoc === undefined;
+  const activity: TicketActivity[] = activityDocs?.map((d: any) => ({
+    id: d._id,
+    ticketId: d.ticketId,
+    actorId: d.actorId ?? null,
+    actorName: d.actorName ?? "",
+    actionType: d.actionType ?? "",
+    fieldName: d.fieldName ?? null,
+    oldValue: d.oldValue ?? null,
+    newValue: d.newValue ?? null,
+    metadata: d.metadata ?? {},
+    createdAt: d._creationTime ? new Date(d._creationTime).toISOString() : new Date().toISOString(),
+  })) ?? [];
+  const activityLoading = activityDocs === undefined;
+  const comments: TicketComment[] = commentDocs?.map((d: any) => ({
+    id: d._id,
+    ticketId: d.ticketId,
+    authorType: d.authorType ?? "team",
+    authorId: d.authorId ?? null,
+    authorName: d.authorName ?? "",
+    authorEmail: d.authorEmail ?? "",
+    content: d.content ?? "",
+    createdAt: d._creationTime ? new Date(d._creationTime).toISOString() : new Date().toISOString(),
+  })) ?? [];
+  const commentsLoading = commentDocs === undefined;
+  const subTickets: Ticket[] = subTicketDocs?.map(docToTicket) ?? [];
 
-  // Fetch current user for comment ownership
+  // Auto-dismiss notifications for this ticket
   useEffect(() => {
-    fetch("/api/admin/me")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data) {
-          setCurrentUserId(data.teamMemberId);
-          setCurrentUserRole(data.roleLevel ?? null);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    fetchTicket(currentTicketId);
-    fetchActivity(currentTicketId);
-    fetchComments(currentTicketId);
-    fetchSubTickets(currentTicketId);
-  }, [currentTicketId, fetchTicket, fetchActivity, fetchComments, fetchSubTickets]);
-
-  // Auto-dismiss notifications for this ticket (user is actively viewing it)
-  useEffect(() => {
-    fetch("/api/admin/notifications", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "markReadByTicket", ticketId: currentTicketId }),
-    })
-      .then(() => {
-        window.dispatchEvent(new Event("notificationChange"));
-      })
-      .catch(() => {});
-  }, [currentTicketId]);
+    if (currentUserId) {
+      markReadByTicket({
+        recipientId: currentUserId as Id<"teamMembers">,
+        ticketId: currentTicketId as Id<"tickets">,
+      }).catch(() => {});
+    }
+  }, [currentTicketId, currentUserId, markReadByTicket]);
 
   // Escape key to close
   useEffect(() => {
@@ -181,119 +160,86 @@ export default function TicketDetailModal({
         const oldDate = ticket[dateField];
         const newDate = fields[dateField] as string | null;
         if (oldDate && newDate) {
-          // Save the cascade info for the confirmation dialog
           setCascadeInfo({ field: dateField, oldDate, newDate });
         }
       }
     }
 
-    setTicket((prev) => (prev ? { ...prev, ...fields } : prev));
-    try {
-      const res = await fetch(`/api/admin/tickets/${ticket.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fields),
-      });
-      if (res.ok) {
-        fetchActivity(ticket.id);
-        onTicketUpdated();
-      } else {
-        fetchTicket(ticket.id);
+    // Build Convex-compatible update args
+    const updateArgs: Record<string, unknown> = { id: ticket.id as Id<"tickets"> };
+    const allowedFields = [
+      "title", "description", "descriptionFormat", "status", "priority",
+      "startDate", "dueDate", "dueTime", "ticketGroup", "sortOrder",
+      "isPersonal", "isMeeting", "isEmail", "serviceCategory",
+    ];
+    for (const key of allowedFields) {
+      if ((fields as any)[key] !== undefined) {
+        updateArgs[key] = (fields as any)[key];
       }
+    }
+    // Handle ID fields that need casting
+    if (fields.clientId !== undefined) updateArgs.clientId = fields.clientId as Id<"clients"> | undefined;
+    if (fields.projectId !== undefined) updateArgs.projectId = fields.projectId as Id<"projects"> | undefined;
+    if (fields.groupId !== undefined) updateArgs.groupId = fields.groupId as Id<"projectGroups"> | undefined;
+
+    try {
+      await updateTicket(updateArgs as any);
+      onTicketUpdated?.();
     } catch {
-      fetchTicket(ticket.id);
+      // useQuery will auto-refresh with server state
     }
   }
 
   async function handleAssigneeToggle(tId: string, memberId: string, action: "add" | "remove") {
-    if (!ticket) return;
-    const member = teamMembers.find((m) => m.id === memberId);
-    setTicket((prev) => {
-      if (!prev) return prev;
-      const current = prev.assignees || [];
-      if (action === "add" && member) {
-        return {
-          ...prev,
-          assignees: [
-            ...current,
-            {
-              id: String(Date.now()),
-              ticketId: tId,
-              teamMemberId: memberId,
-              assignedAt: new Date().toISOString(),
-              memberName: member.name,
-              memberEmail: member.email,
-              memberColor: member.color,
-              memberProfilePicUrl: member.profilePicUrl,
-            },
-          ],
-        };
-      }
-      return { ...prev, assignees: current.filter((a) => a.teamMemberId !== memberId) };
-    });
     try {
       if (action === "add") {
-        await fetch(`/api/admin/tickets/${tId}/assignees`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ teamMemberId: memberId }),
+        await addAssignee({
+          ticketId: tId as Id<"tickets">,
+          teamMemberId: memberId as Id<"teamMembers">,
         });
       } else {
-        await fetch(`/api/admin/tickets/${tId}/assignees`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ teamMemberId: memberId }),
+        await removeAssignee({
+          ticketId: tId as Id<"tickets">,
+          teamMemberId: memberId as Id<"teamMembers">,
         });
       }
-      fetchActivity(tId);
-      onTicketUpdated();
+      onTicketUpdated?.();
     } catch {
-      fetchTicket(tId);
+      // useQuery will auto-refresh
     }
   }
 
   async function handleAddComment(content: string) {
-    const res = await fetch(`/api/admin/tickets/${currentTicketId}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
+    const currentUser = teamMembers.find((m) => m.id === currentUserId);
+    await addComment({
+      ticketId: currentTicketId as Id<"tickets">,
+      authorId: currentUserId as Id<"teamMembers"> | undefined,
+      authorName: currentUser?.name ?? "Unknown",
+      authorEmail: currentUser?.email,
+      content,
     });
-    if (res.ok) {
-      fetchComments(currentTicketId);
-      fetchActivity(currentTicketId);
-      onTicketUpdated();
-    }
+    onTicketUpdated?.();
   }
 
   async function handleEditComment(commentId: string, content: string) {
-    const res = await fetch(`/api/admin/tickets/${currentTicketId}/comments/${commentId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
+    await editComment({
+      id: commentId as Id<"ticketComments">,
+      content,
     });
-    if (res.ok) {
-      fetchComments(currentTicketId);
-    }
   }
 
   async function handleDeleteComment(commentId: string) {
-    const res = await fetch(`/api/admin/tickets/${currentTicketId}/comments/${commentId}`, {
-      method: "DELETE",
+    await deleteComment({
+      id: commentId as Id<"ticketComments">,
     });
-    if (res.ok) {
-      fetchComments(currentTicketId);
-      fetchActivity(currentTicketId);
-    }
   }
 
   async function handleArchive() {
     if (!ticket) return;
     try {
-      const res = await fetch(`/api/admin/tickets/${ticket.id}`, { method: "DELETE" });
-      if (res.ok) {
-        onTicketUpdated();
-        onClose();
-      }
+      await archiveTicket({ id: ticket.id as Id<"tickets"> });
+      onTicketUpdated?.();
+      onClose();
     } catch {}
   }
 
@@ -485,11 +431,9 @@ export default function TicketDetailModal({
           parentTicketNumber={ticket.ticketNumber}
           defaultClientId={ticket.clientId}
           defaultClientName={ticket.clientName}
-          onCreated={(newTicket) => {
+          onCreated={() => {
             setShowSubTicketCreate(false);
-            fetchSubTickets(currentTicketId);
-            fetchActivity(currentTicketId);
-            onTicketUpdated();
+            onTicketUpdated?.();
           }}
         />
       )}
@@ -506,7 +450,7 @@ export default function TicketDetailModal({
           onClose={() => setCascadeInfo(null)}
           onApplied={() => {
             setCascadeInfo(null);
-            onTicketUpdated();
+            onTicketUpdated?.();
           }}
         />
       )}

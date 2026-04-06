@@ -1,6 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { TeamMember } from "@/types";
 import CopyField from "./CopyField";
 import { hasPermission, hasMinRole, ROLE_LEVELS, ROLE_LABELS, type RoleLevel } from "@/lib/permissions";
@@ -12,12 +16,16 @@ function TeamMemberFormModal({
   onSaved,
   canEditWages,
   canManageRoles,
+  createMember,
+  updateMember,
 }: {
   member?: TeamMember | null;
   onClose: () => void;
   onSaved: () => void;
   canEditWages: boolean;
   canManageRoles: boolean;
+  createMember: (args: Record<string, unknown>) => Promise<unknown>;
+  updateMember: (args: Record<string, unknown>) => Promise<unknown>;
 }) {
   const isEditing = !!member;
 
@@ -99,7 +107,6 @@ function TeamMemberFormModal({
     setError("");
 
     const body: Record<string, unknown> = {
-      ...(isEditing ? { id: member!.id } : {}),
       name: name.trim(),
       email: email.trim(),
       role,
@@ -126,17 +133,11 @@ function TeamMemberFormModal({
     }
 
     try {
-      const res = await fetch("/api/admin/team", {
-        method: isEditing ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to save");
+      if (isEditing) {
+        await updateMember({ id: member!.id as Id<"teamMembers">, ...body });
+      } else {
+        await createMember(body);
       }
-
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -425,12 +426,15 @@ function TeamMemberFormModal({
 }
 
 export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: RoleLevel; currentMemberId?: string | number }) {
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { teamMembers: members, isLoading: loading } = useTeamMembers(false);
   const [showModal, setShowModal] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [needsMigration, setNeedsMigration] = useState(false);
   const [migrating, setMigrating] = useState(false);
+
+  const createMember = useMutation(api.teamMembers.create);
+  const updateMember = useMutation(api.teamMembers.update);
+  const removeMember = useMutation(api.teamMembers.remove);
 
   const canViewWages = roleLevel ? hasPermission(roleLevel, "team:view_wages") : false;
   const canEditWages = roleLevel ? hasPermission(roleLevel, "team:edit_wages") : false;
@@ -438,33 +442,12 @@ export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: R
   const canEditOthers = roleLevel ? hasMinRole(roleLevel, "c_suite") : false;
   const canAddMembers = roleLevel ? hasMinRole(roleLevel, "c_suite") : false;
 
-  const fetchMembers = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/team");
-      if (res.ok) {
-        setMembers(await res.json());
-        setNeedsMigration(false);
-      } else {
-        setNeedsMigration(true);
-      }
-    } catch {
-      setNeedsMigration(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchMembers();
-  }, [fetchMembers]);
-
   async function runMigrations() {
     setMigrating(true);
     try {
       const res = await fetch("/api/admin/migrate", { method: "POST" });
       if (res.ok) {
         setNeedsMigration(false);
-        fetchMembers();
       }
     } catch {
       // Failed
@@ -476,18 +459,13 @@ export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: R
   function handleSaved() {
     setShowModal(false);
     setEditingMember(null);
-    fetchMembers();
+    // No fetchMembers() needed — useQuery auto-updates
   }
 
   async function handleDeactivate(member: TeamMember) {
     if (!confirm(`Deactivate ${member.name}?`)) return;
     try {
-      await fetch("/api/admin/team", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: member.id, active: false }),
-      });
-      fetchMembers();
+      await updateMember({ id: member.id as Id<"teamMembers">, active: false });
     } catch {
       // Failed
     }
@@ -495,12 +473,7 @@ export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: R
 
   async function handleReactivate(member: TeamMember) {
     try {
-      await fetch("/api/admin/team", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: member.id, active: true }),
-      });
-      fetchMembers();
+      await updateMember({ id: member.id as Id<"teamMembers">, active: true });
     } catch {
       // Failed
     }
@@ -509,8 +482,7 @@ export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: R
   async function handleDelete(member: TeamMember) {
     if (!confirm(`Permanently delete ${member.name}? This cannot be undone.`)) return;
     try {
-      await fetch(`/api/admin/team?id=${member.id}`, { method: "DELETE" });
-      fetchMembers();
+      await removeMember({ id: member.id as Id<"teamMembers"> });
     } catch {
       // Failed
     }
@@ -725,6 +697,8 @@ export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: R
           onSaved={handleSaved}
           canEditWages={canEditWages}
           canManageRoles={canManageRoles}
+          createMember={(args: Record<string, unknown>) => createMember(args as any)}
+          updateMember={(args: Record<string, unknown>) => updateMember(args as any)}
         />
       )}
     </>

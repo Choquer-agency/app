@@ -22,6 +22,33 @@ export const listByTicket = query({
   },
 });
 
+export const listByProject = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    // Get all tickets for this project
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("by_project_archived", (q) =>
+        q.eq("projectId", args.projectId).eq("archived", false)
+      )
+      .collect();
+
+    const ticketIds = new Set(tickets.map((t) => t._id));
+
+    // Fetch dependencies for each ticket
+    const allDeps = [];
+    for (const ticket of tickets) {
+      const deps = await ctx.db
+        .query("ticketDependencies")
+        .withIndex("by_ticket", (q) => q.eq("ticketId", ticket._id))
+        .collect();
+      allDeps.push(...deps);
+    }
+
+    return allDeps;
+  },
+});
+
 export const add = mutation({
   args: {
     ticketId: v.id("tickets"),

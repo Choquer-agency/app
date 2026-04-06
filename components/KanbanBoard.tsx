@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { Ticket, TicketStatus, TicketPriority, TeamMember, ProjectGroup, isOverdueEligible } from "@/types";
 import TicketStatusBadge, { StatusDot, getStatusDotColor } from "./TicketStatusBadge";
 import TicketPriorityBadge, { getPriorityLabel } from "./TicketPriorityBadge";
@@ -67,6 +70,7 @@ function KanbanQuickAdd({ status, onCreated, projectId, isPersonal }: {
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const createTicketMutation = useMutation(api.tickets.create);
 
   useEffect(() => {
     if (active) setTimeout(() => inputRef.current?.focus(), 0);
@@ -77,21 +81,15 @@ function KanbanQuickAdd({ status, onCreated, projectId, isPersonal }: {
     if (!trimmed || saving) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/tickets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: trimmed,
-          status,
-          ...(projectId && { projectId }),
-          ...(isPersonal && { isPersonal: true }),
-        }),
+      await createTicketMutation({
+        title: trimmed,
+        status,
+        ...(projectId && { projectId: projectId as Id<"projects"> }),
+        ...(isPersonal && { isPersonal: true }),
       });
-      if (res.ok) {
-        setTitle("");
-        setActive(false);
-        onCreated();
-      }
+      setTitle("");
+      setActive(false);
+      onCreated();
     } catch {} finally {
       setSaving(false);
     }

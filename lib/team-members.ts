@@ -3,7 +3,7 @@ import { api } from "@/convex/_generated/api";
 import { TeamMember } from "@/types";
 import { validateRoleLevel } from "./permissions";
 
-function docToTeamMember(doc: any): TeamMember {
+export function docToTeamMember(doc: any): TeamMember {
   return {
     id: doc._id,
     name: doc.name ?? "",
@@ -24,6 +24,8 @@ function docToTeamMember(doc: any): TeamMember {
     salary: doc.salary ?? null,
     payType: doc.payType === "salary" ? "salary" : "hourly",
     sickDaysTotal: doc.sickDaysTotal,
+    vacationDaysTotal: doc.vacationDaysTotal,
+    vacationDaysUsed: doc.vacationDaysUsed,
     tags: doc.tags ?? [],
     bypassClockIn: doc.bypassClockIn ?? false,
     createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : undefined,

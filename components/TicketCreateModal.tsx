@@ -3,7 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import dynamic from "next/dynamic";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { Ticket, TicketStatus, TicketPriority, TeamMember, ProjectGroup } from "@/types";
+import { docToTicket } from "@/lib/ticket-mappers";
 import StatusDropdown from "./StatusDropdown";
 import { PriorityDropdown } from "./TicketPriorityBadge";
 import ClientDropdown from "./ClientDropdown";
@@ -54,6 +58,7 @@ export default function TicketCreateModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
+  const createTicket = useMutation(api.tickets.create);
 
   // Auto-focus title
   useEffect(() => {
@@ -108,39 +113,28 @@ export default function TicketCreateModal({
     setError("");
 
     try {
-      const body: Record<string, unknown> = {
+      const args: Record<string, unknown> = {
         title: trimmed,
         status,
         priority,
-        assigneeIds: Array.from(selectedAssigneeIds),
+        assigneeIds: Array.from(selectedAssigneeIds) as Id<"teamMembers">[],
       };
       if (description.trim()) {
-        body.description = description.trim();
-        body.descriptionFormat = "tiptap";
+        args.description = description.trim();
+        args.descriptionFormat = "tiptap";
       }
-      if (clientId) body.clientId = clientId;
-      if (startDate) body.startDate = startDate;
-      if (dueDate) body.dueDate = dueDate;
-      if (parentTicketId) body.parentTicketId = parentTicketId;
-      if (defaultProjectId) body.projectId = defaultProjectId;
-      if (defaultIsPersonal) body.isPersonal = true;
-      if (defaultIsMeeting) body.isMeeting = true;
-      if (defaultServiceCategory) body.serviceCategory = defaultServiceCategory;
-      if (groupId) body.groupId = groupId;
+      if (clientId) args.clientId = clientId as Id<"clients">;
+      if (startDate) args.startDate = startDate;
+      if (dueDate) args.dueDate = dueDate;
+      if (parentTicketId) args.parentTicketId = parentTicketId as Id<"tickets">;
+      if (defaultProjectId) args.projectId = defaultProjectId as Id<"projects">;
+      if (defaultIsPersonal) args.isPersonal = true;
+      if (defaultIsMeeting) args.isMeeting = true;
+      if (defaultServiceCategory) args.serviceCategory = defaultServiceCategory;
+      if (groupId) args.groupId = groupId;
 
-      const res = await fetch("/api/admin/tickets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (res.ok) {
-        const ticket = await res.json();
-        onCreated(ticket);
-      } else {
-        const data = await res.json().catch(() => null);
-        setError(data?.error || "Failed to create ticket");
-      }
+      const result = await createTicket(args as never);
+      onCreated(docToTicket(result));
     } catch {
       setError("Failed to create ticket");
     } finally {

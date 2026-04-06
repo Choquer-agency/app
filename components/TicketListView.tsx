@@ -1,10 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { Ticket, TicketFilters as Filters, TicketStatus, TicketPriority, SavedView, TeamMember, ProjectGroup, isOverdueEligible } from "@/types";
 import { useKeyboardShortcuts } from "./KeyboardShortcutProvider";
 import { useTickets } from "@/hooks/useTickets";
 import { useSubTickets } from "@/hooks/useSubTickets";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import TicketStatusBadge, { STATUS_ORDER, getStatusLabel, getStatusColor, StatusDot, getStatusDotColor } from "./TicketStatusBadge";
 import TicketPriorityBadge, { getPriorityLabel, PriorityDropdown } from "./TicketPriorityBadge";
 import TicketAssigneeAvatars from "./TicketAssigneeAvatars";
@@ -275,7 +279,10 @@ interface TicketListViewProps {
 }
 
 export default function TicketListView({ projectId, clientId, isPersonal, ownerId, assigneeId }: TicketListViewProps = {}) {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const { teamMembers } = useTeamMembers();
+  const bulkUpdateStatus = useMutation(api.tickets.bulkUpdateStatus);
+  const bulkAssign = useMutation(api.tickets.bulkAssign);
+  const reorderTickets = useMutation(api.tickets.reorder);
   const [projectGroups, setProjectGroups] = useState<ProjectGroup[]>([]);
   const [filters, setFilters] = useState<Filters>({ archived: false });
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
@@ -389,13 +396,8 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
     setExpandedTickets(next);
   }
 
+  // Fetch project groups if viewing a project — default to group-by-phase
   useEffect(() => {
-    fetch("/api/admin/team")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setTeamMembers)
-      .catch(() => {});
-
-    // Fetch project groups if viewing a project — default to group-by-phase
     if (projectId) {
       fetch(`/api/admin/projects/${projectId}/groups`)
         .then((r) => (r.ok ? r.json() : []))
@@ -530,13 +532,17 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
   }
 
   async function handleBulkAction(action: string, value: string | number) {
-    const ticketIds = Array.from(selectedIds);
+    const ticketIds = Array.from(selectedIds) as Id<"tickets">[];
     try {
-      await fetch("/api/admin/tickets/bulk", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticketIds, action, value }),
-      });
+      if (action === "status") {
+        await bulkUpdateStatus({ ticketIds, status: value as string });
+      } else if (action === "assign" || action === "unassign") {
+        await bulkAssign({
+          ticketIds,
+          teamMemberId: value as Id<"teamMembers">,
+          action: action === "assign" ? "add" : "remove",
+        });
+      }
     } catch {}
   }
 
@@ -668,17 +674,13 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
     const [moved] = reordered.splice(fromIdx, 1);
     reordered.splice(toIdx, 0, moved);
 
-    const items = reordered.map((t, i) => ({ id: t.id, sortOrder: (i + 1) * 100 }));
+    const items = reordered.map((t, i) => ({ id: t.id as Id<"tickets">, sortOrder: (i + 1) * 100 }));
 
     setDragId(null);
     setDragOverId(null);
 
     try {
-      await fetch("/api/admin/tickets/reorder", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
-      });
+      await reorderTickets({ items });
     } catch {}
   }
 

@@ -1,42 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 
 export default function VacationBalanceCard({
   teamMemberId,
 }: {
   teamMemberId: string;
 }) {
-  const [data, setData] = useState<{
-    vacationDaysTotal: number;
-    vacationDaysUsed: number;
-  } | null>(null);
+  const member = useQuery(api.teamMembers.getById, {
+    id: teamMemberId as Id<"teamMembers">,
+  });
 
-  useEffect(() => {
-    async function fetchMember() {
-      try {
-        const res = await fetch("/api/admin/team");
-        if (res.ok) {
-          const members = await res.json();
-          const me = members.find(
-            (m: any) => m.id === teamMemberId || m._id === teamMemberId
-          );
-          if (me) {
-            setData({
-              vacationDaysTotal: me.vacationDaysTotal ?? 10,
-              vacationDaysUsed: me.vacationDaysUsed ?? 0,
-            });
-          }
-        }
-      } catch {
-        // silent
-      }
-    }
-    fetchMember();
-  }, [teamMemberId]);
-
-  const total = data?.vacationDaysTotal ?? 10;
-  const used = data?.vacationDaysUsed ?? 0;
+  const total = member?.vacationDaysTotal ?? 10;
+  const used = member?.vacationDaysUsed ?? 0;
   const remaining = Math.max(0, total - used);
 
   // Matches Ollie's vacation balance card style (sky-50 bg)

@@ -2,7 +2,9 @@ import { cookies } from "next/headers";
 import AdminLogin from "./login";
 import AdminNav from "@/components/AdminNav";
 import FloatingTimerBar from "@/components/FloatingTimerBar";
+import NotificationBridge from "@/components/NotificationBridge";
 import GlobalTicketModal from "@/components/GlobalTicketModal";
+import UpdatePrompt from "@/components/UpdatePrompt";
 import KeyboardShortcutProvider from "@/components/KeyboardShortcutProvider";
 import { getSessionFromCookies } from "@/lib/admin-auth";
 import { getConvexClient } from "@/lib/convex-server";
@@ -31,6 +33,8 @@ export default async function AdminLayout({
       <div className="min-h-screen bg-white" style={{ fontSize: "80%" }}>
         <KeyboardShortcutProvider>
           <AdminNav userName={session.name} roleLevel={session.roleLevel} profilePicUrl={profilePicUrl} bypassClockIn={bypassClockIn} />
+          <NotificationBridge teamMemberId={session.teamMemberId} />
+          <UpdatePrompt />
           <div className="max-w-[1400px] mx-auto px-10 py-8 pb-20">{children}</div>
           <FloatingTimerBar />
           <GlobalTicketModal />

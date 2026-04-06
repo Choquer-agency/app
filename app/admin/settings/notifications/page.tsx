@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSessionFromCookies } from "@/lib/admin-auth";
 import NotificationPreferences from "@/components/NotificationPreferences";
+import NotificationPermissionBanner from "@/components/NotificationPermissionBanner";
 
 export default async function NotificationSettingsPage() {
   const cookieStore = await cookies();
@@ -18,6 +19,7 @@ export default async function NotificationSettingsPage() {
       <p className="text-sm text-[var(--muted)] mb-8">
         Choose which notifications you receive. Changes save automatically.
       </p>
+      <NotificationPermissionBanner />
       <NotificationPreferences roleLevel={session.roleLevel} />
     </div>
   );

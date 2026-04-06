@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { Ticket, TicketStatus } from "@/types";
+import { docToTicket } from "@/lib/ticket-mappers";
 import { StatusDot } from "./TicketStatusBadge";
 
 interface TicketQuickAddProps {
@@ -16,6 +20,7 @@ export default function TicketQuickAdd({ status, onCreated, projectId, isPersona
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const createTicketMutation = useMutation(api.tickets.create);
 
   useEffect(() => {
     if (active) {
@@ -29,21 +34,16 @@ export default function TicketQuickAdd({ status, onCreated, projectId, isPersona
 
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/tickets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: trimmed,
-          status,
-          ...(projectId && { projectId }),
-          ...(isPersonal && { isPersonal: true }),
-        }),
+      const doc = await createTicketMutation({
+        title: trimmed,
+        status,
+        ...(projectId && { projectId: projectId as Id<"projects"> }),
+        ...(isPersonal && { isPersonal: true }),
       });
-      if (res.ok) {
-        const ticket = await res.json();
+      if (doc) {
         setTitle("");
         setActive(false);
-        onCreated(ticket);
+        onCreated(docToTicket(doc));
       }
     } catch {} finally {
       setSaving(false);
@@ -124,6 +124,7 @@ export function TicketQuickAddMobile({ status, onCreated, projectId, isPersonal 
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const createTicketMutation = useMutation(api.tickets.create);
 
   useEffect(() => {
     if (active) setTimeout(() => inputRef.current?.focus(), 0);
@@ -134,21 +135,16 @@ export function TicketQuickAddMobile({ status, onCreated, projectId, isPersonal 
     if (!trimmed || saving) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/tickets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: trimmed,
-          status,
-          ...(projectId && { projectId }),
-          ...(isPersonal && { isPersonal: true }),
-        }),
+      const doc = await createTicketMutation({
+        title: trimmed,
+        status,
+        ...(projectId && { projectId: projectId as Id<"projects"> }),
+        ...(isPersonal && { isPersonal: true }),
       });
-      if (res.ok) {
-        const ticket = await res.json();
+      if (doc) {
         setTitle("");
         setActive(false);
-        onCreated(ticket);
+        onCreated(docToTicket(doc));
       }
     } catch {} finally {
       setSaving(false);

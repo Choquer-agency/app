@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useSession } from "@/hooks/useSession";
 import { ServiceBoardEntry } from "@/types";
 import HourCountdown from "./HourCountdown";
 
@@ -12,6 +16,7 @@ interface DetailPanelProps {
 }
 
 export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdate }: DetailPanelProps) {
+  const session = useSession();
   const [timeData, setTimeData] = useState<{
     totalHours: number;
     byTicket: Array<{ ticketId: number; ticketNumber: string; ticketTitle: string; hours: number }>;
@@ -19,7 +24,6 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState(entry.notes);
   const [editingNotes, setEditingNotes] = useState(false);
-  const [timerRunning, setTimerRunning] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
   const [manualHours, setManualHours] = useState("");
   const [manualMinutes, setManualMinutes] = useState("");
@@ -29,48 +33,63 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
     entry.generatedEmail ? "email" : "details"
   );
 
+  // ── Real-time Convex query for running timer ──
+  const runningTimer = useQuery(
+    api.timeEntries.getRunning,
+    session ? { teamMemberId: session.teamMemberId as Id<"teamMembers"> } : "skip"
+  );
+  const stopTimerMutation = useMutation(api.timeEntries.stop);
+
+  // Derive whether the running timer belongs to this service board entry
+  const timerRunning = !!(
+    runningTimer &&
+    runningTimer.serviceCategory === entry.category &&
+    runningTimer.clientId === entry.clientId
+  );
+
+  // Live elapsed counter when timer is running
+  const [timerElapsed, setTimerElapsed] = useState(0);
+
+  useEffect(() => {
+    if (timerRunning && runningTimer) {
+      const update = () => {
+        setTimerElapsed(Math.floor((Date.now() - new Date(runningTimer.startTime).getTime()) / 1000));
+      };
+      update();
+      const id = setInterval(update, 1000);
+      return () => clearInterval(id);
+    } else {
+      setTimerElapsed(0);
+    }
+  }, [timerRunning, runningTimer]);
+
   const fetchTimeData = useCallback(async () => {
     setLoading(true);
     try {
-      const [timeRes, timerRes] = await Promise.all([
-        fetch(`/api/admin/service-board/${entry.id}/time-entries`),
-        fetch("/api/admin/time/running"),
-      ]);
+      const timeRes = await fetch(`/api/admin/service-board/${entry.id}/time-entries`);
       if (timeRes.ok) {
         const data = await timeRes.json();
         setTimeData(data);
-      }
-      // Check if the running timer belongs to this service board entry's service ticket
-      if (timerRes.ok) {
-        const timerData = await timerRes.json();
-        if (timerData.timer?.serviceCategory === entry.category && timerData.timer?.clientId === entry.clientId) {
-          setTimerRunning(true);
-          setTimerElapsed(Math.floor((Date.now() - new Date(timerData.timer.startTime).getTime()) / 1000));
-        } else {
-          setTimerRunning(false);
-          setTimerElapsed(0);
-        }
       }
     } catch (e) {
       console.error("Failed to fetch time data:", e);
     } finally {
       setLoading(false);
     }
-  }, [entry.id, entry.category, entry.clientId]);
+  }, [entry.id]);
 
   useEffect(() => {
     fetchTimeData();
   }, [fetchTimeData]);
 
-  // Live elapsed counter when timer is running
-  const [timerElapsed, setTimerElapsed] = useState(0);
+  // Refetch time data when timer stops (runningTimer changes)
   useEffect(() => {
-    if (!timerRunning) return;
-    const id = setInterval(() => setTimerElapsed((e) => e + 1), 1000);
-    return () => clearInterval(id);
-  }, [timerRunning]);
+    if (runningTimer === null) {
+      fetchTimeData();
+    }
+  }, [runningTimer, fetchTimeData]);
 
-  // Listen for global timer changes
+  // Listen for global timer changes (from other components)
   useEffect(() => {
     function handleTimerChange() { fetchTimeData(); }
     window.addEventListener("timerChange", handleTimerChange);
@@ -96,8 +115,6 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
         body: JSON.stringify({ action: "start_timer" }),
       });
       if (res.ok) {
-        setTimerRunning(true);
-        setTimerElapsed(0);
         window.dispatchEvent(new CustomEvent("timerChange"));
         fetchTimeData();
       }
@@ -107,16 +124,13 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
   }
 
   async function handleStopTimer() {
+    if (!runningTimer) return;
     try {
-      const res = await fetch("/api/admin/time/stop", { method: "POST" });
-      if (res.ok) {
-        setTimerRunning(false);
-        setTimerElapsed(0);
-        window.dispatchEvent(new CustomEvent("timerChange"));
-        fetchTimeData();
-        const entryRes = await fetch(`/api/admin/service-board/${entry.id}`);
-        if (entryRes.ok) onUpdate(await entryRes.json());
-      }
+      await stopTimerMutation({ id: runningTimer._id as Id<"timeEntries"> });
+      window.dispatchEvent(new CustomEvent("timerChange"));
+      fetchTimeData();
+      const entryRes = await fetch(`/api/admin/service-board/${entry.id}`);
+      if (entryRes.ok) onUpdate(await entryRes.json());
     } catch (e) {
       console.error("Failed to stop timer:", e);
     }

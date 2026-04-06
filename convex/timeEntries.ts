@@ -115,6 +115,38 @@ export const stop = mutation({
   },
 });
 
+// Stop any running timer for a team member (used when starting a break)
+export const stopByMember = mutation({
+  args: { teamMemberId: v.id("teamMembers") },
+  handler: async (ctx, args) => {
+    const entries = await ctx.db
+      .query("timeEntries")
+      .withIndex("by_member", (q) => q.eq("teamMemberId", args.teamMemberId))
+      .order("desc")
+      .take(50);
+
+    const running = entries.find((e) => e.endTime === undefined);
+    if (!running) return null;
+
+    const now = new Date().toISOString();
+    const startMs = new Date(running.startTime).getTime();
+    const endMs = new Date(now).getTime();
+    const durationSeconds = Math.round((endMs - startMs) / 1000);
+
+    await ctx.db.patch(running._id, {
+      endTime: now,
+      durationSeconds,
+    });
+
+    // Return the ticketId so the caller can offer to resume it
+    const ticket = await ctx.db.get(running.ticketId);
+    return {
+      ticketId: running.ticketId,
+      ticketNumber: ticket?.ticketNumber ?? "",
+    };
+  },
+});
+
 export const create = mutation({
   args: {
     ticketId: v.id("tickets"),

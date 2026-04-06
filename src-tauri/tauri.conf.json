@@ -1,0 +1,60 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/config.schema.json",
+  "productName": "Choquer.Agency",
+  "version": "1.1.0",
+  "identifier": "agency.choquer.insightpulse",
+  "build": {
+    "devUrl": "http://localhost:3388",
+    "frontendDist": "https://choquer.app"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Choquer.Agency",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "resizable": true,
+        "center": true,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {},
+    "trayIcon": {
+      "iconPath": "icons/32x32.png",
+      "iconAsTemplate": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "entitlements": "entitlements.plist",
+      "signingIdentity": null
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["insightpulse"]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENDMjk1MDVFOTg0QjM1QgpSV1JiczRUcEJaWENESERhSEg5czBqMTE4UVdMY3ZCSkRRT0pIWmxWTEw2VXpITjRaU01CVmJMeAo=",
+      "endpoints": [
+        "https://choquer.app/api/desktop/update?target={{target}}&arch={{arch}}&current_version={{current_version}}"
+      ]
+    }
+  }
+}

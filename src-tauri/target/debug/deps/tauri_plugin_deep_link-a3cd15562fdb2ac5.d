@@ -1,0 +1,8 @@
+/Users/brycechoquer/Desktop/Choquer Agency - Client Portal/insightpulse/src-tauri/target/debug/deps/tauri_plugin_deep_link-a3cd15562fdb2ac5.d: /Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/lib.rs /Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/commands.rs /Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/config.rs /Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/error.rs
+
+/Users/brycechoquer/Desktop/Choquer Agency - Client Portal/insightpulse/src-tauri/target/debug/deps/libtauri_plugin_deep_link-a3cd15562fdb2ac5.rmeta: /Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/lib.rs /Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/commands.rs /Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/config.rs /Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/error.rs
+
+/Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/lib.rs:
+/Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/commands.rs:
+/Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/config.rs:
+/Users/brycechoquer/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.4.8/src/error.rs:

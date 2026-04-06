@@ -1,20 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function CRMSubNav() {
   const pathname = usePathname();
-  const [userRole, setUserRole] = useState<string>("");
-
-  useEffect(() => {
-    fetch("/api/admin/me")
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((data: { roleLevel?: string }) => {
-        setUserRole(data.roleLevel || "");
-      })
-      .catch(() => {});
-  }, []);
+  const { roleLevel } = useCurrentUser();
+  const userRole = roleLevel || "";
 
   const isAdmin = ["owner", "c_suite"].includes(userRole);
 

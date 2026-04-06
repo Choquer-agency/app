@@ -1,6 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function VacationRequestForm({
   teamMemberId,
@@ -23,23 +27,13 @@ export default function VacationRequestForm({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [vacationInfo, setVacationInfo] = useState<{ total: number; used: number } | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetch("/api/admin/team/me")
-        .then((res) => res.ok ? res.json() : null)
-        .then((data) => {
-          if (data) {
-            setVacationInfo({
-              total: data.vacationDaysTotal ?? 10,
-              used: data.vacationDaysUsed ?? 0,
-            });
-          }
-        })
-        .catch(() => {});
-    }
-  }, [isOpen]);
+  const { user } = useCurrentUser();
+  const createVacationRequest = useMutation(api.vacationRequests.create);
+
+  const vacationInfo = user
+    ? { total: user.vacationDaysTotal ?? 10, used: user.vacationDaysUsed ?? 0 }
+    : null;
 
   function countBusinessDays(start: string, end: string): number {
     if (!start || !end) return 0;
@@ -63,23 +57,20 @@ export default function VacationRequestForm({
     setSubmitting(true);
 
     try {
-      const res = await fetch("/api/admin/timesheet/vacation/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startDate, endDate, totalDays, reason }),
+      await createVacationRequest({
+        teamMemberId: teamMemberId as Id<"teamMembers">,
+        startDate,
+        endDate,
+        totalDays,
+        reason: reason || undefined,
       });
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Failed to submit");
-        return;
-      }
       setStartDate("");
       setEndDate("");
       setReason("");
       setIsOpen(false);
       onSubmit();
-    } catch {
-      setError("Failed to submit request");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit request");
     } finally {
       setSubmitting(false);
     }

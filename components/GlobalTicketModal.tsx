@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { TeamMember } from "@/types";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import TicketDetailModal from "./TicketDetailModal";
 
 export default function GlobalTicketModal() {
   const [ticketId, setTicketId] = useState<string | null>(null);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const { teamMembers } = useTeamMembers();
 
   useEffect(() => {
     function handleOpen(e: Event) {
@@ -19,15 +19,6 @@ export default function GlobalTicketModal() {
     return () => window.removeEventListener("command-palette:open-ticket", handleOpen);
   }, []);
 
-  useEffect(() => {
-    if (ticketId && teamMembers.length === 0) {
-      fetch("/api/admin/team")
-        .then((r) => (r.ok ? r.json() : []))
-        .then((d) => setTeamMembers(d.filter((m: TeamMember) => m.active)))
-        .catch(() => {});
-    }
-  }, [ticketId, teamMembers.length]);
-
   if (ticketId === null) return null;
 
   return (
@@ -35,7 +26,6 @@ export default function GlobalTicketModal() {
       ticketId={ticketId}
       teamMembers={teamMembers}
       onClose={() => setTicketId(null)}
-      onTicketUpdated={() => {}}
     />
   );
 }

@@ -5,6 +5,8 @@ import ReactDOM from "react-dom";
 import { ClientConfig, TeamMember, TicketStatus, TicketPriority, TicketFilters as Filters } from "@/types";
 import { STATUS_ORDER, getStatusLabel } from "./TicketStatusBadge";
 import { getPriorityLabel } from "./TicketPriorityBadge";
+import { useClients } from "@/hooks/useClients";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface TicketFiltersProps {
   filters: Filters;
@@ -16,22 +18,11 @@ export default function TicketFilters({
   onFiltersChange,
 }: TicketFiltersProps) {
   const [open, setOpen] = useState(false);
-  const [clients, setClients] = useState<ClientConfig[]>([]);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const { clients } = useClients();
+  const { teamMembers } = useTeamMembers();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
-
-  useEffect(() => {
-    fetch("/api/admin/clients")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setClients)
-      .catch(() => {});
-    fetch("/api/admin/team")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setTeamMembers)
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {

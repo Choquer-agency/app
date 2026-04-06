@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { TeamMember } from "@/types";
 import DatePicker from "./DatePicker";
 import { StatusDot } from "./TicketStatusBadge";
 import type { TicketStatus } from "@/types";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useClients } from "@/hooks/useClients";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 
 interface ClientOption {
-  id: number;
+  id: number | string;
   name: string;
 }
 
@@ -81,9 +86,23 @@ const PRIORITY_OPTIONS = [
 export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { roleLevel?: string; teamMemberId?: string | number }) {
   const isAdmin = roleLevel === "owner" || roleLevel === "c_suite";
 
-  // Data
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [clients, setClients] = useState<ClientOption[]>([]);
+  // Data — from Convex hooks
+  const { teamMembers: allTeamMembers } = useTeamMembers();
+  const { clients: allClients } = useClients();
+  const removeMeetingNote = useMutation(api.meetingNotes.remove);
+
+  const teamMembers = useMemo(() => {
+    let active = allTeamMembers.filter((m) => m.active);
+    if (!isAdmin && teamMemberId) {
+      active = active.filter((m) => String(m.id) === String(teamMemberId));
+    }
+    return active;
+  }, [allTeamMembers, isAdmin, teamMemberId]);
+
+  const clients: ClientOption[] = useMemo(
+    () => allClients.map((c) => ({ id: c.id, name: c.name })),
+    [allClients]
+  );
 
   // Input
   const [interactionType, setInteractionType] = useState<InteractionType>("team_meeting");
@@ -125,29 +144,13 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
     return () => document.removeEventListener("mousedown", handleClick);
   }, [memberDropdownOpen, clientDropdownOpen]);
 
-  // Load team members and clients
+  // Auto-select for non-admin employees
   useEffect(() => {
-    Promise.all([
-      fetch("/api/admin/team").then((r) => r.ok ? r.json() : []),
-      fetch("/api/admin/clients").then((r) => r.ok ? r.json() : []),
-    ]).then(([members, clientList]) => {
-      let activeMembers = (members as TeamMember[]).filter((m) => m.active);
-      // Employees only see themselves
-      if (!isAdmin && teamMemberId) {
-        activeMembers = activeMembers.filter((m) => String(m.id) === String(teamMemberId));
-        // Auto-select themselves
-        const selfId = activeMembers[0]?.id;
-        if (selfId) setSelectedMemberIds([Number(selfId)]);
-      }
-      setTeamMembers(activeMembers);
-      setClients(
-        (clientList as Array<{ id: number; name: string }>).map((c) => ({
-          id: c.id,
-          name: c.name,
-        }))
-      );
-    });
-  }, [isAdmin, teamMemberId]);
+    if (!isAdmin && teamMemberId && teamMembers.length > 0 && selectedMemberIds.length === 0) {
+      const selfId = teamMembers[0]?.id;
+      if (selfId) setSelectedMemberIds([Number(selfId)]);
+    }
+  }, [isAdmin, teamMemberId, teamMembers, selectedMemberIds.length]);
 
   // Load past notes based on interaction type and selection
   useEffect(() => {
@@ -200,11 +203,7 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
   async function handleDeleteNote(noteId: number) {
     if (!confirm("Delete this meeting note?")) return;
     try {
-      await fetch("/api/admin/meeting-notes", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: noteId }),
-      });
+      await removeMeetingNote({ id: String(noteId) as Id<"meetingNotes"> });
       setPastNotes((prev) => prev.filter((n) => n.id !== noteId));
     } catch {
       // Failed silently
