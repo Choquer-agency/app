@@ -66,6 +66,7 @@ pub fn run() {
             notifications::show_notification,
             updater::check_for_update,
             updater::install_update,
+            updater::get_app_version,
             // Phase 6
             autostart::is_autostart_enabled,
             autostart::enable_autostart,
@@ -91,8 +92,8 @@ pub fn run() {
             // 3. Set up deep link handler
             deep_link::setup_deep_links(app)?;
 
-            // 4. Schedule automatic update check (5s delay, non-blocking)
-            updater::schedule_startup_check(app);
+            // 4. Start recurring auto-update loop (checks every hour, auto-installs)
+            updater::start_auto_update_loop(app);
 
             // 5. Register global keyboard shortcuts (Phase 6)
             shortcuts::register_shortcuts(app);
