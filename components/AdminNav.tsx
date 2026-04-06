@@ -14,9 +14,10 @@ const NAV_LINKS: { href: string; label: string; exact?: boolean; permission: Per
   { href: "/admin/tickets", label: "Tickets", permission: "nav:tickets" },
   { href: "/admin/reports", label: "Reports", permission: "nav:reports" },
   { href: "/admin/timesheet", label: "Timesheet", permission: "nav:timesheet" },
+  { href: "/admin/payments", label: "Payments", permission: "nav:payments" },
 ];
 
-export default function AdminNav({ userName, roleLevel, profilePicUrl }: { userName?: string; roleLevel?: RoleLevel; profilePicUrl?: string }) {
+export default function AdminNav({ userName, roleLevel, profilePicUrl, bypassClockIn }: { userName?: string; roleLevel?: RoleLevel; profilePicUrl?: string; bypassClockIn?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { openCommandPalette } = useKeyboardShortcuts();
@@ -26,7 +27,7 @@ export default function AdminNav({ userName, roleLevel, profilePicUrl }: { userN
   const [searching, setSearching] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   // Clock features only for employees/interns (not admins/bookkeepers)
-  const isClockUser = roleLevel ? !hasMinRole(roleLevel, "bookkeeper") : false;
+  const isClockUser = roleLevel ? !hasMinRole(roleLevel, "bookkeeper") && !bypassClockIn : false;
   const { clockStatus, refetch } = useClockStatusPoll();
   const [clockActionLoading, setClockActionLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);

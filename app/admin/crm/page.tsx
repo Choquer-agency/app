@@ -4,6 +4,7 @@ import { getSessionFromCookies } from "@/lib/admin-auth";
 import { hasPermission } from "@/lib/permissions";
 import AdminClientList from "@/components/AdminClientList";
 import GoalIssuesPanel from "@/components/GoalIssuesPanel";
+import PaymentIssuesPanel from "@/components/PaymentIssuesPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function CRMClientsPage() {
 
   return (
     <>
+      <PaymentIssuesPanel />
       <GoalIssuesPanel />
       <AdminClientList />
     </>

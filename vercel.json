@@ -35,6 +35,18 @@
     {
       "path": "/api/cron/deactivate-packages",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/converge-poll",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/payment-reminders",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/transaction-sync",
+      "schedule": "0 5 * * *"
     }
   ]
 }

@@ -14,6 +14,15 @@ import {
 } from "recharts";
 import type { RevenueReport } from "@/lib/reports";
 
+interface RevenueTrendPoint {
+  month: string;
+  usd: number;
+  cad: number;
+  total: number;
+  netTotal: number;
+  count: number;
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
   seo: "SEO",
   retainer: "Retainer",
@@ -45,13 +54,21 @@ function fmtMoneyFull(n: number): string {
 
 export default function RevenueTab() {
   const [data, setData] = useState<RevenueReport | null>(null);
+  const [trend, setTrend] = useState<RevenueTrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/reports/revenue?months=12");
-      if (res.ok) setData(await res.json());
+      const [revenueRes, trendRes] = await Promise.all([
+        fetch("/api/admin/reports/revenue?months=12"),
+        fetch("/api/admin/reports/revenue-trend"),
+      ]);
+      if (revenueRes.ok) setData(await revenueRes.json());
+      if (trendRes.ok) {
+        const trendData = await trendRes.json();
+        setTrend(trendData.trend || []);
+      }
     } catch {
       // silently fail
     } finally {
@@ -102,6 +119,55 @@ export default function RevenueTab() {
           <div className="text-2xl font-semibold text-[#1A1A1A]">{data.clientLtv.length}</div>
         </div>
       </div>
+
+      {/* Actual Collected Revenue Trend */}
+      {trend.length > 0 && (
+        <div className="border border-[#E5E5E5] rounded-xl p-4 bg-white">
+          <h3 className="text-sm font-medium text-[#1A1A1A] mb-4">Monthly Collected Revenue (Converge)</h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={trend} margin={{ left: 10, right: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                tickFormatter={(v) => {
+                  const [y, m] = v.split("-");
+                  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                  return months[parseInt(m) - 1] + " '" + y.slice(-2);
+                }}
+              />
+              <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} tickFormatter={fmtMoney} />
+              <Tooltip
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E5E5" }}
+                formatter={(value) => [
+                  fmtMoneyFull(Number(value)),
+                  "",
+                ]}
+                labelFormatter={(label) => {
+                  const [y, m] = label.split("-");
+                  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                  return months[parseInt(m) - 1] + " " + y;
+                }}
+              />
+              <Bar dataKey="usd" name="usd" fill="#3B82F6" stackId="revenue" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="cad" name="cad" fill="#8B5CF6" stackId="revenue" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex items-center gap-5 mt-3 px-2">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm bg-[#3B82F6]" />
+              <span className="text-xs text-[#9CA3AF]">USD</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm bg-[#8B5CF6]" />
+              <span className="text-xs text-[#9CA3AF]">CAD</span>
+            </div>
+            <span className="text-xs text-[#9CA3AF] ml-auto">
+              Based on actual Converge transactions, not projected MRR
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* MRR Trend */}
       {data.mrrTrend.length > 0 && (

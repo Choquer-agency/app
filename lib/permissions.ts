@@ -57,6 +57,8 @@ export type Permission =
   | "settings:edit"
   // Time
   | "time:delete_entries"
+  // Payments
+  | "nav:payments"
   // Timesheet (payroll clock in/out)
   | "nav:timesheet"
   | "timesheet:clock_self"
@@ -108,6 +110,7 @@ const PERMISSION_MAP: Record<Permission, RoleLevel> = {
 
   "time:delete_entries": "owner",
 
+  "nav:payments": "owner",
   "nav:timesheet": "intern",
   "timesheet:clock_self": "intern",
   "timesheet:view_own": "intern",
@@ -127,6 +130,7 @@ const BOOKKEEPER_PERMISSIONS: Set<Permission> = new Set([
   "nav:clients",
   "clients:view",
   "clients:edit",
+  "nav:payments",
   "nav:timesheet",
   "timesheet:clock_self",
   "timesheet:view_own",

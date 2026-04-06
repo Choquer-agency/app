@@ -19,16 +19,18 @@ export default async function AdminLayout({
   if (session) {
     // Fetch profile pic for avatar
     let profilePicUrl: string | undefined;
+    let bypassClockIn = false;
     try {
       const convex = getConvexClient();
       const member = await convex.query(api.teamMembers.getById, { id: session.teamMemberId as any });
       profilePicUrl = (member as any)?.profilePicUrl || undefined;
+      bypassClockIn = (member as any)?.bypassClockIn === true;
     } catch {}
 
     return (
       <div className="min-h-screen bg-white" style={{ fontSize: "80%" }}>
         <KeyboardShortcutProvider>
-          <AdminNav userName={session.name} roleLevel={session.roleLevel} profilePicUrl={profilePicUrl} />
+          <AdminNav userName={session.name} roleLevel={session.roleLevel} profilePicUrl={profilePicUrl} bypassClockIn={bypassClockIn} />
           <div className="max-w-[1400px] mx-auto px-10 py-8 pb-20">{children}</div>
           <FloatingTimerBar />
           <GlobalTicketModal />

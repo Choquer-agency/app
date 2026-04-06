@@ -8,10 +8,12 @@ import ClientDetailsForm from "./ClientDetailsForm";
 import RecurringTicketManager from "./RecurringTicketManager";
 import TicketListView from "./TicketListView";
 import ClientHoursSummary from "./ClientHoursSummary";
+import ClientBillingHealth from "./ClientBillingHealth";
 import { friendlyDate } from "@/lib/date-format";
 
 const TABS = [
   { id: "packages", label: "Packages & Billing" },
+  { id: "billing", label: "Billing Health" },
   { id: "tickets", label: "Tickets" },
   { id: "hours", label: "Hours" },
   { id: "overview", label: "Overview" },
@@ -208,6 +210,10 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
 
         {activeTab === "packages" && (
           <ClientPackagesPanel clientId={client.id} clientCountry={client.country} onPackagesChanged={handlePackagesChanged} />
+        )}
+
+        {activeTab === "billing" && (
+          <ClientBillingHealth clientId={client.id} />
         )}
 
         {activeTab === "notes" && (

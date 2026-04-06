@@ -317,6 +317,255 @@ export async function getProfitabilityReport(month: string): Promise<Profitabili
   return { clients: profClients, trends: [], month: monthStr };
 }
 
+// === Billable Hours & Cost of Delivery ===
+
+export interface BillableHoursMember {
+  teamMemberId: string;
+  memberName: string;
+  memberColor: string;
+  effectiveRate: number;
+  totalHours: number;
+  billableHours: number;
+  internalHours: number;
+  utilizationPct: number;
+  totalCost: number;
+}
+
+export interface BillableHoursClient {
+  clientId: string;
+  clientName: string;
+  revenue: number;
+  costOfDelivery: number;
+  grossProfit: number;
+  marginPct: number;
+  loggedHours: number;
+  includedHours: number;
+  byCategory: Array<{ category: string; hours: number }>;
+  byMember: Array<{ memberName: string; hours: number; cost: number }>;
+}
+
+export interface BillableHoursReport {
+  month: string;
+  members: BillableHoursMember[];
+  clients: BillableHoursClient[];
+  summary: {
+    totalBillableHours: number;
+    totalInternalHours: number;
+    totalCostOfDelivery: number;
+    totalRevenue: number;
+    blendedMarginPct: number;
+  };
+}
+
+function getEffectiveHourlyRate(member: any): number {
+  if (member.payType === "hourly" && member.hourlyRate) return member.hourlyRate;
+  if (member.payType === "salary" && member.salary) {
+    const weeklyHours = member.availableHoursPerWeek || 40;
+    return member.salary / 52 / weeklyHours;
+  }
+  if (member.hourlyRate) return member.hourlyRate;
+  return 0;
+}
+
+export async function getBillableHoursReport(month: string): Promise<BillableHoursReport> {
+  const convex = getConvexClient();
+  const monthStr = month.slice(0, 7);
+  const monthStart = new Date(monthStr + "-01");
+  const monthEnd = new Date(monthStart);
+  monthEnd.setMonth(monthEnd.getMonth() + 1);
+
+  // Date strings for timesheet query (YYYY-MM-DD)
+  const startDateStr = monthStr + "-01";
+  const endDay = new Date(monthEnd.getTime() - 1);
+  const endDateStr = `${endDay.getFullYear()}-${String(endDay.getMonth() + 1).padStart(2, "0")}-${String(endDay.getDate()).padStart(2, "0")}`;
+
+  const allMembers = await convex.query(api.teamMembers.list, { activeOnly: true });
+  const allClients = await convex.query(api.clients.list, {});
+
+  // 1. Get TIMESHEET data (clock in/out) = total hours worked per employee
+  const timesheetEntries = await convex.query(api.timesheetEntries.listByDateRange, {
+    startDate: startDateStr,
+    endDate: endDateStr,
+    limit: 5000,
+  });
+
+  // 2. Get TICKET TIME ENTRIES = billable hours tracked per ticket
+  const allTicketEntries = await convex.query(api.timeEntries.listAll, { limit: 10000 });
+  const monthTicketEntries = (allTicketEntries as any[]).filter((e) => {
+    if (!e.startTime) return false;
+    const start = new Date(e.startTime);
+    const end = e.endTime ? new Date(e.endTime) : new Date();
+    return start < monthEnd && end > monthStart;
+  });
+
+  // Get all tickets referenced by entries
+  const ticketIds = [...new Set(monthTicketEntries.map((e) => e.ticketId))];
+  const ticketMap = new Map<string, any>();
+  for (const tid of ticketIds) {
+    try {
+      const ticket = await convex.query(api.tickets.getById, { id: tid });
+      if (ticket) ticketMap.set(tid, ticket);
+    } catch {}
+  }
+
+  // Build lookups
+  const clientNameMap = new Map<string, string>();
+  for (const c of allClients as any[]) clientNameMap.set(c._id, c.name);
+
+  const memberRateMap = new Map<string, { name: string; color: string; rate: number }>();
+  for (const m of allMembers as any[]) {
+    memberRateMap.set(m._id, {
+      name: m.name,
+      color: m.color || "#6B7280",
+      rate: getEffectiveHourlyRate(m),
+    });
+  }
+
+  // Accumulate TOTAL HOURS WORKED from timesheet (clock in/out)
+  const memberWorkedMinutes = new Map<string, number>();
+  for (const entry of timesheetEntries as any[]) {
+    if (entry.isSickDay || entry.isVacation) continue; // Don't count sick/vacation
+    const minutes = entry.workedMinutes || 0;
+    memberWorkedMinutes.set(entry.teamMemberId, (memberWorkedMinutes.get(entry.teamMemberId) || 0) + minutes);
+  }
+
+  // Accumulate BILLABLE HOURS from ticket time entries
+  const memberBillableSeconds = new Map<string, number>();
+  const clientData = new Map<string, {
+    seconds: number;
+    byMember: Map<string, number>;
+    byCategory: Map<string, number>;
+  }>();
+
+  for (const entry of monthTicketEntries) {
+    const start = new Date(entry.startTime);
+    const end = entry.endTime ? new Date(entry.endTime) : new Date();
+    const clampedStart = start < monthStart ? monthStart : start;
+    const clampedEnd = end > monthEnd ? monthEnd : end;
+    const seconds = Math.max(0, (clampedEnd.getTime() - clampedStart.getTime()) / 1000);
+    if (seconds <= 0) continue;
+
+    const memberId = entry.teamMemberId;
+    const ticket = ticketMap.get(entry.ticketId);
+    const clientId = ticket?.clientId || null;
+    const category = ticket?.serviceCategory || "other";
+
+    // Only count as billable if it's on a client ticket
+    if (clientId) {
+      memberBillableSeconds.set(memberId, (memberBillableSeconds.get(memberId) || 0) + seconds);
+
+      if (!clientData.has(clientId)) {
+        clientData.set(clientId, { seconds: 0, byMember: new Map(), byCategory: new Map() });
+      }
+      const cd = clientData.get(clientId)!;
+      cd.seconds += seconds;
+      cd.byMember.set(memberId, (cd.byMember.get(memberId) || 0) + seconds);
+      cd.byCategory.set(category, (cd.byCategory.get(category) || 0) + seconds);
+    }
+  }
+
+  // Build member results — include ALL members who have timesheet hours OR ticket hours
+  const allMemberIds = new Set([...memberWorkedMinutes.keys(), ...memberBillableSeconds.keys()]);
+  const members: BillableHoursMember[] = [];
+
+  for (const memberId of allMemberIds) {
+    const info = memberRateMap.get(memberId);
+    if (!info) continue;
+
+    const totalHours = Math.round(((memberWorkedMinutes.get(memberId) || 0) / 60) * 100) / 100;
+    const billableHours = Math.round(((memberBillableSeconds.get(memberId) || 0) / 3600) * 100) / 100;
+    const internalHours = Math.round((totalHours - billableHours) * 100) / 100;
+
+    members.push({
+      teamMemberId: memberId,
+      memberName: info.name,
+      memberColor: info.color,
+      effectiveRate: Math.round(info.rate * 100) / 100,
+      totalHours,
+      billableHours,
+      internalHours: Math.max(0, internalHours), // Clamp to 0 in case of rounding
+      utilizationPct: totalHours > 0 ? Math.round((billableHours / totalHours) * 100) : 0,
+      totalCost: Math.round(totalHours * info.rate * 100) / 100,
+    });
+  }
+  members.sort((a, b) => b.totalHours - a.totalHours);
+
+  // Build client results
+  const clients: BillableHoursClient[] = [];
+  for (const [clientId, data] of clientData) {
+    const clientName = clientNameMap.get(clientId) || "Unknown";
+
+    // Calculate cost of delivery
+    let costOfDelivery = 0;
+    const byMember: Array<{ memberName: string; hours: number; cost: number }> = [];
+    for (const [memberId, seconds] of data.byMember) {
+      const info = memberRateMap.get(memberId);
+      if (!info) continue;
+      const hours = Math.round((seconds / 3600) * 100) / 100;
+      const cost = Math.round(hours * info.rate * 100) / 100;
+      costOfDelivery += cost;
+      byMember.push({ memberName: info.name, hours, cost });
+    }
+
+    // Category breakdown
+    const byCategory: Array<{ category: string; hours: number }> = [];
+    for (const [cat, seconds] of data.byCategory) {
+      byCategory.push({ category: cat, hours: Math.round((seconds / 3600) * 100) / 100 });
+    }
+
+    // Get revenue from packages
+    let revenue = 0;
+    let includedHours = 0;
+    try {
+      const packages = await convex.query(api.clientPackages.listByClient, { clientId: clientId as any });
+      for (const cp of packages as any[]) {
+        if (cp.active && !cp.isOneTime) {
+          revenue += cp.customPrice ?? cp.packageDefaultPrice ?? 0;
+          includedHours += cp.customHours ?? cp.packageHoursIncluded ?? 0;
+        }
+      }
+    } catch {}
+
+    const loggedHours = Math.round((data.seconds / 3600) * 100) / 100;
+    const grossProfit = Math.round((revenue - costOfDelivery) * 100) / 100;
+    const marginPct = revenue > 0 ? Math.round((grossProfit / revenue) * 100) : 0;
+
+    clients.push({
+      clientId,
+      clientName,
+      revenue: Math.round(revenue * 100) / 100,
+      costOfDelivery: Math.round(costOfDelivery * 100) / 100,
+      grossProfit,
+      marginPct,
+      loggedHours,
+      includedHours,
+      byCategory,
+      byMember,
+    });
+  }
+  clients.sort((a, b) => b.revenue - a.revenue);
+
+  // Summary
+  const totalBillableHours = members.reduce((s, m) => s + m.billableHours, 0);
+  const totalInternalHours = members.reduce((s, m) => s + m.internalHours, 0);
+  const totalCostOfDelivery = clients.reduce((s, c) => s + c.costOfDelivery, 0);
+  const totalRevenue = clients.reduce((s, c) => s + c.revenue, 0);
+  const blendedMarginPct = totalRevenue > 0 ? Math.round(((totalRevenue - totalCostOfDelivery) / totalRevenue) * 100) : 0;
+
+  return {
+    month: monthStr,
+    members,
+    clients,
+    summary: {
+      totalBillableHours: Math.round(totalBillableHours * 100) / 100,
+      totalInternalHours: Math.round(totalInternalHours * 100) / 100,
+      totalCostOfDelivery: Math.round(totalCostOfDelivery * 100) / 100,
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      blendedMarginPct,
+    },
+  };
+}
+
 export async function getVelocityReport(weeks: number = 12): Promise<VelocityReport> {
   const convex = getConvexClient();
   const cutoff = new Date();

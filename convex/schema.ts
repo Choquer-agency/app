@@ -111,6 +111,76 @@ export default defineSchema({
     metadata: v.optional(v.any()),
   }).index("by_client", ["clientId"]),
 
+  // === CONVERGE PAYMENT MONITORING ===
+  convergeProfiles: defineTable({
+    clientId: v.id("clients"),
+    recurringId: v.string(), // ssl_recurring_id from Converge
+    label: v.optional(v.string()), // e.g. "SEO Monthly"
+    currency: v.string(), // "USD" | "CAD" — determines which terminal/PIN to use
+    lastPolledAt: v.optional(v.string()),
+    lastStatus: v.optional(v.string()), // "Active" | "Suspended" | "Completed" | "Expired"
+    cardLastFour: v.optional(v.string()),
+    cardExpiryMonth: v.optional(v.number()), // 1-12
+    cardExpiryYear: v.optional(v.number()), // 4-digit year
+    cardExpiryNotifiedAt: v.optional(v.string()), // ISO date, prevents duplicate emails
+    amount: v.optional(v.number()),
+    billingCycle: v.optional(v.string()), // "MONTHLY" etc.
+    nextPaymentDate: v.optional(v.string()),
+    paymentsMade: v.optional(v.number()),
+    active: v.boolean(),
+  })
+    .index("by_client", ["clientId"])
+    .index("by_active", ["active"])
+    .index("by_lastStatus", ["lastStatus"]),
+
+  convergeTransactions: defineTable({
+    txnId: v.string(), // unique Converge transaction ID
+    terminal: v.string(), // "USD" | "CAD"
+    status: v.string(), // "approved" | "declined"
+    resultMessage: v.string(),
+    transStatus: v.string(),
+    amount: v.number(),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    company: v.optional(v.string()),
+    description: v.optional(v.string()),
+    txnType: v.optional(v.string()), // "SALE" | "RETURN"
+    refundedAmount: v.optional(v.number()),
+    cardType: v.optional(v.string()),
+    cardLastFour: v.optional(v.string()),
+    cardExpiryMonth: v.optional(v.number()),
+    cardExpiryYear: v.optional(v.number()),
+    recurringId: v.optional(v.string()),
+    txnTime: v.optional(v.string()),
+    settleTime: v.optional(v.string()),
+    approvalCode: v.optional(v.string()),
+    clientName: v.optional(v.string()), // enriched from linked profiles
+  })
+    .index("by_txnId", ["txnId"])
+    .index("by_txnTime", ["txnTime"])
+    .index("by_status", ["status"])
+    .index("by_recurringId", ["recurringId"]),
+
+  paymentIssues: defineTable({
+    clientId: v.id("clients"),
+    convergeProfileId: v.optional(v.id("convergeProfiles")),
+    status: v.string(), // "open" | "escalated" | "resolved"
+    failureCount: v.number(),
+    convergeStatus: v.optional(v.string()),
+    firstFailedAt: v.string(),
+    lastFailedAt: v.string(),
+    escalatedAt: v.optional(v.string()),
+    resolvedAt: v.optional(v.string()),
+    resolvedBy: v.optional(v.id("teamMembers")),
+    resolutionNote: v.optional(v.string()),
+    lastClientEmailAt: v.optional(v.string()),
+    emailCount: v.optional(v.number()),
+    ticketId: v.optional(v.id("tickets")),
+  })
+    .index("by_client", ["clientId"])
+    .index("by_status", ["status"])
+    .index("by_convergeProfile", ["convergeProfileId"]),
+
   // === TEAM ===
   teamMembers: defineTable({
     name: v.string(),
