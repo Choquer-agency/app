@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { TimeEntry } from "@/types";
 import TimePopup from "./TimePopup";
 
@@ -28,12 +31,7 @@ function formatTotalHours(seconds: number): string {
 }
 
 export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProps) {
-  const [running, setRunning] = useState(false);
-  const [runningEntryId, setRunningEntryId] = useState<string | null>(null);
-  const [startTime, setStartTime] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [totalSeconds, setTotalSeconds] = useState(0);
-  const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [clockInRequired, setClockInRequired] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
@@ -41,51 +39,40 @@ export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProp
   const wrapperRef = useRef<HTMLDivElement>(null);
   const clockButtonRef = useRef<HTMLDivElement>(null);
 
-  const fetchTimeData = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/admin/tickets/${ticketId}/time`);
-      if (res.ok) {
-        const data = await res.json();
-        const allEntries = (data.entries || []) as TimeEntry[];
-        setEntries(allEntries);
+  // Real-time Convex subscription — auto-updates when timers start/stop
+  const rawEntries = useQuery(api.timeEntries.listByTicket, {
+    ticketId: ticketId as Id<"tickets">,
+  });
 
-        // Compute total client-side from actual entry time ranges (not stored duration_seconds)
-        const completedTotal = allEntries
-          .filter((e: TimeEntry) => e.endTime !== null)
-          .reduce((sum: number, e: TimeEntry) => {
-            const start = new Date(e.startTime).getTime();
-            const end = new Date(e.endTime!).getTime();
-            return sum + Math.max(0, Math.round((end - start) / 1000));
-          }, 0);
-        setTotalSeconds(completedTotal);
+  // Map Convex docs to TimeEntry type and derive state
+  const entries: TimeEntry[] = useMemo(() =>
+    (rawEntries ?? []).map((doc: any) => ({
+      id: doc._id,
+      ticketId: doc.ticketId,
+      teamMemberId: doc.teamMemberId,
+      startTime: doc.startTime,
+      endTime: doc.endTime ?? null,
+      durationSeconds: doc.durationSeconds ?? null,
+      isManual: doc.isManual ?? false,
+      note: doc.note ?? "",
+      createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : "",
+    })),
+  [rawEntries]);
 
-        const runningEntry = allEntries.find(
-          (e: TimeEntry) => e.endTime === null
-        );
-        if (runningEntry) {
-          setRunning(true);
-          setRunningEntryId(runningEntry.id);
-          setStartTime(runningEntry.startTime);
-        } else {
-          setRunning(false);
-          setRunningEntryId(null);
-          setStartTime(null);
-        }
-      }
-    } catch {}
-  }, [ticketId]);
+  const runningEntry = entries.find((e) => e.endTime === null);
+  const running = !!runningEntry;
+  const runningEntryId = runningEntry?.id ?? null;
+  const startTime = runningEntry?.startTime ?? null;
 
-  useEffect(() => {
-    fetchTimeData();
-  }, [fetchTimeData]);
-
-  useEffect(() => {
-    function handleTimerChange() {
-      fetchTimeData();
-    }
-    window.addEventListener("timerChange", handleTimerChange);
-    return () => window.removeEventListener("timerChange", handleTimerChange);
-  }, [fetchTimeData]);
+  const totalSeconds = useMemo(() =>
+    entries
+      .filter((e) => e.endTime !== null)
+      .reduce((sum, e) => {
+        const start = new Date(e.startTime).getTime();
+        const end = new Date(e.endTime!).getTime();
+        return sum + Math.max(0, Math.round((end - start) / 1000));
+      }, 0),
+  [entries]);
 
   // Live counter
   useEffect(() => {
@@ -120,10 +107,7 @@ export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProp
         body: JSON.stringify({ type: "start" }),
       });
       if (res.ok) {
-        const entry = await res.json();
-        setRunning(true);
-        setRunningEntryId(entry.id);
-        setStartTime(entry.startTime);
+        // No manual state update — Convex subscription auto-updates
         onTimerChange?.();
       } else {
         const err = await res.json().catch(() => ({}));
@@ -150,10 +134,7 @@ export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProp
         body: JSON.stringify({ action: "stop" }),
       });
       if (res.ok) {
-        setRunning(false);
-        setRunningEntryId(null);
-        setStartTime(null);
-        await fetchTimeData();
+        // No manual state update — Convex subscription auto-updates
         onTimerChange?.();
       }
     } catch {} finally {
@@ -223,7 +204,7 @@ export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProp
               totalSeconds={totalSeconds + (running ? elapsed : 0)}
               onClose={() => setPopupOpen(false)}
               onEntriesChanged={() => {
-                fetchTimeData();
+                // Convex subscription auto-updates entries
                 onTimerChange?.();
               }}
               anchorRef={clockButtonRef}

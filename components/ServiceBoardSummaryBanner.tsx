@@ -1,15 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { ServiceBoardCategory } from "@/types";
 
 interface BoardSummary {
-  category: ServiceBoardCategory;
+  category: string;
   categoryLabel: string;
   month: string;
   total: number;
   completed: number;
-  clients: Array<{ id: number; name: string; status: string }>;
+  clients: Array<{ id: string; name: string; status: string }>;
+}
+
+function getCurrentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -25,20 +33,16 @@ const CATEGORY_COLORS: Record<string, { bg: string; accent: string; bar: string 
   retainer: { bg: "bg-purple-50", accent: "text-purple-700", bar: "bg-purple-500" },
 };
 
-export default function ServiceBoardSummaryBanner() {
-  const [summaries, setSummaries] = useState<BoardSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function ServiceBoardSummaryBanner({ specialistId }: { specialistId?: string }) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/admin/service-board/my-summary")
-      .then((r) => r.ok ? r.json() : { summaries: [] })
-      .then((data: { summaries: BoardSummary[] }) => setSummaries(data.summaries))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  // Real-time Convex subscription — updates instantly when entry statuses change
+  const summaries = useQuery(
+    api.serviceBoardEntries.getMySummary,
+    specialistId ? { specialistId: specialistId as Id<"teamMembers">, month: getCurrentMonth() } : "skip"
+  ) as BoardSummary[] | undefined;
 
-  if (loading || summaries.length === 0) return null;
+  if (!summaries || summaries.length === 0) return null;
 
   return (
     <div className="pb-4 space-y-2">

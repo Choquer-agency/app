@@ -80,6 +80,84 @@ export const getById = query({
   },
 });
 
+export const getMySummary = query({
+  args: {
+    specialistId: v.id("teamMembers"),
+    month: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const categories = ["seo", "google_ads"];
+    const allEntries = [];
+    for (const category of categories) {
+      const entries = await ctx.db
+        .query("serviceBoardEntries")
+        .withIndex("by_category_month", (q) =>
+          q.eq("category", category).eq("month", args.month)
+        )
+        .collect();
+      allEntries.push(...entries);
+    }
+
+    const myEntries = allEntries.filter(
+      (e) => e.specialistId === args.specialistId
+    );
+
+    if (myEntries.length === 0) return [];
+
+    // Get client names
+    const clientIds = [...new Set(myEntries.map((e) => e.clientId))];
+    const clientMap = new Map<string, string>();
+    for (const clientId of clientIds) {
+      const client = await ctx.db.get(clientId);
+      if (client) clientMap.set(clientId.toString(), (client as any).name ?? "");
+    }
+
+    // Group by category
+    const byCategory = new Map<
+      string,
+      {
+        total: number;
+        completed: number;
+        clients: Array<{ id: string; name: string; status: string }>;
+      }
+    >();
+
+    for (const entry of myEntries) {
+      const cat = entry.category;
+      if (!byCategory.has(cat)) {
+        byCategory.set(cat, { total: 0, completed: 0, clients: [] });
+      }
+      const group = byCategory.get(cat)!;
+      group.total++;
+      if (entry.status === "email_sent") {
+        group.completed++;
+      }
+      group.clients.push({
+        id: entry.clientId.toString(),
+        name: clientMap.get(entry.clientId.toString()) || "Unknown",
+        status: entry.status ?? "needs_attention",
+      });
+    }
+
+    const monthDate = new Date(args.month + "T12:00:00");
+    const monthLabel = monthDate.toLocaleString("en-US", { month: "long" });
+
+    return Array.from(byCategory.entries()).map(([category, data]) => ({
+      category,
+      categoryLabel:
+        category === "google_ads"
+          ? "Google Ads"
+          : category === "seo"
+            ? "SEO"
+            : "Retainer",
+      month: monthLabel,
+      total: data.total,
+      completed: data.completed,
+      clients: data.clients,
+    }));
+  },
+});
+
 export const create = mutation({
   args: {
     clientId: v.id("clients"),

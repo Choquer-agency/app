@@ -17,7 +17,7 @@ export default function PersonalBoard() {
 
   return (
     <>
-      <ServiceBoardSummaryBanner />
+      <ServiceBoardSummaryBanner specialistId={user.id} />
       <TicketListView assigneeId={user.id} />
     </>
   );

@@ -6,7 +6,7 @@ import Image from "next/image";
 import NotificationBell from "./NotificationBell";
 import { useKeyboardShortcuts } from "./KeyboardShortcutProvider";
 import { hasPermission, hasMinRole, type RoleLevel, type Permission } from "@/lib/permissions";
-import { useClockStatusPoll } from "@/hooks/useClockStatusPoll";
+import { useClockStatus } from "@/hooks/useClockStatus";
 
 const NAV_LINKS: { href: string; label: string; exact?: boolean; permission: Permission }[] = [
   { href: "/admin", label: "Home", exact: true, permission: "nav:home" },
@@ -17,7 +17,7 @@ const NAV_LINKS: { href: string; label: string; exact?: boolean; permission: Per
   { href: "/admin/payments", label: "Payments", permission: "nav:payments" },
 ];
 
-export default function AdminNav({ userName, roleLevel, profilePicUrl, bypassClockIn }: { userName?: string; roleLevel?: RoleLevel; profilePicUrl?: string; bypassClockIn?: boolean }) {
+export default function AdminNav({ userName, roleLevel, profilePicUrl, bypassClockIn, teamMemberId }: { userName?: string; roleLevel?: RoleLevel; profilePicUrl?: string; bypassClockIn?: boolean; teamMemberId?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const { openCommandPalette } = useKeyboardShortcuts();
@@ -28,7 +28,7 @@ export default function AdminNav({ userName, roleLevel, profilePicUrl, bypassClo
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   // Clock features only for employees/interns (not admins/bookkeepers)
   const isClockUser = roleLevel ? !hasMinRole(roleLevel, "bookkeeper") && !bypassClockIn : false;
-  const { clockStatus, refetch } = useClockStatusPoll();
+  const { clockStatus } = useClockStatus(teamMemberId ?? "");
   const [clockActionLoading, setClockActionLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -40,19 +40,15 @@ export default function AdminNav({ userName, roleLevel, profilePicUrl, bypassClo
         : action === "break"
           ? "/api/admin/timesheet/break/start"
           : "/api/admin/timesheet/clock-out";
-      const res = await fetch(url, { method: "POST" });
-      if (res.ok && action === "break") {
-        window.dispatchEvent(new CustomEvent("timerChange"));
-      }
-      window.dispatchEvent(new CustomEvent("clockStatusChange"));
-      refetch();
+      await fetch(url, { method: "POST" });
+      // No manual refetch needed — Convex subscription auto-updates
     } catch {
       // silent
     } finally {
       setClockActionLoading(false);
       setUserMenuOpen(false);
     }
-  }, [refetch]);
+  }, []);
   const inputRef = useRef<HTMLInputElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);

@@ -15,7 +15,7 @@ pub async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, Stri
             let info = UpdateInfo {
                 version: update.version.clone(),
                 body: update.body.clone(),
-                date: update.date.clone(),
+                date: update.date.map(|d| d.to_string()),
             };
 
             // Emit event so the frontend UpdatePrompt can show the banner
@@ -70,22 +70,23 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
 /// Schedule an automatic update check 5 seconds after app launch.
 pub fn schedule_startup_check(app: &tauri::App) {
     let handle = app.handle().clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-
-        let updater = match handle.updater() {
-            Ok(u) => u,
-            Err(_) => return,
-        };
-
-        if let Ok(Some(update)) = updater.check().await {
-            let info = UpdateInfo {
-                version: update.version.clone(),
-                body: update.body.clone(),
-                date: update.date.clone(),
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        tauri::async_runtime::block_on(async move {
+            let updater = match handle.updater() {
+                Ok(u) => u,
+                Err(_) => return,
             };
-            let _ = handle.emit("update-available", &info);
-        }
+
+            if let Ok(Some(update)) = updater.check().await {
+                let info = UpdateInfo {
+                    version: update.version.clone(),
+                    body: update.body.clone(),
+                    date: update.date.map(|d| d.to_string()),
+                };
+                let _ = handle.emit("update-available", &info);
+            }
+        });
     });
 }
 

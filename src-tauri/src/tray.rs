@@ -5,6 +5,14 @@ use tauri::{AppHandle, Manager};
 /// Set up the system tray icon and context menu
 pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItemBuilder::with_id("tray_show", "Show Choquer.Agency").build(app)?;
+
+    // Quick actions
+    let quick_ticket =
+        MenuItemBuilder::with_id("tray_quick_ticket", "Quick Create Ticket...").build(app)?;
+    let toggle_clock =
+        MenuItemBuilder::with_id("tray_toggle_clock", "Clock In / Out").build(app)?;
+
+    // Navigation
     let home = MenuItemBuilder::with_id("tray_home", "Home").build(app)?;
     let crm = MenuItemBuilder::with_id("tray_crm", "CRM").build(app)?;
     let tickets = MenuItemBuilder::with_id("tray_tickets", "Tickets").build(app)?;
@@ -14,6 +22,9 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 
     let tray_menu = MenuBuilder::new(app)
         .item(&show)
+        .separator()
+        .item(&quick_ticket)
+        .item(&toggle_clock)
         .separator()
         .item(&home)
         .item(&crm)
@@ -42,6 +53,8 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
             "tray_show" => show_and_focus(app),
+            "tray_quick_ticket" => show_and_dispatch(app, "quick_ticket"),
+            "tray_toggle_clock" => show_and_dispatch(app, "toggle_clock"),
             "tray_home" => show_and_navigate(app, "/admin"),
             "tray_crm" => show_and_navigate(app, "/admin/crm"),
             "tray_tickets" => show_and_navigate(app, "/admin/tickets"),
@@ -67,5 +80,17 @@ fn show_and_navigate(app: &AppHandle, path: &str) {
         let _ = window.show();
         let _ = window.set_focus();
         let _ = window.eval(&format!("window.location.href = '{}'", path));
+    }
+}
+
+/// Show the app and dispatch a custom event for the frontend to handle
+fn show_and_dispatch(app: &AppHandle, action: &str) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+        let _ = window.eval(&format!(
+            "window.dispatchEvent(new CustomEvent('desktop-shortcut', {{ detail: '{}' }}))",
+            action
+        ));
     }
 }

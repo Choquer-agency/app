@@ -29,6 +29,11 @@ cocoa = "0.26"
 # Plugins — Phase 4
 tauri-plugin-updater = "2"
 
+# Plugins — Phase 6
+tauri-plugin-autostart = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-clipboard-manager = "2"
+
 # Utilities
 open = "5"
 url = "2"

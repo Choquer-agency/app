@@ -1,12 +1,16 @@
+mod autostart;
 mod bridge;
+mod clipboard;
 mod deep_link;
 mod dock;
 mod menu;
 mod notifications;
+mod shortcuts;
 mod tray;
 mod updater;
 
 use tauri::Manager;
+use tauri_plugin_autostart::MacosLauncher;
 
 #[tauri::command]
 fn update_dock_badge(count: u32) {
@@ -22,6 +26,13 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Phase 6 plugins
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
         // Navigation guard (carried over from Phase 1)
         .plugin(
             tauri::plugin::Builder::<tauri::Wry, ()>::new("navigation-guard")
@@ -55,6 +66,12 @@ pub fn run() {
             notifications::show_notification,
             updater::check_for_update,
             updater::install_update,
+            // Phase 6
+            autostart::is_autostart_enabled,
+            autostart::enable_autostart,
+            autostart::disable_autostart,
+            clipboard::write_to_clipboard,
+            clipboard::read_clipboard,
         ])
         // Inject JS bridge on every page load (desktop detection)
         .on_page_load(|webview, payload| {
@@ -77,7 +94,10 @@ pub fn run() {
             // 4. Schedule automatic update check (5s delay, non-blocking)
             updater::schedule_startup_check(app);
 
-            // 4. Configure main window — hide-on-close behavior
+            // 5. Register global keyboard shortcuts (Phase 6)
+            shortcuts::register_shortcuts(app);
+
+            // 6. Configure main window — hide-on-close behavior
             let main_window = app
                 .get_webview_window("main")
                 .expect("main window not found");

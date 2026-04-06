@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { ServiceBoardEntry, ServiceBoardStatus, ServiceBoardCategory, TeamMember } from "@/types";
 import MonthPicker from "./MonthPicker";
 import HourCountdown from "./HourCountdown";
@@ -27,7 +29,6 @@ function ServiceTimeTracker({ entryId }: { entryId: number }) {
     return (
       <TimeTracker
         ticketId={ticketId}
-        onTimerChange={() => window.dispatchEvent(new CustomEvent("timerChange"))}
       />
     );
   }
@@ -47,7 +48,6 @@ function ServiceTimeTracker({ entryId }: { entryId: number }) {
           if (res.ok) {
             const data = await res.json();
             if (data.ticketId) setTicketId(data.ticketId);
-            window.dispatchEvent(new CustomEvent("timerChange"));
           }
         } catch {}
       }}
@@ -84,7 +84,6 @@ interface ServiceBoardProps {
 
 export default function ServiceBoard({ category }: ServiceBoardProps) {
   const [month, setMonth] = useState(getCurrentMonth);
-  const [entries, setEntries] = useState<ServiceBoardEntry[]>([]);
   const { teamMembers: rawTeamMembers } = useTeamMembers();
   const teamMembers = rawTeamMembers.map((m) => ({
     id: m.id,
@@ -92,32 +91,72 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
     color: m.color || "#6B7280",
     profilePicUrl: m.profilePicUrl || "",
   }));
-  const [loading, setLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<ServiceBoardEntry | null>(null);
+  const [hoursMap, setHoursMap] = useState<Record<string, { loggedHours?: number; percentUsed?: number; hourStatus?: string }>>({});
 
   const categoryLabel = category === "google_ads" ? "Google Ads" : category === "seo" ? "SEO" : "Retainer";
   const isQuarterly = isQuarterlyMonth(month);
 
-  const fetchEntries = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/admin/service-board?category=${category}&month=${month}`);
-      if (res.ok) {
-        const data = await res.json();
-        setEntries(data);
+  // Real-time Convex subscription for entry data (status, specialist, notes update instantly)
+  const rawEntries = useQuery(api.serviceBoardEntries.list, { category, month });
+  const loading = rawEntries === undefined;
+
+  // Map Convex docs to ServiceBoardEntry type
+  const entries: ServiceBoardEntry[] = (rawEntries ?? []).map((doc: any) => ({
+    id: doc._id,
+    clientId: doc.clientId,
+    clientPackageId: doc.clientPackageId,
+    category: doc.category as ServiceBoardCategory,
+    month: doc.month ?? "",
+    status: doc.status as ServiceBoardStatus,
+    specialistId: doc.specialistId ?? null,
+    monthlyEmailSentAt: doc.monthlyEmailSentAt ?? null,
+    quarterlyEmailSentAt: doc.quarterlyEmailSentAt ?? null,
+    notes: doc.notes ?? "",
+    createdAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : "",
+    updatedAt: doc._creationTime ? new Date(doc._creationTime).toISOString() : "",
+    clientName: doc.clientName ?? undefined,
+    clientSlug: doc.clientSlug ?? undefined,
+    clientNotionPageUrl: doc.clientNotionPageUrl ?? undefined,
+    packageName: doc.packageName ?? undefined,
+    includedHours: doc.includedHours ?? undefined,
+    specialistName: doc.specialistName ?? undefined,
+    specialistColor: doc.specialistColor ?? undefined,
+    specialistProfilePicUrl: doc.specialistProfilePicUrl ?? undefined,
+    generatedEmail: doc.generatedEmail ?? undefined,
+    // Merge hours from REST fetch
+    loggedHours: hoursMap[doc._id]?.loggedHours ?? 0,
+  }));
+
+  // Keep selectedEntry in sync with Convex updates
+  useEffect(() => {
+    if (selectedEntry && entries.length > 0) {
+      const fresh = entries.find((e) => e.id === selectedEntry.id);
+      if (fresh && JSON.stringify(fresh) !== JSON.stringify(selectedEntry)) {
+        setSelectedEntry(fresh);
       }
-    } catch (e) {
-      console.error("Failed to fetch service board:", e);
-    } finally {
-      setLoading(false);
     }
+  }, [entries, selectedEntry]);
+
+  // Fetch hours via REST (also ensures entries exist for the month)
+  useEffect(() => {
+    fetch(`/api/admin/service-board?category=${category}&month=${month}`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: any[]) => {
+        const map: Record<string, { loggedHours?: number; percentUsed?: number; hourStatus?: string }> = {};
+        for (const entry of data) {
+          map[entry.id] = {
+            loggedHours: entry.loggedHours,
+            percentUsed: entry.percentUsed,
+            hourStatus: entry.hourStatus,
+          };
+        }
+        setHoursMap(map);
+      })
+      .catch(() => {});
   }, [category, month]);
 
-  useEffect(() => {
-    fetchEntries();
-  }, [fetchEntries]);
-
-  async function handleStatusChange(entryId: number, status: ServiceBoardStatus) {
+  async function handleStatusChange(entryId: string, status: ServiceBoardStatus) {
     try {
       const res = await fetch(`/api/admin/service-board/${entryId}`, {
         method: "PATCH",
@@ -125,53 +164,44 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
         body: JSON.stringify({ status }),
       });
       if (res.ok) {
-        let updated = await res.json();
-
+        const updated = await res.json();
         // Auto-generate email when status changes to report_ready
         if (status === "report_ready" && !updated.generatedEmail) {
-          const emailRes = await fetch(`/api/admin/service-board/${entryId}/generate-email`, {
+          await fetch(`/api/admin/service-board/${entryId}/generate-email`, {
             method: "POST",
           });
-          if (emailRes.ok) {
-            updated = await emailRes.json();
-          }
         }
-
-        setEntries((prev) => prev.map((e) => (e.id === entryId ? updated : e)));
-        if (selectedEntry?.id === entryId) setSelectedEntry(updated);
+        // No manual state update — Convex subscription auto-updates
+        if (selectedEntry?.id === entryId) {
+          setSelectedEntry(entries.find((e) => e.id === entryId) ?? null);
+        }
       }
     } catch (e) {
       console.error("Failed to update status:", e);
     }
   }
 
-  async function handleSpecialistChange(entryId: number, specialistId: number | null) {
+  async function handleSpecialistChange(entryId: string, specialistId: number | null) {
     try {
-      const res = await fetch(`/api/admin/service-board/${entryId}`, {
+      await fetch(`/api/admin/service-board/${entryId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ specialistId }),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setEntries((prev) => prev.map((e) => (e.id === entryId ? updated : e)));
-      }
+      // No manual state update — Convex subscription auto-updates
     } catch (e) {
       console.error("Failed to update specialist:", e);
     }
   }
 
-  async function handleSendEmail(entryId: number, isQuarterlyEmail: boolean) {
+  async function handleSendEmail(entryId: string, isQuarterlyEmail: boolean) {
     try {
-      const res = await fetch(`/api/admin/service-board/${entryId}/send-email`, {
+      await fetch(`/api/admin/service-board/${entryId}/send-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isQuarterly: isQuarterlyEmail }),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setEntries((prev) => prev.map((e) => (e.id === entryId ? updated : e)));
-      }
+      // No manual state update — Convex subscription auto-updates
     } catch (e) {
       console.error("Failed to mark email sent:", e);
     }
@@ -340,9 +370,10 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
           entry={selectedEntry}
           month={month}
           onClose={() => setSelectedEntry(null)}
-          onUpdate={(updated) => {
-            setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-            setSelectedEntry(updated);
+          onUpdate={() => {
+            // Convex subscription auto-updates entries — just refresh selectedEntry reference
+            const fresh = entries.find((e) => e.id === selectedEntry.id);
+            if (fresh) setSelectedEntry(fresh);
           }}
         />
       )}

@@ -4,6 +4,7 @@ import AdminNav from "@/components/AdminNav";
 import FloatingTimerBar from "@/components/FloatingTimerBar";
 import NotificationBridge from "@/components/NotificationBridge";
 import GlobalTicketModal from "@/components/GlobalTicketModal";
+import DesktopShortcutHandler from "@/components/DesktopShortcutHandler";
 import UpdatePrompt from "@/components/UpdatePrompt";
 import KeyboardShortcutProvider from "@/components/KeyboardShortcutProvider";
 import { getSessionFromCookies } from "@/lib/admin-auth";
@@ -32,12 +33,13 @@ export default async function AdminLayout({
     return (
       <div className="min-h-screen bg-white" style={{ fontSize: "80%" }}>
         <KeyboardShortcutProvider>
-          <AdminNav userName={session.name} roleLevel={session.roleLevel} profilePicUrl={profilePicUrl} bypassClockIn={bypassClockIn} />
+          <AdminNav userName={session.name} roleLevel={session.roleLevel} profilePicUrl={profilePicUrl} bypassClockIn={bypassClockIn} teamMemberId={session.teamMemberId} />
           <NotificationBridge teamMemberId={session.teamMemberId} />
           <UpdatePrompt />
           <div className="max-w-[1400px] mx-auto px-10 py-8 pb-20">{children}</div>
           <FloatingTimerBar />
           <GlobalTicketModal />
+          <DesktopShortcutHandler />
         </KeyboardShortcutProvider>
       </div>
     );
