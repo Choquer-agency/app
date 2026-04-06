@@ -41,7 +41,7 @@
     "macOS": {
       "minimumSystemVersion": "11.0",
       "entitlements": "entitlements.plist",
-      "signingIdentity": null
+      "signingIdentity": "Developer ID Application: Bryce Choquer (VAC2837QGB)"
     }
   },
   "plugins": {
