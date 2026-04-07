@@ -114,8 +114,9 @@ export default function AdminNav({ userName, roleLevel, profilePicUrl, bypassClo
             <Image
               src="/choquer-logo.svg"
               alt="Choquer Agency"
-              width={144}
-              height={34}
+              width={156}
+              height={36}
+              style={{ objectFit: "contain" }}
               priority
             />
           </a>

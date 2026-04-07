@@ -31,12 +31,12 @@ export default async function AdminLayout({
     } catch {}
 
     return (
-      <div className="min-h-screen bg-white" style={{ fontSize: "80%" }}>
+      <div className="min-h-screen bg-white" style={{ fontSize: "76%" }}>
         <KeyboardShortcutProvider>
           <AdminNav userName={session.name} roleLevel={session.roleLevel} profilePicUrl={profilePicUrl} bypassClockIn={bypassClockIn} teamMemberId={session.teamMemberId} />
           <NotificationBridge teamMemberId={session.teamMemberId} />
           <UpdatePrompt />
-          <div className="max-w-[1400px] mx-auto px-10 py-8 pb-20">{children}</div>
+          <div className="max-w-[1400px] mx-auto px-6 py-8 pb-20">{children}</div>
           <FloatingTimerBar />
           <GlobalTicketModal />
           <DesktopShortcutHandler />
