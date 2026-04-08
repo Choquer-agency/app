@@ -1,0 +1,15 @@
+{
+  "identifier": "timer-pip",
+  "description": "Capabilities for the PiP timer window",
+  "windows": ["timer-pip"],
+  "remote": {
+    "urls": [
+      "https://choquer.app/*",
+      "https://*.choquer.app/*",
+      "https://*.convex.cloud/*"
+    ]
+  },
+  "permissions": [
+    "core:default"
+  ]
+}

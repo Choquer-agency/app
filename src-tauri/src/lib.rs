@@ -5,6 +5,7 @@ mod deep_link;
 mod dock;
 mod menu;
 mod notifications;
+mod pip;
 mod shortcuts;
 mod tray;
 mod updater;
@@ -73,6 +74,10 @@ pub fn run() {
             autostart::disable_autostart,
             clipboard::write_to_clipboard,
             clipboard::read_clipboard,
+            pip::show_timer_pip,
+            pip::hide_timer_pip,
+            pip::pip_follow_cursor,
+            pip::show_main_and_navigate,
         ])
         // Inject JS bridge on every page load (desktop detection)
         .on_page_load(|webview, payload| {

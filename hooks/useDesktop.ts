@@ -80,6 +80,19 @@ export function useClipboard() {
   return { copy };
 }
 
+// ── Invoke Tauri Command ──
+
+/** Fire-and-forget a Tauri command (no-op when running in browser) */
+export async function invokeDesktop(command: string, args?: Record<string, unknown>) {
+  const tauri = getTauri();
+  if (!tauri) return;
+  try {
+    await tauri.core.invoke(command, args);
+  } catch {
+    // Silent — non-critical
+  }
+}
+
 // ── Desktop Shortcut Events ──
 
 /** Listen for desktop shortcut events dispatched from Tauri (global shortcuts + tray actions) */

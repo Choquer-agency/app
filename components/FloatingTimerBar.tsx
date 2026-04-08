@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useSession } from "@/hooks/useSession";
+import { useIsDesktop, invokeDesktop } from "@/hooks/useDesktop";
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -17,6 +18,7 @@ function formatDuration(seconds: number): string {
 export default function FloatingTimerBar() {
   const router = useRouter();
   const session = useSession();
+  const isDesktop = useIsDesktop();
   const [elapsed, setElapsed] = useState(0);
   const [stopping, setStopping] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
@@ -42,6 +44,14 @@ export default function FloatingTimerBar() {
     } else {
       setElapsed(0);
       return () => clearInterval(intervalRef.current);
+    }
+  }, [timer]);
+
+  // Show PiP timer window on desktop when a timer is running
+  // invokeDesktop is a no-op in the browser, so no need to gate on isDesktop
+  useEffect(() => {
+    if (timer) {
+      invokeDesktop("show_timer_pip");
     }
   }, [timer]);
 
