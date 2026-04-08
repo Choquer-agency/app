@@ -108,6 +108,7 @@ export default function TiptapEditor({
   mentionItems = [],
 }: TiptapEditorProps) {
   const isInitialized = useRef(false);
+  const suppressOnChange = useRef(false);
   const mentionOpenRef = useRef(false);
   const [showTextColor, setShowTextColor] = useState(false);
   const [showHighlight, setShowHighlight] = useState(false);
@@ -275,7 +276,9 @@ export default function TiptapEditor({
     },
     onUpdate: ({ editor: e }) => {
       const json = JSON.stringify(e.getJSON());
-      onChange?.(json);
+      if (!suppressOnChange.current) {
+        onChange?.(json);
+      }
       if (contentRef) contentRef.current = json;
     },
   });
@@ -291,7 +294,9 @@ export default function TiptapEditor({
     const current = JSON.stringify(editor.getJSON());
     const incoming = JSON.stringify(parsed);
     if (current !== incoming) {
+      suppressOnChange.current = true;
       editor.commands.setContent(parsed);
+      suppressOnChange.current = false;
     }
   }, [content, editor]);
 

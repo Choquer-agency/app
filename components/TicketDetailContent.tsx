@@ -80,13 +80,24 @@ export default function TicketDetailContent({
   const [commitSaving, setCommitSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const descDirty = useRef(false);
+  const editorFocused = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync when ticket changes (e.g. navigating between sub-tickets)
+  // Sync when ticket changes (e.g. navigating between sub-tickets, or remote updates)
+  const prevTicketId = useRef(ticket.id);
   useEffect(() => {
+    const isNewTicket = prevTicketId.current !== ticket.id;
+    if (isNewTicket) {
+      prevTicketId.current = ticket.id;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    }
     setTitleValue(ticket.title);
-    setDescValue(ticket.description || "");
     setEditingTitle(false);
-    descDirty.current = false;
+    // Only update description if user is not actively editing (or if navigating to a different ticket)
+    if (isNewTicket || !editorFocused.current) {
+      setDescValue(ticket.description || "");
+      descDirty.current = false;
+    }
   }, [ticket.id, ticket.title, ticket.description]);
 
   // Fetch parent ticket info for breadcrumb
@@ -135,6 +146,13 @@ export default function TicketDetailContent({
     }
   }
 
+  // Clean up auto-save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     if (editingTitle && titleRef.current) {
       titleRef.current.focus();
@@ -168,6 +186,7 @@ export default function TicketDetailContent({
   }, [titleValue, ticket.title, onUpdate]);
 
   function saveDescription() {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     if (descDirty.current && descValue !== ticket.description) {
       onUpdate({ description: descValue, descriptionFormat: "tiptap" } as Partial<Ticket>);
       descDirty.current = false;
@@ -395,12 +414,28 @@ export default function TicketDetailContent({
         {ticket.isEmail && descValue && (
           <CopyEmailButton descJson={descValue} />
         )}
-        <div onBlur={saveDescription}>
+        <div
+          onFocus={() => { editorFocused.current = true; }}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              editorFocused.current = false;
+              saveDescription();
+            }
+          }}
+        >
           <TiptapEditor
             content={descValue}
             onChange={(json) => {
               setDescValue(json);
               descDirty.current = true;
+              // Debounced auto-save: persist 1.5s after last keystroke
+              if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+              saveTimerRef.current = setTimeout(() => {
+                if (descDirty.current) {
+                  onUpdate({ description: json, descriptionFormat: "tiptap" } as Partial<Ticket>);
+                  descDirty.current = false;
+                }
+              }, 1500);
             }}
             placeholder="Add a description..."
             mentionItems={teamMembers.map((m) => ({ id: m.id, label: m.name, profilePicUrl: m.profilePicUrl, color: m.color }))}
