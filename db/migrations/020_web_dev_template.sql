@@ -53,20 +53,22 @@ BEGIN
     (nextval('ticket_number_seq')::text, 'Onboarding Meeting', tmpl_id, g_kickoff, NULL, 'needs_attention', 'normal', 4, 4, 6, false, false),
     (nextval('ticket_number_seq')::text, 'Post Onboarding Meeting', tmpl_id, g_kickoff, NULL, 'needs_attention', 'normal', 4, 4, 7, false, false),
     (nextval('ticket_number_seq')::text, 'Follow Up Email', tmpl_id, g_kickoff, r_pm, 'needs_attention', 'normal', 4, 4, 8, false, false),
-    (nextval('ticket_number_seq')::text, 'Sitemap', tmpl_id, g_kickoff, r_designer, 'needs_attention', 'normal', 5, 9, 9, false, false),
-    (nextval('ticket_number_seq')::text, 'Keyword Map', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 10, false, false),
-    (nextval('ticket_number_seq')::text, 'Keyword Heatmap', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 11, false, false),
-    (nextval('ticket_number_seq')::text, 'Access To Google My Business', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 12, false, false),
-    (nextval('ticket_number_seq')::text, 'Access To Website', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 13, false, false),
-    (nextval('ticket_number_seq')::text, 'Access To Tag Manager', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 14, false, false),
-    (nextval('ticket_number_seq')::text, 'Access To Analytics', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 15, false, false),
-    (nextval('ticket_number_seq')::text, 'Example Of Keyword Use On Website', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 16, false, false),
-    (nextval('ticket_number_seq')::text, 'Add Clarity To Website', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 17, false, false),
-    (nextval('ticket_number_seq')::text, 'Google Folder Created', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 18, false, false),
-    (nextval('ticket_number_seq')::text, '3 Directions Wireframe', tmpl_id, g_kickoff, r_designer, 'needs_attention', 'normal', 5, 9, 19, false, false),
-    (nextval('ticket_number_seq')::text, '2 Month Strategy', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 20, false, false),
-    (nextval('ticket_number_seq')::text, 'Internal Final Review Meeting', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 10, 10, 21, false, false),
-    (nextval('ticket_number_seq')::text, 'Kick Off Meeting', tmpl_id, g_kickoff, r_pm, 'needs_attention', 'normal', 11, 11, 22, false, false);
+    -- NEW: SEO Redirect & Migration Strategy — before sitemap, presented at strategy meeting
+    (nextval('ticket_number_seq')::text, 'SEO Redirect & Migration Strategy', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 8, 9, false, false),
+    (nextval('ticket_number_seq')::text, 'Sitemap', tmpl_id, g_kickoff, r_designer, 'needs_attention', 'normal', 5, 9, 10, false, false),
+    (nextval('ticket_number_seq')::text, 'Keyword Map', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 11, false, false),
+    (nextval('ticket_number_seq')::text, 'Keyword Heatmap', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 12, false, false),
+    (nextval('ticket_number_seq')::text, 'Access To Google My Business', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 13, false, false),
+    (nextval('ticket_number_seq')::text, 'Access To Website', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 14, false, false),
+    (nextval('ticket_number_seq')::text, 'Access To Tag Manager', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 15, false, false),
+    (nextval('ticket_number_seq')::text, 'Access To Analytics', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 16, false, false),
+    (nextval('ticket_number_seq')::text, 'Example Of Keyword Use On Website', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 17, false, false),
+    (nextval('ticket_number_seq')::text, 'Add Clarity To Website', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 18, false, false),
+    (nextval('ticket_number_seq')::text, 'Google Folder Created', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 19, false, false),
+    (nextval('ticket_number_seq')::text, '3 Directions Wireframe', tmpl_id, g_kickoff, r_designer, 'needs_attention', 'normal', 5, 9, 20, false, false),
+    (nextval('ticket_number_seq')::text, '2 Month Strategy', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 5, 9, 21, false, false),
+    (nextval('ticket_number_seq')::text, 'Internal Final Review Meeting', tmpl_id, g_kickoff, r_seo, 'needs_attention', 'normal', 10, 10, 22, false, false),
+    (nextval('ticket_number_seq')::text, 'Kick Off Meeting', tmpl_id, g_kickoff, r_pm, 'needs_attention', 'normal', 11, 11, 23, false, false);
 
   -- ========== WIREFRAME ==========
   INSERT INTO tickets (ticket_number, title, project_id, group_id, template_role_id, status, priority, day_offset_start, day_offset_due, sort_order, is_personal, archived)
@@ -83,7 +85,9 @@ BEGIN
     (nextval('ticket_number_seq')::text, 'Client - Wireframe Revisions Due R2', tmpl_id, g_wireframe, r_client, 'needs_attention', 'normal', 32, 34, 10, false, false),
     (nextval('ticket_number_seq')::text, 'Implement Wireframe Revisions R2', tmpl_id, g_wireframe, r_designer, 'needs_attention', 'normal', 35, 38, 11, false, false),
     (nextval('ticket_number_seq')::text, 'Wireframe Presentation R3', tmpl_id, g_wireframe, r_designer, 'needs_attention', 'normal', 39, 39, 12, false, false),
-    (nextval('ticket_number_seq')::text, 'Final Wireframe Touches / Sign Off', tmpl_id, g_wireframe, r_designer, 'needs_attention', 'normal', 40, 41, 13, false, false);
+    (nextval('ticket_number_seq')::text, 'Final Wireframe Touches / Sign Off', tmpl_id, g_wireframe, r_designer, 'needs_attention', 'normal', 40, 41, 13, false, false),
+    -- NEW: Design to Dev Handoff Meeting — same day development starts, before dev begins
+    (nextval('ticket_number_seq')::text, 'Design to Dev Handoff Meeting', tmpl_id, g_wireframe, r_designer, 'needs_attention', 'normal', 39, 39, 14, false, false);
 
   -- ========== DEVELOPMENT ==========
   INSERT INTO tickets (ticket_number, title, project_id, group_id, template_role_id, status, priority, day_offset_start, day_offset_due, sort_order, is_personal, archived)

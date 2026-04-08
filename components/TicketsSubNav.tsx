@@ -20,8 +20,11 @@ export default function TicketsSubNav() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [showCreateFlow, setShowCreateFlow] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const plusRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setMounted(true), []);
 
   const { user, userId, roleLevel } = useCurrentUser();
 
@@ -64,15 +67,17 @@ export default function TicketsSubNav() {
 
   const isAdmin = ["owner", "c_suite"].includes(userRole);
 
+  // Defer conditional tabs until after mount to avoid SSR hydration mismatch
+  // (cookie is unreadable during SSR, so user/tags are null server-side)
   const fixedTabs = [
     { href: "/admin/tickets/my-board", label: "My Board" },
     { href: "/admin/tickets", label: "Task Management", exact: true },
     // SEO: visible to admins or team members tagged "SEO"
-    ...(isAdmin || userTags.includes("SEO")
+    ...(mounted && (isAdmin || userTags.includes("SEO"))
       ? [{ href: "/admin/tickets/seo", label: "SEO" }]
       : []),
     // Google Ads: visible to admins or team members tagged "Google Ads"
-    ...(isAdmin || userTags.includes("Google Ads")
+    ...(mounted && (isAdmin || userTags.includes("Google Ads"))
       ? [{ href: "/admin/tickets/google-ads", label: "Google Ads" }]
       : []),
     // Retainer: visible to everyone
