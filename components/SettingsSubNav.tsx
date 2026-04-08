@@ -34,7 +34,7 @@ export default function SettingsSubNav({ roleLevel }: { roleLevel?: RoleLevel | 
     }`;
 
   return (
-    <div className="border-b border-[var(--border)] bg-white">
+    <div className="border-b border-[var(--border)] bg-white sticky top-[49px] z-20">
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center gap-1">
           {visibleTabs.map((tab) => (
