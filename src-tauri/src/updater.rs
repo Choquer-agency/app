@@ -89,6 +89,13 @@ pub fn start_auto_update_loop(app: &tauri::App) {
     });
 }
 
+/// Synchronous wrapper for triggering update check from menu events.
+pub fn check_and_install(handle: &AppHandle) {
+    tauri::async_runtime::block_on(async {
+        auto_check_and_install(handle).await;
+    });
+}
+
 /// Check for an update and auto-install if found.
 async fn auto_check_and_install(handle: &AppHandle) {
     let updater = match handle.updater() {

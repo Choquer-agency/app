@@ -16,7 +16,6 @@ pub fn build_menu(app: &App) -> tauri::Result<Menu<Wry>> {
         )
         .item(
             &MenuItemBuilder::with_id("check_updates", "Check for Updates...")
-                .enabled(false) // Placeholder — wired up in Phase 4
                 .build(app)?,
         )
         .separator()
@@ -132,6 +131,14 @@ pub fn handle_menu_event(app_handle: &AppHandle, event: tauri::menu::MenuEvent) 
             if let Some(w) = app_handle.get_webview_window("main") {
                 let _ = w.hide();
             }
+        }
+
+        // Check for updates
+        "check_updates" => {
+            let handle = app_handle.clone();
+            std::thread::spawn(move || {
+                crate::updater::check_and_install(&handle);
+            });
         }
 
         // About dialog
