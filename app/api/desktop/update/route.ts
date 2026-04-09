@@ -78,7 +78,7 @@ async function getLatestRelease(): Promise<GitHubRelease | null> {
   }
 
   const response = await fetch(
-    "https://api.github.com/repos/choquer-agency/insightpulse/releases/latest",
+    "https://api.github.com/repos/Choquer-agency/app/releases/latest",
     {
       headers: {
         Accept: "application/vnd.github+json",
