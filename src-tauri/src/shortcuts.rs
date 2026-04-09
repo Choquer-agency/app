@@ -7,13 +7,11 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 /// - Cmd+Shift+I → show/focus app
 /// - Cmd+Shift+T → show app + navigate to quick-create
 /// - Cmd+Shift+C → show app + toggle clock in/out
-/// - Cmd+Shift+N → show app + open notifications
 pub fn register_shortcuts(app: &tauri::App) {
     let shortcuts = [
         ("CmdOrCtrl+Shift+KeyI", "show"),
         ("CmdOrCtrl+Shift+KeyT", "quick_ticket"),
         ("CmdOrCtrl+Shift+KeyC", "toggle_clock"),
-        ("CmdOrCtrl+Shift+KeyN", "notifications"),
     ];
 
     for (shortcut_str, action) in shortcuts {

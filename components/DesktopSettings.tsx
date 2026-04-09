@@ -65,7 +65,6 @@ export default function DesktopSettings() {
           <ShortcutRow keys="Cmd + Shift + I" action="Show / focus app" />
           <ShortcutRow keys="Cmd + Shift + T" action="Quick create ticket" />
           <ShortcutRow keys="Cmd + Shift + C" action="Toggle clock in/out" />
-          <ShortcutRow keys="Cmd + Shift + N" action="Open notifications" />
         </div>
       </div>
 
