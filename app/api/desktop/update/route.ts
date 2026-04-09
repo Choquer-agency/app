@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
-let cachedRelease: { data: GitHubRelease; fetchedAt: number } | null = null;
 
 interface GitHubRelease {
   tag_name: string;
@@ -73,10 +71,6 @@ export async function GET(request: NextRequest) {
 }
 
 async function getLatestRelease(): Promise<GitHubRelease | null> {
-  if (cachedRelease && Date.now() - cachedRelease.fetchedAt < CACHE_TTL_MS) {
-    return cachedRelease.data;
-  }
-
   const response = await fetch(
     "https://api.github.com/repos/Choquer-agency/app/releases/latest",
     {
@@ -84,7 +78,7 @@ async function getLatestRelease(): Promise<GitHubRelease | null> {
         Accept: "application/vnd.github+json",
         "User-Agent": "InsightPulse-Updater",
       },
-      next: { revalidate: 300 },
+      next: { revalidate: 60 },
     }
   );
 
@@ -96,9 +90,7 @@ async function getLatestRelease(): Promise<GitHubRelease | null> {
     throw new Error(`GitHub API error: ${response.status}`);
   }
 
-  const data: GitHubRelease = await response.json();
-  cachedRelease = { data, fetchedAt: Date.now() };
-  return data;
+  return await response.json();
 }
 
 function isNewerVersion(latest: string, current: string): boolean {
