@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSessionFromCookies } from "@/lib/admin-auth";
 import DesktopSettings from "@/components/DesktopSettings";
+import AppSettings from "@/components/AppSettings";
 
 export default async function DesktopSettingsPage() {
   const cookieStore = await cookies();
@@ -16,10 +17,12 @@ export default async function DesktopSettingsPage() {
         Desktop App
       </h1>
       <p className="text-sm text-[var(--muted)] mb-8">
-        Settings for the Choquer.Agency desktop app. These options are only
-        available when using the desktop version.
+        Settings and updates for the Choquer.Agency desktop app.
       </p>
       <DesktopSettings />
+      <div className="mt-8">
+        <AppSettings />
+      </div>
     </div>
   );
 }
