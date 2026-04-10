@@ -49,9 +49,9 @@ export async function GET(request: NextRequest) {
     const signatureResponse = await fetch(signatureAsset.browser_download_url);
     const signature = await signatureResponse.text();
 
-    // Resolve GitHub's 302 redirect to get the direct download URL
-    // Tauri's updater may not follow redirects properly
-    const directUrl = await resolveRedirect(updateAsset.browser_download_url);
+    // Use Vercel Blob for direct download (GitHub redirects cause issues with Tauri updater)
+    const blobBaseUrl = "https://u8emusqdjinvtx4r.public.blob.vercel-storage.com/desktop";
+    const blobUrl = `${blobBaseUrl}/Choquer.Agency-${latestVersion}.app.tar.gz`;
 
     return NextResponse.json({
       version: latestVersion,
@@ -60,11 +60,11 @@ export async function GET(request: NextRequest) {
       platforms: {
         "darwin-aarch64": {
           signature: signature.trim(),
-          url: directUrl,
+          url: blobUrl,
         },
         "darwin-x86_64": {
           signature: signature.trim(),
-          url: directUrl,
+          url: blobUrl,
         },
       },
     });
