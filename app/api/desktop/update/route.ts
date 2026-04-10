@@ -49,6 +49,10 @@ export async function GET(request: NextRequest) {
     const signatureResponse = await fetch(signatureAsset.browser_download_url);
     const signature = await signatureResponse.text();
 
+    // Resolve GitHub's 302 redirect to get the direct download URL
+    // Tauri's updater may not follow redirects properly
+    const directUrl = await resolveRedirect(updateAsset.browser_download_url);
+
     return NextResponse.json({
       version: latestVersion,
       notes: release.body || "Bug fixes and improvements.",
@@ -56,11 +60,11 @@ export async function GET(request: NextRequest) {
       platforms: {
         "darwin-aarch64": {
           signature: signature.trim(),
-          url: updateAsset.browser_download_url,
+          url: directUrl,
         },
         "darwin-x86_64": {
           signature: signature.trim(),
-          url: updateAsset.browser_download_url,
+          url: directUrl,
         },
       },
     });
@@ -91,6 +95,14 @@ async function getLatestRelease(): Promise<GitHubRelease | null> {
   }
 
   return await response.json();
+}
+
+async function resolveRedirect(url: string): Promise<string> {
+  const response = await fetch(url, { redirect: "manual" });
+  if (response.status === 302 || response.status === 301) {
+    return response.headers.get("location") || url;
+  }
+  return url;
 }
 
 function isNewerVersion(latest: string, current: string): boolean {
