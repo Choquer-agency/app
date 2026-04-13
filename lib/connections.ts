@@ -91,8 +91,10 @@ export async function createOAuthConnection(params: {
   accessToken: string;
   refreshToken: string;
   expiresAt?: string;
+  tokenExpiresAt?: number; // epoch ms of access token expiry
   accountId?: string;
   accountName?: string;
+  availableAccounts?: { id: string; name: string; kind?: string }[];
   addedById?: string;
 }): Promise<ApiConnection> {
   const convex = getConvexClient();
@@ -113,6 +115,8 @@ export async function createOAuthConnection(params: {
     oauthAccountId: params.accountId,
     oauthAccountName: params.accountName,
     oauthExpiresAt: params.expiresAt,
+    tokenExpiresAt: params.tokenExpiresAt,
+    availableAccounts: params.availableAccounts,
     status: "active",
     lastVerifiedAt: new Date().toISOString(),
     displayName: params.accountName,

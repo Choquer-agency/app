@@ -871,7 +871,9 @@ export interface ChangelogEntry {
 export type ConnectionPlatform =
   | "google_ads" | "meta_ads" | "gmb" | "gsc" | "instagram"
   | "linkedin_ads" | "linkedin_pages" | "google_merchant" | "pagespeed"
-  | "airtable" | "intercom" | "mailerlite" | "mailersend" | "notion" | "slack" | "stripe";
+  | "youtube" | "google_oauth"
+  | "airtable" | "intercom" | "mailerlite" | "mailersend" | "notion" | "slack" | "stripe"
+  | "ipinfo";
 
 export type ConnectionScope = "org" | "client";
 export type ConnectionAuthType = "api_key" | "oauth2" | "service_account";

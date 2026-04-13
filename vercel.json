@@ -47,6 +47,14 @@
     {
       "path": "/api/cron/transaction-sync",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/enrich-visitors",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-dispatcher",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

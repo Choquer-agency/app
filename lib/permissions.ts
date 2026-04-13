@@ -71,7 +71,11 @@ export type Permission =
   | "comments:delete_any"
   // Connections
   | "connections:view"
-  | "connections:manage";
+  | "connections:manage"
+  // Traffic (visitor identification)
+  | "nav:traffic"
+  | "traffic:view"
+  | "traffic:manage";
 
 // Minimum role required for each permission.
 // Any role at that tier or higher automatically gets access.
@@ -121,8 +125,12 @@ const PERMISSION_MAP: Record<Permission, RoleLevel> = {
 
   "comments:delete_any": "owner",
 
-  "connections:view": "c_suite",
-  "connections:manage": "c_suite",
+  "connections:view": "employee",
+  "connections:manage": "employee",
+
+  "nav:traffic": "c_suite",
+  "traffic:view": "c_suite",
+  "traffic:manage": "owner",
 };
 
 // Bookkeepers only see CRM + Timesheet — explicit allowlist
@@ -144,6 +152,8 @@ const BOOKKEEPER_PERMISSIONS: Set<Permission> = new Set([
   "report:revenue",
   "report:forecasting",
   "report:accountability",
+  "connections:view",
+  "connections:manage",
 ]);
 
 /** Check if a role has a specific permission */

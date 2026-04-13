@@ -98,6 +98,12 @@ pub fn build_menu(app: &App) -> tauri::Result<Menu<Wry>> {
             &PredefinedMenuItem::minimize(app, None)?,
             &PredefinedMenuItem::maximize(app, Some("Zoom"))?,
         ])
+        .separator()
+        .item(
+            &MenuItemBuilder::with_id("bring_to_center", "Bring Window to Center")
+                .accelerator("CmdOrCtrl+Shift+C")
+                .build(app)?,
+        )
         .build()?;
 
     MenuBuilder::new(app)
@@ -132,6 +138,7 @@ pub fn handle_menu_event(app_handle: &AppHandle, event: tauri::menu::MenuEvent) 
                 let _ = w.hide();
             }
         }
+        "bring_to_center" => crate::show_main_window_safely(app_handle),
 
         // Check for updates
         "check_updates" => {

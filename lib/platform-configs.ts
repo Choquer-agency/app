@@ -92,7 +92,27 @@ export const PLATFORM_CONFIGS: PlatformConfig[] = [
     icon: "PageSpeed",
     color: "#4285F4",
   },
+  {
+    platform: "youtube",
+    name: "YouTube",
+    description: "Channel metrics, video performance, and audience insights",
+    scope: "client",
+    authType: "oauth2",
+    docsUrl: "https://developers.google.com/youtube/analytics",
+    icon: "YouTube",
+    color: "#FF0000",
+  },
   // Internal org-level platforms
+  {
+    platform: "google_oauth",
+    name: "Google (Agency)",
+    description: "One-time Google sign-in that powers Google Ads and YouTube queries for every client",
+    scope: "org",
+    authType: "oauth2",
+    docsUrl: "https://developers.google.com/identity/protocols/oauth2",
+    icon: "Google",
+    color: "#4285F4",
+  },
   {
     platform: "airtable",
     name: "Airtable",
@@ -162,6 +182,16 @@ export const PLATFORM_CONFIGS: PlatformConfig[] = [
     docsUrl: "https://docs.stripe.com/api",
     icon: "Stripe",
     color: "#635BFF",
+  },
+  {
+    platform: "ipinfo",
+    name: "IPinfo",
+    description: "Reverse IP lookup for website visitor company identification",
+    scope: "org",
+    authType: "api_key",
+    docsUrl: "https://ipinfo.io/developers",
+    icon: "IPinfo",
+    color: "#035BDA",
   },
 ];
 

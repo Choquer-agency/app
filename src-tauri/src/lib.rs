@@ -18,6 +18,24 @@ fn update_dock_badge(count: u32) {
     dock::set_dock_badge(count);
 }
 
+/// Show the main window and recover it if it was stranded on a disconnected monitor.
+///
+/// `tauri-plugin-window-state` can restore the window to coordinates on a monitor
+/// that is no longer attached (external display unplugged since last session). When
+/// that happens `current_monitor()` returns `None` — recenter before showing so the
+/// window is actually visible.
+pub fn show_main_window_safely(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let on_monitor = window.current_monitor().ok().flatten().is_some();
+        if !on_monitor {
+            let _ = window.center();
+        }
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -30,7 +48,7 @@ pub fn run() {
         // Phase 6 plugins
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
-            Some(vec!["--minimized"]),
+            None,
         ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -120,6 +138,18 @@ pub fn run() {
         })
         // Menu event handler
         .on_menu_event(menu::handle_menu_event)
-        .run(tauri::generate_context!())
-        .expect("error while running Choquer.Agency");
+        .build(tauri::generate_context!())
+        .expect("error while building Choquer.Agency")
+        .run(|app_handle, event| {
+            // Handle macOS dock-icon clicks when all windows are hidden.
+            // Without this handler, clicking the dock icon does nothing and the
+            // app appears "stuck open" — the symptom Lauren reported.
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } = event
+            {
+                show_main_window_safely(app_handle);
+            }
+        });
 }

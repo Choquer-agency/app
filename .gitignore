@@ -45,3 +45,4 @@ next-env.d.ts
 
 # migration artifacts
 scripts/id-mappings.json
+.env*.local

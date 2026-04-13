@@ -10,7 +10,7 @@ function getAuth(): Auth.GoogleAuth {
     throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var is not set");
   }
 
-  const credentials = JSON.parse(keyJson);
+  const credentials = JSON.parse(keyJson.replace(/\n/g, "\\n"));
 
   authClient = new google.auth.GoogleAuth({
     credentials,

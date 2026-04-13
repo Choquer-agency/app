@@ -124,9 +124,12 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
   }
 
   async function handleStopTimer() {
-    if (!runningTimer) return;
+    if (!runningTimer || !session) return;
     try {
-      await stopTimerMutation({ id: runningTimer._id as Id<"timeEntries"> });
+      await stopTimerMutation({
+        id: runningTimer._id as Id<"timeEntries">,
+        teamMemberId: session.teamMemberId as Id<"teamMembers">,
+      });
       window.dispatchEvent(new CustomEvent("timerChange"));
       fetchTimeData();
       const entryRes = await fetch(`/api/admin/service-board/${entry.id}`);

@@ -17,6 +17,9 @@ export default defineSchema({
     ga4PropertyId: v.optional(v.string()),
     gscSiteUrl: v.optional(v.string()),
     seRankingsProjectId: v.optional(v.string()),
+    googleAdsCustomerId: v.optional(v.string()),
+    youtubeChannelId: v.optional(v.string()),
+    gbpLocationName: v.optional(v.string()), // e.g. "locations/1234567890"
     calLink: v.optional(v.string()),
     notionPageUrl: v.optional(v.string()),
     notionPageId: v.optional(v.string()),
@@ -711,6 +714,14 @@ export default defineSchema({
     oauthAccountId: v.optional(v.string()),
     oauthAccountName: v.optional(v.string()),
     oauthExpiresAt: v.optional(v.string()),
+    refreshTokenCiphertext: v.optional(v.string()),
+    refreshTokenIv: v.optional(v.string()),
+    tokenExpiresAt: v.optional(v.number()), // epoch ms for the access token
+    availableAccounts: v.optional(v.array(v.object({
+      id: v.string(),
+      name: v.string(),
+      kind: v.optional(v.string()), // e.g. "ga4_property", "ads_customer", "yt_channel", "gbp_location"
+    }))),
     status: v.string(), // "active" | "expired" | "error" | "disconnected"
     lastVerifiedAt: v.optional(v.string()),
     lastError: v.optional(v.string()),
@@ -728,4 +739,177 @@ export default defineSchema({
     actorId: v.optional(v.id("teamMembers")),
   })
     .index("by_connection", ["connectionId"]),
+
+  mcpAuditLog: defineTable({
+    actor: v.string(), // "mcp" | "slack" | "cron" | team member id, etc.
+    detail: v.string(), // JSON-stringified payload: { tool, clientId, platform, metrics, ... }
+    teamMemberId: v.optional(v.id("teamMembers")),
+    tool: v.optional(v.string()),
+    success: v.optional(v.boolean()),
+    durationMs: v.optional(v.number()),
+  })
+    .index("by_teamMember", ["teamMemberId"])
+    .index("by_tool", ["tool"]),
+
+  destinations: defineTable({
+    type: v.string(), // "sheets" | "bigquery" | "notion"
+    name: v.string(), // human label e.g. "Penni Cart Reporting Sheet"
+    createdById: v.optional(v.id("teamMembers")),
+    // Type-specific config JSON-stringified and AES-encrypted
+    encryptedConfig: v.string(),
+    configIv: v.string(),
+    connectionId: v.id("apiConnections"), // OAuth/API connection we write through
+    status: v.string(), // "active" | "error" | "disabled"
+    lastTestedAt: v.optional(v.string()),
+    lastError: v.optional(v.string()),
+  })
+    .index("by_type", ["type"])
+    .index("by_status", ["status"]),
+
+  syncJobs: defineTable({
+    name: v.string(),
+    clientId: v.id("clients"),
+    sourcePlatform: v.string(), // "ga4" | "gsc" | "google_ads" | "youtube" | "gbp" | "pagespeed"
+    destinationId: v.id("destinations"),
+    metrics: v.array(v.string()),
+    dimensions: v.array(v.string()),
+    dateRangePreset: v.string(),
+    filters: v.optional(
+      v.array(
+        v.object({
+          dimension: v.string(),
+          op: v.string(),
+          value: v.string(),
+        })
+      )
+    ),
+    rowLimit: v.optional(v.number()),
+    frequency: v.string(), // "hourly" | "daily" | "weekly"
+    dayOfWeek: v.optional(v.number()),
+    hourOfDay: v.optional(v.number()),
+    nextRunAt: v.number(),
+    lastRunAt: v.optional(v.number()),
+    active: v.boolean(),
+    createdById: v.id("teamMembers"),
+    createdAt: v.string(),
+  })
+    .index("by_nextRun", ["active", "nextRunAt"])
+    .index("by_client", ["clientId"])
+    .index("by_destination", ["destinationId"]),
+
+  syncRuns: defineTable({
+    syncJobId: v.id("syncJobs"),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    durationMs: v.optional(v.number()),
+    status: v.string(), // "running" | "success" | "error"
+    rowsWritten: v.optional(v.number()),
+    rowsRead: v.optional(v.number()),
+    error: v.optional(v.string()),
+    triggeredBy: v.string(), // "schedule" | "manual" | "mcp"
+    triggeredById: v.optional(v.id("teamMembers")),
+  })
+    .index("by_job", ["syncJobId", "startedAt"])
+    .index("by_status", ["status"]),
+
+  mcpTokens: defineTable({
+    teamMemberId: v.id("teamMembers"),
+    tokenHash: v.string(), // SHA-256 hex of the plaintext token (for auth lookup)
+    encryptedToken: v.optional(v.string()), // AES-encrypted plaintext token (so UI can redisplay it)
+    tokenIv: v.optional(v.string()),
+    label: v.optional(v.string()),
+    createdAt: v.string(),
+    lastUsedAt: v.optional(v.string()),
+    revokedAt: v.optional(v.string()),
+  })
+    .index("by_hash", ["tokenHash"])
+    .index("by_teamMember", ["teamMemberId"]),
+
+  // === WEBSITE VISITOR IDENTIFICATION (Leadfeeder alternative) ===
+  trackedSites: defineTable({
+    name: v.string(), // "Choquer Agency" or client name
+    domain: v.string(), // "choqueragency.com"
+    siteKey: v.string(), // UUID tracking ID embedded in snippet
+    clientId: v.optional(v.id("clients")), // link to client (for future multi-site)
+    active: v.boolean(),
+    excludedIps: v.optional(v.array(v.string())), // office/VPN IPs to filter
+    consentMode: v.optional(v.boolean()), // require consent before tracking
+  })
+    .index("by_siteKey", ["siteKey"])
+    .index("by_domain", ["domain"])
+    .index("by_client", ["clientId"]),
+
+  siteVisitors: defineTable({
+    siteId: v.id("trackedSites"),
+    fingerprint: v.string(), // hash of IP + UA for dedup
+    ipHash: v.string(), // SHA-256 of raw IP
+    firstSeenAt: v.string(), // ISO timestamp
+    lastSeenAt: v.string(),
+    visitCount: v.number(),
+    companyId: v.optional(v.id("identifiedCompanies")),
+    device: v.optional(v.string()), // "desktop" | "mobile" | "tablet"
+    browser: v.optional(v.string()),
+    os: v.optional(v.string()),
+    country: v.optional(v.string()),
+    region: v.optional(v.string()),
+    city: v.optional(v.string()),
+    intentLevel: v.string(), // "new" | "returning" | "high_intent"
+    lastAlertedAt: v.optional(v.string()), // prevents alert spam
+  })
+    .index("by_site", ["siteId"])
+    .index("by_fingerprint", ["siteId", "fingerprint"])
+    .index("by_company", ["companyId"])
+    .index("by_lastSeen", ["siteId", "lastSeenAt"])
+    .index("by_intent", ["siteId", "intentLevel"]),
+
+  sitePageViews: defineTable({
+    siteId: v.id("trackedSites"),
+    visitorId: v.id("siteVisitors"),
+    url: v.string(),
+    path: v.string(),
+    title: v.optional(v.string()),
+    referrer: v.optional(v.string()),
+    utmSource: v.optional(v.string()),
+    utmMedium: v.optional(v.string()),
+    utmCampaign: v.optional(v.string()),
+    sessionId: v.string(),
+    durationSeconds: v.optional(v.number()),
+    timestamp: v.string(), // ISO timestamp
+  })
+    .index("by_visitor", ["visitorId"])
+    .index("by_site_timestamp", ["siteId", "timestamp"])
+    .index("by_session", ["sessionId"]),
+
+  identifiedCompanies: defineTable({
+    name: v.string(),
+    domain: v.optional(v.string()),
+    industry: v.optional(v.string()),
+    employeeCount: v.optional(v.string()), // "1-10", "11-50", etc.
+    city: v.optional(v.string()),
+    region: v.optional(v.string()),
+    country: v.optional(v.string()),
+    description: v.optional(v.string()),
+    linkedinUrl: v.optional(v.string()),
+    logoUrl: v.optional(v.string()),
+    source: v.string(), // "ipinfo"
+    lastEnrichedAt: v.string(),
+    leadId: v.optional(v.id("leads")), // link to CRM lead if promoted
+  })
+    .index("by_domain", ["domain"])
+    .index("by_name", ["name"]),
+
+  ipLookupCache: defineTable({
+    ipHash: v.string(), // SHA-256 of IP
+    companyId: v.optional(v.id("identifiedCompanies")),
+    raw: v.optional(v.any()), // raw API response
+    isIsp: v.boolean(), // true = consumer ISP, skip enrichment
+    lookedUpAt: v.string(), // ISO timestamp
+    // Short-lived raw IP used only by the enrichment cron to batch-call IPinfo.
+    // Populated by /api/t when real-time enrichment is skipped; purged after cron runs
+    // or once rawIpExpiresAt passes (24h TTL).
+    rawIp: v.optional(v.string()),
+    rawIpExpiresAt: v.optional(v.number()),
+  })
+    .index("by_ipHash", ["ipHash"])
+    .index("by_rawIp", ["rawIp"]),
 });

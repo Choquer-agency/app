@@ -97,10 +97,16 @@ export const start = mutation({
 });
 
 export const stop = mutation({
-  args: { id: v.id("timeEntries") },
+  args: {
+    id: v.id("timeEntries"),
+    teamMemberId: v.id("teamMembers"),
+  },
   handler: async (ctx, args) => {
     const entry = await ctx.db.get(args.id);
     if (!entry || entry.endTime !== undefined) return null;
+    if (entry.teamMemberId !== args.teamMemberId) {
+      throw new Error("You can only stop your own timer.");
+    }
 
     const now = new Date().toISOString();
     const startMs = new Date(entry.startTime).getTime();
@@ -223,15 +229,18 @@ export const listAll = query({
   },
 });
 
-// List running timers (for runaway detection)
-export const listRunning = query({
-  args: {},
-  handler: async (ctx) => {
-    // Get recent entries and filter for running (no endTime)
-    const recent = await ctx.db
+// List running timers for a single team member.
+// There is intentionally no cross-team "list all running timers" query —
+// running timers are private per user. Runaway detection on the server
+// iterates team members and calls getRunning per member.
+export const listRunningByMember = query({
+  args: { teamMemberId: v.id("teamMembers") },
+  handler: async (ctx, args) => {
+    const entries = await ctx.db
       .query("timeEntries")
+      .withIndex("by_member", (q) => q.eq("teamMemberId", args.teamMemberId))
       .order("desc")
-      .take(500);
-    return recent.filter((e) => e.endTime === undefined);
+      .take(50);
+    return entries.filter((e) => e.endTime === undefined);
   },
 });

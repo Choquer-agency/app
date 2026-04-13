@@ -24,10 +24,17 @@ export default function FloatingTimerBar() {
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   // Real-time query for running timer (replaces polling)
-  const timer = useQuery(
+  const rawTimer = useQuery(
     api.timeEntries.getRunning,
     session ? { teamMemberId: session.teamMemberId as Id<"teamMembers"> } : "skip"
   );
+
+  // Defense-in-depth: never render a timer that doesn't belong to the current session.
+  // Protects against a stale/swapped cookie returning someone else's timer.
+  const timer =
+    rawTimer && session && rawTimer.teamMemberId === session.teamMemberId
+      ? rawTimer
+      : null;
 
   const stopMutation = useMutation(api.timeEntries.stop);
 
@@ -56,10 +63,13 @@ export default function FloatingTimerBar() {
   }, [timer]);
 
   async function handleStop() {
-    if (!timer) return;
+    if (!timer || !session) return;
     setStopping(true);
     try {
-      await stopMutation({ id: timer._id as Id<"timeEntries"> });
+      await stopMutation({
+        id: timer._id as Id<"timeEntries">,
+        teamMemberId: session.teamMemberId as Id<"teamMembers">,
+      });
       window.dispatchEvent(new CustomEvent("timerChange"));
     } catch {} finally {
       setStopping(false);

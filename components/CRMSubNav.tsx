@@ -13,6 +13,7 @@ export default function CRMSubNav() {
   const tabs = [
     { href: "/admin/crm", label: "Clients", exact: true },
     ...(isAdmin ? [{ href: "/admin/crm/leads", label: "Leads" }] : []),
+    ...(isAdmin ? [{ href: "/admin/crm/traffic", label: "Traffic" }] : []),
   ];
 
   function isActive(href: string, exact?: boolean) {

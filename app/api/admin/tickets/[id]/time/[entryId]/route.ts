@@ -16,13 +16,18 @@ export async function PUT(
 
   const body = await request.json();
 
-  // Stop timer action
+  // Stop timer action — enforce that the caller owns the timer
   if (body.action === "stop") {
-    const entry = await stopTimer(entryIdNum);
-    if (!entry) {
-      return NextResponse.json({ error: "Timer not found or already stopped" }, { status: 404 });
+    try {
+      const entry = await stopTimer(entryIdNum, session.teamMemberId);
+      if (!entry) {
+        return NextResponse.json({ error: "Timer not found or already stopped" }, { status: 404 });
+      }
+      return NextResponse.json(entry);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unable to stop timer";
+      return NextResponse.json({ error: message }, { status: 403 });
     }
-    return NextResponse.json(entry);
   }
 
   // Edit entry

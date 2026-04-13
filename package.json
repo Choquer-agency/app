@@ -13,6 +13,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.79.0",
     "@floating-ui/dom": "^1.7.6",
+    "@google-cloud/bigquery": "^8.1.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@notionhq/client": "^2.3.0",
     "@supabase/supabase-js": "^2.100.0",

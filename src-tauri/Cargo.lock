@@ -2053,7 +2053,7 @@ dependencies = [
 
 [[package]]
 name = "insightpulse"
-version = "1.1.0"
+version = "1.2.4"
 dependencies = [
  "cocoa",
  "objc",

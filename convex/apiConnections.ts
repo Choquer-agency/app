@@ -49,6 +49,18 @@ export const upsert = mutation({
     oauthAccountId: v.optional(v.string()),
     oauthAccountName: v.optional(v.string()),
     oauthExpiresAt: v.optional(v.string()),
+    refreshTokenCiphertext: v.optional(v.string()),
+    refreshTokenIv: v.optional(v.string()),
+    tokenExpiresAt: v.optional(v.number()),
+    availableAccounts: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          name: v.string(),
+          kind: v.optional(v.string()),
+        })
+      )
+    ),
     status: v.string(),
     lastVerifiedAt: v.optional(v.string()),
     lastError: v.optional(v.string()),
@@ -76,6 +88,10 @@ export const upsert = mutation({
         oauthAccountId: args.oauthAccountId,
         oauthAccountName: args.oauthAccountName,
         oauthExpiresAt: args.oauthExpiresAt,
+        refreshTokenCiphertext: args.refreshTokenCiphertext,
+        refreshTokenIv: args.refreshTokenIv,
+        tokenExpiresAt: args.tokenExpiresAt,
+        availableAccounts: args.availableAccounts,
         status: args.status,
         lastVerifiedAt: args.lastVerifiedAt,
         lastError: args.lastError,
@@ -97,6 +113,9 @@ export const updateStatus = mutation({
     encryptedCreds: v.optional(v.string()),
     credsIv: v.optional(v.string()),
     oauthExpiresAt: v.optional(v.string()),
+    tokenExpiresAt: v.optional(v.number()),
+    refreshTokenCiphertext: v.optional(v.string()),
+    refreshTokenIv: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;

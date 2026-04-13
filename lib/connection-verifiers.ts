@@ -152,6 +152,12 @@ const VERIFIERS: Record<string, (creds: Record<string, string>) => Promise<Verif
     return { success: false, error: `HTTP ${res.status}` };
   },
 
+  ipinfo: async (creds) => {
+    const res = await fetch(`https://ipinfo.io/8.8.8.8?token=${creds.apiKey}`);
+    if (res.ok) return { success: true };
+    return { success: false, error: `HTTP ${res.status}` };
+  },
+
   google_merchant: async (creds) => {
     if (!creds.accessToken) return { success: false, error: "No access token" };
     const res = await fetch("https://shoppingcontent.googleapis.com/content/v2.1/accounts/authinfo", {

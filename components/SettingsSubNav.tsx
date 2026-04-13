@@ -12,8 +12,12 @@ const TABS = [
   { href: "/admin/settings/notifications", label: "Notifications" },
   { href: "/admin/settings/past-clients", label: "Past Clients", minRole: "c_suite" as RoleLevel },
   { href: "/admin/settings/activity", label: "Activity", minRole: "c_suite" as RoleLevel },
-  { href: "/admin/settings/connections", label: "Connections", minRole: "c_suite" as RoleLevel },
+  { href: "/admin/settings/connections", label: "Connections" },
+  { href: "/admin/settings/visitor-tracking", label: "Visitor ID", minRole: "c_suite" as RoleLevel },
   { href: "/admin/settings/desktop", label: "Desktop App" },
+  { href: "/admin/settings/mcp", label: "MCP Access" },
+  { href: "/admin/settings/destinations", label: "Destinations" },
+  { href: "/admin/settings/syncs", label: "Syncs" },
 ];
 
 export default function SettingsSubNav({ roleLevel }: { roleLevel?: RoleLevel | string }) {

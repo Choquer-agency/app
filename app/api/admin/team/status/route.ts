@@ -3,7 +3,7 @@ import { getSession } from "@/lib/admin-auth";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@/convex/_generated/api";
 
-type MemberStatus = "working" | "idle" | "break" | "offline" | "done";
+type MemberStatus = "idle" | "break" | "offline" | "done";
 
 interface TeamMemberStatusEntry {
   id: string;
@@ -13,8 +13,6 @@ interface TeamMemberStatusEntry {
   role: string;
   status: MemberStatus;
   clockInTime: string | null;
-  activeTicketId: string | null;
-  activeTicketNumber: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -38,10 +36,8 @@ export async function GET(request: NextRequest) {
     { startDate: today, endDate: today }
   );
 
-  // Fetch all running ticket timers
-  const runningTimers = await convex.query(api.timeEntries.listRunning, {});
-
-  // Build status per member
+  // Build status per member. Intentionally no visibility into running
+  // ticket timers — timers are private per user.
   const teamStatus: TeamMemberStatusEntry[] = [];
 
   // Filter out members on leave/terminated/past and bookkeepers
@@ -61,17 +57,10 @@ export async function GET(request: NextRequest) {
       (e) => e.teamMemberId === member._id && e.clockOutTime
     );
 
-    const runningTimer = (runningTimers as any[]).find(
-      (t) => t.teamMemberId === member._id
-    );
-
     let status: MemberStatus = "offline";
 
     if (shift) {
-      status = "idle"; // clocked in but no active timer
-      if (runningTimer) {
-        status = "working";
-      }
+      status = "idle"; // clocked in (available)
       // Check for active break
       try {
         const breaks = await convex.query(api.timesheetBreaks.listByEntry, {
@@ -88,17 +77,6 @@ export async function GET(request: NextRequest) {
       status = "done";
     }
 
-    // Fetch ticket number if there's an active timer
-    let activeTicketNumber: string | null = null;
-    if (runningTimer) {
-      try {
-        const ticket = await convex.query(api.tickets.getById, {
-          id: runningTimer.ticketId,
-        });
-        activeTicketNumber = (ticket as any)?.ticketNumber ?? null;
-      } catch {}
-    }
-
     teamStatus.push({
       id: member._id,
       name: member.name,
@@ -107,18 +85,15 @@ export async function GET(request: NextRequest) {
       role: member.role ?? "",
       status,
       clockInTime: shift?.clockInTime ?? null,
-      activeTicketId: runningTimer?.ticketId ?? null,
-      activeTicketNumber,
     });
   }
 
-  // Sort: working first, then idle, then break, then done, then offline
+  // Sort: idle (available) first, then break, then done, then offline
   const statusOrder: Record<MemberStatus, number> = {
-    working: 0,
-    idle: 1,
-    break: 2,
-    done: 3,
-    offline: 4,
+    idle: 0,
+    break: 1,
+    done: 2,
+    offline: 3,
   };
   teamStatus.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
 

@@ -42,10 +42,14 @@ export async function startTimer(
   return docToTimeEntry(doc);
 }
 
-export async function stopTimer(entryId: number | string): Promise<TimeEntry | null> {
+export async function stopTimer(
+  entryId: number | string,
+  teamMemberId: number | string
+): Promise<TimeEntry | null> {
   const convex = getConvexClient();
   const doc = await convex.mutation(api.timeEntries.stop, {
     id: entryId as any,
+    teamMemberId: teamMemberId as any,
   });
   if (!doc) return null;
   return docToTimeEntry(doc);
@@ -61,6 +65,7 @@ export async function stopTimerByMember(teamMemberId: number | string): Promise<
 
   const doc = await convex.mutation(api.timeEntries.stop, {
     id: running._id as any,
+    teamMemberId: teamMemberId as any,
   });
   if (!doc) return null;
   return docToTimeEntry(doc);
@@ -493,17 +498,27 @@ export async function getTeamTimeReport(
 }
 
 // === Runaway Timer Detection ===
+// Iterates active team members and asks for each one's running timer.
+// We deliberately don't expose a cross-team "list all running" query
+// because running timers are private per user in the client API.
 
 export async function checkRunawayTimers(): Promise<TimeEntry[]> {
   const convex = getConvexClient();
-  const running = await convex.query(api.timeEntries.listRunning, {});
+  const members = await convex.query(api.teamMembers.list, { activeOnly: true });
   const now = Date.now();
   const TEN_HOURS = 10 * 60 * 60 * 1000;
 
-  return (running as any[])
-    .filter((e) => {
-      const start = new Date(e.startTime).getTime();
-      return (now - start) > TEN_HOURS;
-    })
-    .map(docToTimeEntry);
+  const runaways: TimeEntry[] = [];
+  for (const member of members as any[]) {
+    const running = await convex.query(api.timeEntries.listRunningByMember, {
+      teamMemberId: member._id,
+    });
+    for (const entry of running as any[]) {
+      const start = new Date(entry.startTime).getTime();
+      if (now - start > TEN_HOURS) {
+        runaways.push(docToTimeEntry(entry));
+      }
+    }
+  }
+  return runaways;
 }

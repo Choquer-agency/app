@@ -69,25 +69,20 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 }
 
 fn show_and_focus(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
-    }
+    crate::show_main_window_safely(app);
 }
 
 fn show_and_navigate(app: &AppHandle, path: &str) {
+    crate::show_main_window_safely(app);
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
         let _ = window.eval(&format!("window.location.href = '{}'", path));
     }
 }
 
 /// Show the app and dispatch a custom event for the frontend to handle
 fn show_and_dispatch(app: &AppHandle, action: &str) {
+    crate::show_main_window_safely(app);
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
         let _ = window.eval(&format!(
             "window.dispatchEvent(new CustomEvent('desktop-shortcut', {{ detail: '{}' }}))",
             action

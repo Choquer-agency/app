@@ -8,43 +8,31 @@ interface TeamMemberStatus {
   profilePicUrl: string | null;
   color: string | null;
   role: string;
-  status: "working" | "idle" | "break" | "offline" | "done";
+  status: "idle" | "break" | "offline" | "done";
   clockInTime: string | null;
-  activeTicketId: string | null;
-  activeTicketNumber: string | null;
 }
 
 const STATUS_CONFIG: Record<
   TeamMemberStatus["status"],
-  { dot: string; ping: string; label: string; text: string }
+  { dot: string; label: string; text: string }
 > = {
-  working: {
-    dot: "bg-green-500",
-    ping: "bg-green-500",
-    label: "Working",
-    text: "text-green-700",
-  },
   idle: {
     dot: "bg-yellow-400",
-    ping: "bg-yellow-400",
     label: "Available",
     text: "text-yellow-700",
   },
   break: {
     dot: "bg-orange-400",
-    ping: "bg-orange-400",
     label: "On Break",
     text: "text-orange-700",
   },
   done: {
     dot: "bg-gray-300",
-    ping: "bg-gray-300",
     label: "Done for today",
     text: "text-gray-500",
   },
   offline: {
     dot: "bg-gray-300",
-    ping: "bg-gray-300",
     label: "Offline",
     text: "text-gray-400",
   },
@@ -82,7 +70,7 @@ export default function WhosInWidget() {
   }, [fetchStatus]);
 
   const activeCount = team.filter(
-    (m) => m.status === "working" || m.status === "idle" || m.status === "break"
+    (m) => m.status === "idle" || m.status === "break"
   ).length;
 
   if (loading) {
@@ -116,7 +104,6 @@ export default function WhosInWidget() {
       <div className="px-4 pb-4 space-y-1.5">
         {team.map((member) => {
           const config = STATUS_CONFIG[member.status];
-          const showPing = member.status === "working";
 
           return (
             <div
@@ -125,11 +112,6 @@ export default function WhosInWidget() {
             >
               {/* Status dot */}
               <span className="relative flex h-2.5 w-2.5 shrink-0">
-                {showPing && (
-                  <span
-                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${config.ping}`}
-                  />
-                )}
                 <span
                   className={`relative inline-flex rounded-full h-2.5 w-2.5 ${config.dot}`}
                 />
@@ -159,11 +141,9 @@ export default function WhosInWidget() {
                   {member.name}
                 </p>
                 <p className={`text-[10px] truncate ${config.text}`}>
-                  {member.status === "working" && member.activeTicketNumber
-                    ? `Working on ${member.activeTicketNumber}`
-                    : member.status === "idle" && member.clockInTime
-                      ? `Since ${new Date(member.clockInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()}`
-                      : config.label}
+                  {member.status === "idle" && member.clockInTime
+                    ? `Since ${new Date(member.clockInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()}`
+                    : config.label}
                 </p>
               </div>
             </div>

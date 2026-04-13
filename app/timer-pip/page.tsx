@@ -46,10 +46,18 @@ export default function TimerPipPage() {
     return () => { style.remove(); };
   }, []);
 
-  const timer = useQuery(
+  const rawTimer = useQuery(
     api.timeEntries.getRunning,
     session ? { teamMemberId: session.teamMemberId as Id<"teamMembers"> } : "skip"
   );
+
+  // Defense-in-depth: never render a timer that doesn't belong to this session.
+  const timer =
+    rawTimer === undefined
+      ? undefined
+      : rawTimer && session && rawTimer.teamMemberId === session.teamMemberId
+        ? rawTimer
+        : null;
 
   const stopMutation = useMutation(api.timeEntries.stop);
 
@@ -89,10 +97,13 @@ export default function TimerPipPage() {
   }, [timer]);
 
   async function handleStop() {
-    if (!timer) return;
+    if (!timer || !session) return;
     setStopping(true);
     try {
-      await stopMutation({ id: timer._id as Id<"timeEntries"> });
+      await stopMutation({
+        id: timer._id as Id<"timeEntries">,
+        teamMemberId: session.teamMemberId as Id<"teamMembers">,
+      });
     } catch {
       // Silent
     } finally {
