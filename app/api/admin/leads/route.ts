@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
       contactName: body.contactName || undefined,
       contactRole: body.contactRole || undefined,
       contactEmail: body.contactEmail || undefined,
+      contactPhone: body.contactPhone || undefined,
       website: body.website || undefined,
       status: body.status || undefined,
       notes: body.notes || undefined,

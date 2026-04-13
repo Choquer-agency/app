@@ -66,11 +66,90 @@ export default defineSchema({
     contactName: v.optional(v.string()),
     contactRole: v.optional(v.string()),
     contactEmail: v.optional(v.string()),
+    contactPhone: v.optional(v.string()),
     website: v.optional(v.string()),
     status: v.string(), // "new" | "contacted" | "responded" | "meeting_scheduled" | "proposal_sent" | "won" | "lost"
     notes: v.optional(v.string()),
-    source: v.optional(v.string()),
-  }).index("by_status", ["status"]),
+    source: v.optional(v.string()), // free-text (e.g. "referral", "linkedin", "meta_ads", "google_ads", "website")
+
+    // --- Meta Ads attribution (optional; only present on meta_ads-sourced leads) ---
+    metaCampaignId: v.optional(v.string()),
+    metaAdSetId: v.optional(v.string()),
+    metaAdId: v.optional(v.string()),
+    metaFormId: v.optional(v.string()),
+    metaLeadgenId: v.optional(v.string()), // Meta's internal lead ID from webhook
+    metaPageId: v.optional(v.string()),
+    fbclid: v.optional(v.string()),
+    fbc: v.optional(v.string()),
+    fbp: v.optional(v.string()),
+    clientUserAgent: v.optional(v.string()), // EMQ signal
+    clientIpAddress: v.optional(v.string()), // EMQ signal
+    leadCapturedAt: v.optional(v.number()), // when Meta captured the lead (ms)
+
+    // --- Qualification funnel (drives Meta Conversions API events) ---
+    // "qualified" | "unqualified" | "converted" ; absence = not yet reviewed
+    qualification: v.optional(v.string()),
+    qualificationChangedAt: v.optional(v.number()),
+    statusChangedAt: v.optional(v.number()),
+
+    // --- Conversion value (for Purchase event) ---
+    value: v.optional(v.number()),
+    currency: v.optional(v.string()), // defaults to "USD"
+
+    // --- Status history (bounded: only ~7 statuses, at most a handful of transitions) ---
+    statusHistory: v.optional(
+      v.array(
+        v.object({
+          status: v.string(),
+          at: v.number(),
+          byUserId: v.optional(v.id("teamMembers")),
+        })
+      )
+    ),
+
+    // --- Meta event audit + dedup (bounded: max ~3 event types per lead) ---
+    metaEventsSent: v.optional(
+      v.array(
+        v.object({
+          eventName: v.string(), // "Lead" | "QualifiedLead" | "Purchase"
+          eventId: v.string(), // deterministic UUID for dedup: `${leadId}:${eventName}`
+          sentAt: v.number(),
+          fbTraceId: v.optional(v.string()),
+          status: v.string(), // "sent" | "failed"
+          error: v.optional(v.string()),
+          testMode: v.optional(v.boolean()),
+        })
+      )
+    ),
+  })
+    .index("by_status", ["status"])
+    .index("by_qualification", ["qualification"])
+    .index("by_source", ["source"])
+    .index("by_leadgen_id", ["metaLeadgenId"]),
+
+  // Singleton config for Meta Ads / Conversions API integration.
+  // Access tokens + app secret are AES-256-GCM encrypted before storage.
+  metaAdsConfig: defineTable({
+    pixelId: v.optional(v.string()),
+    // Encrypted secrets. Each is stored as { ciphertext, iv } via lib/credentials-crypto.
+    accessToken: v.optional(
+      v.object({ ciphertext: v.string(), iv: v.string() })
+    ),
+    appSecret: v.optional(
+      v.object({ ciphertext: v.string(), iv: v.string() })
+    ),
+    pageAccessToken: v.optional(
+      v.object({ ciphertext: v.string(), iv: v.string() })
+    ),
+    // Not strictly secret — Andreas chooses this; Meta echoes it during verification.
+    verifyToken: v.optional(v.string()),
+    // Empty/undefined means live mode; any value routes events to Events Manager Test Events.
+    testEventCode: v.optional(v.string()),
+    // When false, the CAPI dispatch action silently skips so events aren't sent.
+    enabled: v.boolean(),
+    updatedAt: v.optional(v.number()),
+    updatedByUserId: v.optional(v.id("teamMembers")),
+  }),
 
   packages: defineTable({
     name: v.string(),
