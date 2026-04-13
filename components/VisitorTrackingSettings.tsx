@@ -92,7 +92,13 @@ export default function VisitorTrackingSettings() {
   }
 
   function getSnippet(site: TrackedSite): string {
-    return `<script defer src="https://insightpulse.vercel.app/t.js" data-site="${site.siteKey}"></script>`;
+    // NEXT_PUBLIC_APP_URL is set to localhost in dev; fall back to the
+    // public ERP domain so the snippet copied from the UI is always usable
+    // on external marketing sites.
+    const envBase = process.env.NEXT_PUBLIC_APP_URL;
+    const base =
+      envBase && !envBase.includes("localhost") ? envBase : "https://choquer.app";
+    return `<script defer src="${base}/t.js" data-site="${site.siteKey}"></script>`;
   }
 
   function copyToClipboard(text: string, key: string) {
