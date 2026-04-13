@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Fragment, useState, useEffect, useCallback } from "react";
 
 interface CompanyRow {
   companyId: string;
@@ -24,10 +24,37 @@ interface TrafficStats {
   highIntentCount: number;
 }
 
+interface UnknownPage {
+  path: string;
+  title?: string;
+  referrer?: string;
+  durationSeconds?: number;
+  timestamp: string;
+}
+
+interface UnknownVisitorRow {
+  visitorId: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  visitCount: number;
+  intentLevel: "new" | "returning" | "high_intent";
+  device?: string;
+  browser?: string;
+  os?: string;
+  country?: string;
+  region?: string;
+  city?: string;
+  pageCount: number;
+  uniquePaths: number;
+  totalDuration: number;
+  pages: UnknownPage[];
+}
+
 interface TrafficData {
   stats: TrafficStats;
   companies: CompanyRow[];
   unknownVisitorCount: number;
+  unknownVisitors?: UnknownVisitorRow[];
 }
 
 const INTENT_BADGES: Record<string, { label: string; color: string; bg: string }> = {
@@ -55,6 +82,7 @@ export default function TrafficDashboard() {
   const [loading, setLoading] = useState(true);
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "new" | "returning" | "high_intent">("all");
+  const [expandedVisitorId, setExpandedVisitorId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -107,11 +135,16 @@ export default function TrafficDashboard() {
     );
   }
 
-  const { stats, companies, unknownVisitorCount } = data;
+  const { stats, companies, unknownVisitorCount, unknownVisitors = [] } = data;
   const highIntentCompanies = companies.filter((c) => c.intentLevel === "high_intent");
 
   const filteredCompanies =
     filter === "all" ? companies : companies.filter((c) => c.intentLevel === filter);
+
+  const filteredUnknownVisitors =
+    filter === "all"
+      ? unknownVisitors
+      : unknownVisitors.filter((v) => v.intentLevel === filter);
 
   return (
     <div>
@@ -175,8 +208,8 @@ export default function TrafficDashboard() {
 
       {/* Company table */}
       {filteredCompanies.length === 0 ? (
-        <div className="text-center py-12 text-[var(--muted)] text-sm">
-          No companies match this filter
+        <div className="text-center py-8 text-[var(--muted)] text-sm">
+          No identified companies yet{unknownVisitorCount > 0 ? " — see anonymous visitors below" : ""}
         </div>
       ) : (
         <div className="border border-[var(--border)] rounded-xl overflow-hidden">
@@ -251,8 +284,143 @@ export default function TrafficDashboard() {
           </table>
         </div>
       )}
+
+      {/* Anonymous visitors — visitors IPinfo couldn't match to a company
+          (residential ISPs, mobile carriers, VPNs). Still useful: pages,
+          duration, device, location. */}
+      {filteredUnknownVisitors.length > 0 && (
+        <div className="mt-10">
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">
+              Anonymous Visitors
+            </h2>
+            <span className="text-xs text-[var(--muted)]">
+              {filteredUnknownVisitors.length} visitor{filteredUnknownVisitors.length !== 1 ? "s" : ""} — no company match
+            </span>
+          </div>
+          <div className="border border-[var(--border)] rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-[var(--border)]">
+                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)]">Intent</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)]">Device</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)] hidden md:table-cell">Location</th>
+                  <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Pages</th>
+                  <th className="text-right px-4 py-3 font-medium text-[var(--muted)] hidden sm:table-cell">Time</th>
+                  <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Visits</th>
+                  <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Last Seen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUnknownVisitors.map((v) => {
+                  const badge = INTENT_BADGES[v.intentLevel] || INTENT_BADGES.new;
+                  const deviceLabel = [v.device, v.browser].filter(Boolean).join(" · ") || "Unknown";
+                  const locationLabel = [v.city, v.region, v.country].filter(Boolean).join(", ") || "Unknown";
+                  const isExpanded = expandedVisitorId === v.visitorId;
+                  return (
+                    <Fragment key={v.visitorId}>
+                      <tr
+                        className="border-b border-[var(--border)] last:border-b-0 hover:bg-gray-50 transition cursor-pointer"
+                        onClick={() =>
+                          setExpandedVisitorId(isExpanded ? null : v.visitorId)
+                        }
+                      >
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color} ${badge.bg}`}>
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-[var(--foreground)]">{deviceLabel}</div>
+                          {v.os && (
+                            <div className="text-xs text-[var(--muted)]">{v.os}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-[var(--muted)] hidden md:table-cell">
+                          {locationLabel}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono">
+                          {v.pageCount}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono hidden sm:table-cell">
+                          {formatDuration(v.totalDuration)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono">{v.visitCount}</td>
+                        <td className="px-4 py-3 text-right text-[var(--muted)]">
+                          <span className="inline-flex items-center gap-1">
+                            {timeAgo(v.lastSeenAt)}
+                            <svg
+                              className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              strokeWidth={2}
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                            </svg>
+                          </span>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-gray-50 border-b border-[var(--border)]">
+                          <td colSpan={7} className="px-4 py-4">
+                            {v.pages.length === 0 ? (
+                              <div className="text-xs text-[var(--muted)]">
+                                No page view details recorded.
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium text-[var(--muted)] mb-2">
+                                  Page views ({v.pages.length})
+                                </div>
+                                {v.pages.map((p, idx) => (
+                                  <div
+                                    key={`${v.visitorId}-${idx}`}
+                                    className="flex items-center justify-between gap-4 text-xs py-1"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-[var(--foreground)] font-mono truncate">
+                                        {p.path}
+                                      </div>
+                                      {p.title && (
+                                        <div className="text-[var(--muted)] truncate">
+                                          {p.title}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="text-[var(--muted)] shrink-0 font-mono">
+                                      {p.durationSeconds
+                                        ? formatDuration(p.durationSeconds)
+                                        : "—"}
+                                    </div>
+                                    <div className="text-[var(--muted)] shrink-0 w-24 text-right">
+                                      {timeAgo(p.timestamp)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds < 1) return "—";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
 }
 
 function StatCard({

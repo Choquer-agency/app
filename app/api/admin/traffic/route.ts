@@ -121,6 +121,54 @@ export async function GET(request: NextRequest) {
       return new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime();
     });
 
+    // Build anonymous visitor rows with their page views so the dashboard
+    // can show what pages each unidentified visitor looked at. IPinfo can't
+    // always resolve a company (residential ISPs, mobile carriers, VPNs) but
+    // the behavioral data is still useful.
+    const unknownVisitorRows = await Promise.all(
+      unknownVisitors.map(async (v) => {
+        const pages = await convex.query(api.sitePageViews.listByVisitor, {
+          visitorId: v._id,
+          limit: 50,
+        });
+        const totalDuration = pages.reduce(
+          (sum: number, p: any) => sum + (p.durationSeconds || 0),
+          0,
+        );
+        const uniquePaths = new Set(pages.map((p: any) => p.path)).size;
+        return {
+          visitorId: v._id,
+          firstSeenAt: v.firstSeenAt,
+          lastSeenAt: v.lastSeenAt,
+          visitCount: v.visitCount,
+          intentLevel: v.intentLevel,
+          device: v.device,
+          browser: v.browser,
+          os: v.os,
+          country: v.country,
+          region: v.region,
+          city: v.city,
+          pageCount: pages.length,
+          uniquePaths,
+          totalDuration,
+          pages: pages.map((p: any) => ({
+            path: p.path,
+            title: p.title,
+            referrer: p.referrer,
+            durationSeconds: p.durationSeconds,
+            timestamp: p.timestamp,
+          })),
+        };
+      }),
+    );
+
+    // Sort unknown visitors: high_intent first, then by last visit desc.
+    unknownVisitorRows.sort((a, b) => {
+      if (a.intentLevel === "high_intent" && b.intentLevel !== "high_intent") return -1;
+      if (b.intentLevel === "high_intent" && a.intentLevel !== "high_intent") return 1;
+      return new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime();
+    });
+
     return NextResponse.json({
       stats: {
         totalVisitors7d: visitors7d.length,
@@ -133,6 +181,7 @@ export async function GET(request: NextRequest) {
       },
       companies: companyRows,
       unknownVisitorCount: unknownVisitors.length,
+      unknownVisitors: unknownVisitorRows,
     });
   } catch (error) {
     console.error("Failed to fetch traffic data:", error);
