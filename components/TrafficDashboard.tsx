@@ -302,9 +302,10 @@ export default function TrafficDashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-[var(--border)]">
-                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)]">Intent</th>
-                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)]">Device</th>
-                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)] hidden md:table-cell">Location</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)]">Company</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)] hidden md:table-cell">Domain</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)]">Location</th>
+                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)] hidden lg:table-cell">Device</th>
                   <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Pages</th>
                   <th className="text-right px-4 py-3 font-medium text-[var(--muted)] hidden sm:table-cell">Time</th>
                   <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Visits</th>
@@ -314,7 +315,7 @@ export default function TrafficDashboard() {
               <tbody>
                 {filteredUnknownVisitors.map((v) => {
                   const badge = INTENT_BADGES[v.intentLevel] || INTENT_BADGES.new;
-                  const deviceLabel = [v.device, v.browser].filter(Boolean).join(" · ") || "Unknown";
+                  const deviceLabel = [v.device, v.browser, v.os].filter(Boolean).join(" · ") || "Unknown";
                   const locationLabel = [v.city, v.region, v.country].filter(Boolean).join(", ") || "Unknown";
                   const isExpanded = expandedVisitorId === v.visitorId;
                   return (
@@ -326,18 +327,21 @@ export default function TrafficDashboard() {
                         }
                       >
                         <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color} ${badge.bg}`}>
-                            {badge.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-[var(--foreground)]">{deviceLabel}</div>
-                          {v.os && (
-                            <div className="text-xs text-[var(--muted)]">{v.os}</div>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-[var(--foreground)]">Unknown</span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${badge.color} ${badge.bg}`}>
+                              {badge.label}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-[var(--muted)] hidden md:table-cell">
+                          —
+                        </td>
+                        <td className="px-4 py-3 text-[var(--muted)]">
                           {locationLabel}
+                        </td>
+                        <td className="px-4 py-3 text-[var(--muted)] hidden lg:table-cell">
+                          {deviceLabel}
                         </td>
                         <td className="px-4 py-3 text-right font-mono">
                           {v.pageCount}
@@ -363,7 +367,7 @@ export default function TrafficDashboard() {
                       </tr>
                       {isExpanded && (
                         <tr className="bg-gray-50 border-b border-[var(--border)]">
-                          <td colSpan={7} className="px-4 py-4">
+                          <td colSpan={8} className="px-4 py-4">
                             {v.pages.length === 0 ? (
                               <div className="text-xs text-[var(--muted)]">
                                 No page view details recorded.
@@ -376,26 +380,21 @@ export default function TrafficDashboard() {
                                 {v.pages.map((p, idx) => (
                                   <div
                                     key={`${v.visitorId}-${idx}`}
-                                    className="flex items-center justify-between gap-4 text-xs py-1"
+                                    className="flex items-center gap-3 text-xs py-1"
                                   >
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-[var(--foreground)] font-mono truncate">
-                                        {p.path}
-                                      </div>
-                                      {p.title && (
-                                        <div className="text-[var(--muted)] truncate">
-                                          {p.title}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="text-[var(--muted)] shrink-0 font-mono">
+                                    <span className="text-[var(--foreground)] font-mono shrink-0">
+                                      {p.path}
+                                    </span>
+                                    {p.title && (
+                                      <span className="text-[var(--muted)] truncate flex-1 min-w-0">
+                                        {p.title}
+                                      </span>
+                                    )}
+                                    <span className="text-[var(--muted)] shrink-0 font-mono ml-auto">
                                       {p.durationSeconds
                                         ? formatDuration(p.durationSeconds)
                                         : "—"}
-                                    </div>
-                                    <div className="text-[var(--muted)] shrink-0 w-24 text-right">
-                                      {timeAgo(p.timestamp)}
-                                    </div>
+                                    </span>
                                   </div>
                                 ))}
                               </div>
