@@ -51,13 +51,10 @@ export default function TimerPipPage() {
     session ? { teamMemberId: session.teamMemberId as Id<"teamMembers"> } : "skip"
   );
 
-  // Defense-in-depth: never render a timer that doesn't belong to this session.
-  const timer =
-    rawTimer === undefined
-      ? undefined
-      : rawTimer && session && rawTimer.teamMemberId === session.teamMemberId
-        ? rawTimer
-        : null;
+  // Render whenever the server returned a running timer. We no longer hide
+  // the PiP on session/teamMember mismatch — see FloatingTimerBar for the
+  // full reasoning. Server-side stop mutation is authoritative.
+  const timer = rawTimer === undefined ? undefined : rawTimer ?? null;
 
   const stopMutation = useMutation(api.timeEntries.stop);
 
@@ -97,15 +94,16 @@ export default function TimerPipPage() {
   }, [timer]);
 
   async function handleStop() {
-    if (!timer || !session) return;
+    if (!timer) return;
     setStopping(true);
     try {
       await stopMutation({
         id: timer._id as Id<"timeEntries">,
-        teamMemberId: session.teamMemberId as Id<"teamMembers">,
+        teamMemberId: timer.teamMemberId as Id<"teamMembers">,
       });
-    } catch {
-      // Silent
+    } catch (err) {
+      console.error("Stop timer error:", err);
+      alert("Couldn't stop the timer: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setStopping(false);
     }

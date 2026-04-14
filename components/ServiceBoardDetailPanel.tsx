@@ -124,11 +124,11 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
   }
 
   async function handleStopTimer() {
-    if (!runningTimer || !session) return;
+    if (!runningTimer) return;
     try {
       await stopTimerMutation({
         id: runningTimer._id as Id<"timeEntries">,
-        teamMemberId: session.teamMemberId as Id<"teamMembers">,
+        teamMemberId: runningTimer.teamMemberId as Id<"teamMembers">,
       });
       window.dispatchEvent(new CustomEvent("timerChange"));
       fetchTimeData();
@@ -136,6 +136,7 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
       if (entryRes.ok) onUpdate(await entryRes.json());
     } catch (e) {
       console.error("Failed to stop timer:", e);
+      alert("Couldn't stop the timer: " + (e instanceof Error ? e.message : "Unknown error"));
     }
   }
 

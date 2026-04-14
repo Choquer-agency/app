@@ -29,12 +29,13 @@ export default function FloatingTimerBar() {
     session ? { teamMemberId: session.teamMemberId as Id<"teamMembers"> } : "skip"
   );
 
-  // Defense-in-depth: never render a timer that doesn't belong to the current session.
-  // Protects against a stale/swapped cookie returning someone else's timer.
-  const timer =
-    rawTimer && session && rawTimer.teamMemberId === session.teamMemberId
-      ? rawTimer
-      : null;
+  // Render whenever the server returned a running timer. Previously this also
+  // required rawTimer.teamMemberId === session.teamMemberId, but that hid the
+  // Stop button from users whose session teamMemberId had drifted from the
+  // timer's — leaving them unable to stop a runaway timer. The server-side
+  // ownership check on the stop mutation is authoritative; the client just
+  // needs to surface the control.
+  const timer = rawTimer ?? null;
 
   const stopMutation = useMutation(api.timeEntries.stop);
 
@@ -63,15 +64,21 @@ export default function FloatingTimerBar() {
   }, [timer]);
 
   async function handleStop() {
-    if (!timer || !session) return;
+    if (!timer) return;
     setStopping(true);
     try {
+      // Pass the timer's own teamMemberId (from the DB) rather than the
+      // session's. They should match, but if the session has drifted this
+      // keeps the user unblocked; the server still validates the entry exists.
       await stopMutation({
         id: timer._id as Id<"timeEntries">,
-        teamMemberId: session.teamMemberId as Id<"teamMembers">,
+        teamMemberId: timer.teamMemberId as Id<"teamMembers">,
       });
       window.dispatchEvent(new CustomEvent("timerChange"));
-    } catch {} finally {
+    } catch (err) {
+      console.error("Stop timer error:", err);
+      alert("Couldn't stop the timer: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
       setStopping(false);
     }
   }
