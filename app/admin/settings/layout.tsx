@@ -9,7 +9,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   return (
     <>
       {/* Break out of parent container to render full-width sub-nav */}
-      <div className="-mx-10 -mt-8 mb-8">
+      <div className="-mx-6 -mt-8 mb-8">
         <SettingsSubNav roleLevel={session?.roleLevel} />
       </div>
       {children}
