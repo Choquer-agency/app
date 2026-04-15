@@ -139,6 +139,28 @@ export const linkCompany = mutation({
   },
 });
 
+// Patch enrichment data (location + optional company link) onto a visitor.
+// Used after IPinfo lookup completes — separate from upsertByFingerprint
+// because IPinfo runs after the initial visitor row is created.
+export const applyEnrichment = mutation({
+  args: {
+    id: v.id("siteVisitors"),
+    companyId: v.optional(v.id("identifiedCompanies")),
+    country: v.optional(v.string()),
+    region: v.optional(v.string()),
+    city: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const patch: Record<string, unknown> = {};
+    if (args.companyId !== undefined) patch.companyId = args.companyId;
+    if (args.country !== undefined) patch.country = args.country;
+    if (args.region !== undefined) patch.region = args.region;
+    if (args.city !== undefined) patch.city = args.city;
+    if (Object.keys(patch).length === 0) return;
+    await ctx.db.patch(args.id, patch);
+  },
+});
+
 export const updateAlertedAt = mutation({
   args: {
     id: v.id("siteVisitors"),

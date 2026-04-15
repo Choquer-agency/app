@@ -7,8 +7,9 @@ import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@/convex/_generated/api";
 import { getDecryptedCredentials } from "@/lib/connections";
 
-interface IPInfoCompanyResult {
+export interface IPInfoCompanyResult {
   ip: string;
+  hostname?: string;
   company?: {
     name: string;
     domain: string;
@@ -17,7 +18,89 @@ interface IPInfoCompanyResult {
   city?: string;
   region?: string;
   country?: string;
-  org?: string;
+  // Free-tier fields:
+  org?: string; // "AS15169 Google LLC"
+  postal?: string;
+  loc?: string; // "lat,lng"
+  timezone?: string;
+}
+
+// Lowercase substrings that mark a company name as a consumer ISP, mobile
+// carrier, hosting provider, or VPN — visitors from these IPs aren't a
+// "lead" because the IP doesn't represent the underlying business.
+const ISP_AND_CARRIER_KEYWORDS = [
+  // US consumer ISPs
+  "comcast", "spectrum", "charter", "cox communications", "verizon",
+  "at&t", "atlantic broadband", "altice", "optimum", "frontier",
+  "centurylink", "windstream", "mediacom", "wow! internet", "earthlink",
+  "rcn corp", "consolidated communications", "midco", "ziply fiber",
+  "armstrong cable", "wave broadband", "grande communications", "sonic",
+  // Canadian ISPs
+  "bell canada", "rogers communications", "telus", "shaw communications",
+  "videotron", "cogeco", "fido", "freedom mobile",
+  // EU / UK ISPs
+  "vodafone", "deutsche telekom", "orange", "telefonica", "bt group",
+  "british telecommunications", "virgin media", "sky uk", "talktalk",
+  "free sas", "swisscom", "kpn", "telia",
+  // Mobile / wireless carriers
+  "t-mobile", "sprint", "u.s. cellular", "tmobile", "boost mobile",
+  "cricket wireless", "metro by t-mobile", "google fi",
+  // Cloud / hosting (not legitimate B2B visitors)
+  "amazon.com", "amazon technologies", "amazon data services",
+  "google llc", "google cloud", "microsoft corporation",
+  "microsoft azure", "digitalocean", "linode", "hetzner",
+  "ovh sas", "ovh hosting", "vultr", "cloudflare", "fastly",
+  "akamai", "alibaba cloud", "tencent", "oracle cloud",
+  "godaddy", "hostgator", "bluehost", "namecheap", "dreamhost",
+  "leaseweb", "scaleway", "contabo",
+  // VPN / proxy
+  "nordvpn", "expressvpn", "private internet access", "mullvad",
+  "surfshark", "protonvpn", "windscribe", "ipvanish",
+];
+
+/**
+ * Strip the leading "AS{number} " from an IPinfo `org` value.
+ * "AS15169 Google LLC" → "Google LLC"
+ */
+function cleanOrgName(org: string): string {
+  return org.replace(/^AS\d+\s+/i, "").trim();
+}
+
+/**
+ * Pull a company name + domain from an IPinfo response, working across
+ * Free (org-only) and Business (structured company) tiers.
+ */
+export function extractCompany(
+  result: IPInfoCompanyResult,
+): { name: string; domain?: string; companyType?: string } | null {
+  // Business tier — structured field
+  if (result.company?.name) {
+    return {
+      name: result.company.name,
+      domain: result.company.domain || undefined,
+      companyType: result.company.type,
+    };
+  }
+  // Free tier — parse org string
+  if (result.org) {
+    const name = cleanOrgName(result.org);
+    if (name) return { name };
+  }
+  return null;
+}
+
+/**
+ * Check whether a name belongs to a consumer ISP / carrier / cloud / VPN
+ * provider — visitors with these orgs aren't business prospects.
+ */
+export function isConsumerOrISP(
+  name: string | undefined,
+  companyType?: string,
+): boolean {
+  if (!name) return true;
+  if (companyType === "isp" || companyType === "hosting") return true;
+  const lower = name.toLowerCase();
+  return ISP_AND_CARRIER_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
 /**
@@ -106,9 +189,10 @@ export function parseEmployeeCount(companyType?: string): string | undefined {
 }
 
 /**
- * Check if an IP lookup result represents a consumer ISP (not identifiable).
+ * Back-compat wrapper. Prefer extractCompany + isConsumerOrISP for new code.
  */
 export function isConsumerISP(result: IPInfoCompanyResult): boolean {
-  if (!result.company) return true;
-  return result.company.type === "isp";
+  const company = extractCompany(result);
+  if (!company) return true;
+  return isConsumerOrISP(company.name, company.companyType);
 }

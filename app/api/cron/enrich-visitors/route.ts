@@ -4,7 +4,8 @@ import { api } from "@/convex/_generated/api";
 import {
   getIPInfoToken,
   batchLookupIPs,
-  isConsumerISP,
+  extractCompany,
+  isConsumerOrISP,
 } from "@/lib/visitor-identification";
 
 export async function GET(request: NextRequest) {
@@ -48,7 +49,16 @@ export async function GET(request: NextRequest) {
     const lookupResults = await batchLookupIPs(uniqueRawIps, token);
 
     // 3. Resolve each pending cache row → upsert company, cache result, purge raw IP.
-    const ipHashToCompanyId = new Map<string, string | null>();
+    // Also keep the IPinfo location data so we can backfill it onto visitors.
+    const ipHashEnrichment = new Map<
+      string,
+      {
+        companyId: string | null;
+        country?: string;
+        region?: string;
+        city?: string;
+      }
+    >();
     let companiesCreated = 0;
     let ispFiltered = 0;
 
@@ -58,17 +68,18 @@ export async function GET(request: NextRequest) {
       if (!result) {
         // Lookup failed — purge the raw IP so we don't retry forever.
         await convex.mutation(api.ipLookupCache.purgeRawIp, { id: row._id });
-        ipHashToCompanyId.set(row.ipHash, null);
+        ipHashEnrichment.set(row.ipHash, { companyId: null });
         continue;
       }
 
-      const isp = isConsumerISP(result);
+      const company = extractCompany(result);
+      const isp = isConsumerOrISP(company?.name, company?.companyType);
       let companyId: string | null = null;
 
-      if (!isp && result.company) {
+      if (!isp && company) {
         companyId = (await convex.mutation(api.identifiedCompanies.upsertByDomain, {
-          name: result.company.name,
-          domain: result.company.domain || undefined,
+          name: company.name,
+          domain: company.domain,
           source: "ipinfo",
           city: result.city,
           region: result.region,
@@ -87,13 +98,19 @@ export async function GET(request: NextRequest) {
         isIsp: isp,
       });
 
-      ipHashToCompanyId.set(row.ipHash, companyId);
+      ipHashEnrichment.set(row.ipHash, {
+        companyId,
+        country: result.country,
+        region: result.region,
+        city: result.city,
+      });
     }
 
-    // 4. Link unenriched visitors to the newly identified companies.
+    // 4. Apply enrichment (company link + location) to existing visitors.
     const sites = await convex.query(api.trackedSites.list, {});
     const activeSites = sites.filter((s: any) => s.active);
     let visitorsLinked = 0;
+    let visitorsLocated = 0;
 
     for (const site of activeSites) {
       const unenriched = await convex.query(api.siteVisitors.listUnenriched, {
@@ -102,14 +119,21 @@ export async function GET(request: NextRequest) {
       });
 
       for (const visitor of unenriched) {
-        const companyId = ipHashToCompanyId.get(visitor.ipHash);
-        if (companyId) {
-          await convex.mutation(api.siteVisitors.linkCompany, {
-            id: visitor._id,
-            companyId: companyId as any,
-          });
-          visitorsLinked++;
-        }
+        const enrichment = ipHashEnrichment.get(visitor.ipHash);
+        if (!enrichment) continue;
+
+        await convex.mutation(api.siteVisitors.applyEnrichment, {
+          id: visitor._id,
+          companyId: enrichment.companyId
+            ? (enrichment.companyId as any)
+            : undefined,
+          country: enrichment.country,
+          region: enrichment.region,
+          city: enrichment.city,
+        });
+
+        if (enrichment.companyId) visitorsLinked++;
+        if (enrichment.country || enrichment.city) visitorsLocated++;
       }
     }
 
@@ -119,6 +143,7 @@ export async function GET(request: NextRequest) {
       companiesCreated,
       ispFiltered,
       visitorsLinked,
+      visitorsLocated,
       sites: activeSites.length,
     });
   } catch (err) {

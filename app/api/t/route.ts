@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@/convex/_generated/api";
 import { createHash } from "crypto";
-import { getIPInfoToken, lookupIP, isConsumerISP } from "@/lib/visitor-identification";
+import {
+  getIPInfoToken,
+  lookupIP,
+  extractCompany,
+  isConsumerOrISP,
+} from "@/lib/visitor-identification";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -129,13 +134,19 @@ export async function POST(request: NextRequest) {
         // Check IP cache first
         const cached = await convex.query(api.ipLookupCache.lookup, { ipHash });
         if (cached) {
-          // Link cached company
-          if (cached.companyId && !cached.isIsp) {
-            await convex.mutation(api.siteVisitors.linkCompany, {
-              id: visitorResult.id as any,
-              companyId: cached.companyId,
-            });
-          }
+          // Link cached company + apply any cached location to the visitor.
+          const cachedRaw = (cached.raw || {}) as {
+            city?: string;
+            region?: string;
+            country?: string;
+          };
+          await convex.mutation(api.siteVisitors.applyEnrichment, {
+            id: visitorResult.id as any,
+            companyId: cached.companyId && !cached.isIsp ? cached.companyId : undefined,
+            country: cachedRaw.country,
+            region: cachedRaw.region,
+            city: cachedRaw.city,
+          });
           enriched = true;
         } else {
           // Try real-time IPinfo lookup
@@ -143,28 +154,31 @@ export async function POST(request: NextRequest) {
           if (token) {
             const ipData = await lookupIP(ip, token);
             if (ipData) {
-              const isp = isConsumerISP(ipData);
-              let companyId = undefined;
+              const company = extractCompany(ipData);
+              const isp = isConsumerOrISP(company?.name, company?.companyType);
+              let companyId: string | undefined = undefined;
 
-              if (!isp && ipData.company) {
-                // Upsert company
-                companyId = await convex.mutation(api.identifiedCompanies.upsertByDomain, {
-                  name: ipData.company.name,
-                  domain: ipData.company.domain || undefined,
+              if (!isp && company) {
+                companyId = (await convex.mutation(api.identifiedCompanies.upsertByDomain, {
+                  name: company.name,
+                  domain: company.domain,
                   source: "ipinfo",
                   city: ipData.city,
                   region: ipData.region,
                   country: ipData.country,
-                });
-
-                // Link visitor to company
-                await convex.mutation(api.siteVisitors.linkCompany, {
-                  id: visitorResult.id as any,
-                  companyId: companyId as any,
-                });
+                })) as unknown as string;
               }
 
-              // Cache the result
+              // Save location + (optional) company on the visitor in one patch.
+              await convex.mutation(api.siteVisitors.applyEnrichment, {
+                id: visitorResult.id as any,
+                companyId: companyId as any,
+                country: ipData.country,
+                region: ipData.region,
+                city: ipData.city,
+              });
+
+              // Cache the result for next time.
               await convex.mutation(api.ipLookupCache.upsert, {
                 ipHash,
                 companyId: companyId as any,

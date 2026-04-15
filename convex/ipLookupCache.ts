@@ -113,3 +113,22 @@ export const purgeRawIp = mutation({
     });
   },
 });
+
+// One-shot admin action: drop every cache row that was previously marked
+// as a consumer ISP. Use after improving the ISP-detection heuristics so
+// existing visitors get re-evaluated on their next visit instead of
+// being permanently stuck behind a stale "isIsp: true" cache hit.
+export const resetIspCache = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const ispRows = await ctx.db.query("ipLookupCache").collect();
+    let deleted = 0;
+    for (const row of ispRows) {
+      if (row.isIsp || (row.companyId === undefined && !row.rawIp)) {
+        await ctx.db.delete(row._id);
+        deleted++;
+      }
+    }
+    return { deleted };
+  },
+});
