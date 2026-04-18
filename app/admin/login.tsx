@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 
 interface TeamProfile {
   id: number;
@@ -23,7 +22,6 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [flipping, setFlipping] = useState(false);
   const passwordRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
 
   useEffect(() => {
     fetch("/api/admin/team/profiles")
@@ -80,7 +78,7 @@ export default function AdminLogin() {
       });
 
       if (res.ok) {
-        router.refresh();
+        window.location.href = "/admin";
       } else {
         const data = await res.json();
         setError(data.error || "Invalid credentials");
