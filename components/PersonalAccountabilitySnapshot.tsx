@@ -72,7 +72,7 @@ export default function PersonalAccountabilitySnapshot({
             {data.reliability.total > 0 ? `${data.reliability.score}%` : "—"}
           </span>
         </div>
-        <div className="text-[10px] text-[#9CA3AF] mt-1">Due dates hit this week</div>
+        <div className="text-[10px] text-[#9CA3AF] mt-1">Rolling 30 days + current overdue</div>
       </div>
       <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
         <div className="text-[10px] text-[#9CA3AF] mb-1">Overdue</div>

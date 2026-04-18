@@ -268,20 +268,31 @@ export async function getMemberMeetingData(teamMemberId: number | string, period
 
   const allTickets = ticketDocs as any[];
 
-  // Reliability: scoped to tickets that were DUE within the selected period
-  // On Time = due date was in period AND closed on or before due date
-  // Missed = due date was in period AND either closed after due date OR still open
-  const ticketsDueInPeriod = allTickets.filter((t) => t.dueDate && t.dueDate >= periodStartStr && t.dueDate <= periodEndStr);
+  // Reliability: rolling 30-day window of tickets whose due date has already passed,
+  // PLUS any currently open+overdue ticket regardless of age (so stale backlog is visible).
+  // Future-due tickets are out of scope — you can't miss a deadline that hasn't arrived.
+  // onTime  = closed on or before due date (and due date was within the window)
+  // missed  = closed after due date, OR still open with a past due date
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
   let onTime = 0;
   let missed = 0;
-  for (const t of ticketsDueInPeriod) {
-    if (t.status === "closed" && t.closedAt) {
+  for (const t of allTickets) {
+    if (!t.dueDate) continue;
+    const isClosed = t.status === "closed" && t.closedAt;
+    const isCurrentlyOverdue = !isClosed && t.dueDate < today && isOverdueEligible(t.status);
+    const dueInLast30 = t.dueDate >= thirtyDaysAgoStr && t.dueDate <= today;
+
+    if (!dueInLast30 && !isCurrentlyOverdue) continue;
+
+    if (isClosed) {
       const closedDate = t.closedAt.split("T")[0];
       if (closedDate <= t.dueDate) onTime++;
       else missed++;
-    } else {
-      // Still open and due date has passed = missed
-      if (t.dueDate < today) missed++;
+    } else if (isCurrentlyOverdue) {
+      missed++;
     }
   }
   const reliabilityTotal = onTime + missed;
