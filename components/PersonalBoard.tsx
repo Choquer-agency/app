@@ -2,6 +2,7 @@
 
 import TicketListView from "./TicketListView";
 import ServiceBoardSummaryBanner from "./ServiceBoardSummaryBanner";
+import PersonalAccountabilitySnapshot from "./PersonalAccountabilitySnapshot";
 import { useSession } from "@/hooks/useSession";
 
 export default function PersonalBoard() {
@@ -17,6 +18,7 @@ export default function PersonalBoard() {
 
   return (
     <>
+      <PersonalAccountabilitySnapshot teamMemberId={session.teamMemberId} />
       <ServiceBoardSummaryBanner specialistId={session.teamMemberId} />
       <TicketListView assigneeId={session.teamMemberId} />
     </>
