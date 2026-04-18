@@ -127,8 +127,6 @@ export default function PaymentsView() {
       return d.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
       });
     } catch {
       return dateStr;
@@ -170,31 +168,39 @@ export default function PaymentsView() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-[var(--foreground)]">Payments</h1>
-        <div className="flex items-center gap-3">
-          <DatePicker
-            value={startDate}
-            onChange={(v) => setStartDate(v || defaults.start)}
-            placeholder="Start date"
-          />
-          <span className="text-[var(--muted)] text-sm">to</span>
-          <DatePicker
-            value={endDate}
-            onChange={(v) => setEndDate(v || defaults.end)}
-            placeholder="End date"
-          />
+      <div className="flex items-start justify-between mb-6 gap-4">
+        <h1 className="text-2xl font-bold text-[var(--foreground)]">Payments</h1>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-[var(--border)] rounded-lg whitespace-nowrap">
+            <DatePicker
+              value={startDate}
+              onChange={(v) => setStartDate(v || defaults.start)}
+              placeholder="Start"
+              displayFormat="short"
+              highlightOverdue={false}
+              className="text-sm text-[var(--foreground)] whitespace-nowrap"
+            />
+            <span className="text-[var(--muted)] text-xs">to</span>
+            <DatePicker
+              value={endDate}
+              onChange={(v) => setEndDate(v || defaults.end)}
+              placeholder="End"
+              displayFormat="short"
+              highlightOverdue={false}
+              className="text-sm text-[var(--foreground)] whitespace-nowrap"
+            />
+          </div>
           <button
             onClick={() => fetchData(false)}
             disabled={loading}
-            className="px-4 py-2 text-sm bg-gray-100 text-[var(--foreground)] rounded-lg font-medium hover:bg-gray-200 disabled:opacity-50"
+            className="px-4 py-2 text-sm bg-white border border-[var(--border)] text-[var(--foreground)] rounded-lg font-medium hover:bg-[var(--hover-tan)] disabled:opacity-50 transition whitespace-nowrap"
           >
             {loading && !syncing ? "Loading..." : "Refresh"}
           </button>
           <button
             onClick={() => fetchData(true)}
             disabled={loading}
-            className="px-4 py-2 text-sm bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
+            className="px-4 py-2 text-sm bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50 transition whitespace-nowrap"
             title="Pull latest transactions from Converge"
           >
             {syncing ? "Syncing..." : "Sync from Converge"}
@@ -205,28 +211,28 @@ export default function PaymentsView() {
       {/* Summary cards */}
       {summary && !loading && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-[var(--border)] p-4">
             <p className="text-xs text-[var(--muted)] mb-1">
               Collected USD <span className="text-[var(--muted)]">({usdApproved.length})</span>
             </p>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="text-2xl font-bold text-emerald-600">
               {formatAmount(usdTotal)}
             </p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-[var(--border)] p-4">
             <p className="text-xs text-[var(--muted)] mb-1">
               Collected CAD <span className="text-[var(--muted)]">({cadApproved.length})</span>
             </p>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="text-2xl font-bold text-emerald-600">
               {formatAmount(cadTotal)}
             </p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-[var(--border)] p-4">
             <p className="text-xs text-[var(--muted)] mb-1">Declined</p>
-            <p className="text-2xl font-bold text-red-600">
+            <p className="text-2xl font-bold text-rose-600">
               {summary.declinedCount}
               {summary.totalDeclined > 0 && (
-                <span className="text-sm font-normal text-red-400 ml-2">
+                <span className="text-sm font-normal text-rose-400 ml-2">
                   {formatAmount(summary.totalDeclined)}
                 </span>
               )}
@@ -237,7 +243,7 @@ export default function PaymentsView() {
               </p>
             )}
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-[var(--border)] p-4">
             <p className="text-xs text-[var(--muted)] mb-1">Refunded</p>
             <p className="text-2xl font-bold text-blue-600">
               {summary.refundCount}
@@ -252,8 +258,8 @@ export default function PaymentsView() {
       )}
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex bg-gray-100 rounded-lg p-0.5">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="flex bg-[var(--hover-tan)] rounded-lg p-0.5">
           {(["all", "approved", "declined", "refund"] as const).map((f) => (
             <button
               key={f}
@@ -268,20 +274,24 @@ export default function PaymentsView() {
             </button>
           ))}
         </div>
-        <div className="flex bg-gray-100 rounded-lg p-0.5">
-          {(["all", "USD", "CAD"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setTerminalFilter(f)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
-                terminalFilter === f
-                  ? "bg-white text-[var(--foreground)] shadow-sm"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              {f === "all" ? "All" : f}
-            </button>
-          ))}
+        <div className="h-5 w-px bg-[var(--border)]" />
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted)]">Currency</span>
+          <div className="flex bg-[var(--hover-tan)] rounded-lg p-0.5">
+            {(["all", "USD", "CAD"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setTerminalFilter(f)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
+                  terminalFilter === f
+                    ? "bg-white text-[var(--foreground)] shadow-sm"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {f === "all" ? "All" : f}
+              </button>
+            ))}
+          </div>
         </div>
         <span className="text-xs text-[var(--muted)] ml-auto">
           {filtered.length} transaction{filtered.length !== 1 ? "s" : ""}
@@ -298,39 +308,31 @@ export default function PaymentsView() {
           No transactions found for this period.
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-4 py-3 text-xs text-[var(--muted)] font-medium">
-                  Status
-                </th>
-                <th className="text-left px-4 py-3 text-xs text-[var(--muted)] font-medium">
-                  Date
-                </th>
-                <th className="text-left px-4 py-3 text-xs text-[var(--muted)] font-medium">
-                  Company
-                </th>
-                <th className="text-left px-4 py-3 text-xs text-[var(--muted)] font-medium">
-                  Description
-                </th>
-                <th className="text-right px-4 py-3 text-xs text-[var(--muted)] font-medium">
-                  Amount
-                </th>
-                <th className="text-center px-4 py-3 text-xs text-[var(--muted)] font-medium">
-                  Card Expiry
-                </th>
+              <tr className="border-b border-[var(--border)]">
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-[90px]">Status</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-[80px]">Date</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Company</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Description</th>
+                <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap w-[130px]">Amount</th>
+                <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap w-[110px]">Card Expiry</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((t) => (
                 <tr
                   key={t.txnId}
-                  className={`border-b border-gray-50 last:border-0 ${
+                  onClick={() => {
+                    if (t.clientName) setHistoryClient(t.clientName);
+                    else setCreateFromTxn(t);
+                  }}
+                  className={`border-b border-[var(--border)] last:border-0 cursor-pointer hover:bg-[var(--hover-tan)] transition ${
                     t.status === "declined" ? "bg-red-50/50" : t.status === "refund" ? "bg-blue-50/30" : ""
                   }`}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-3">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         t.status === "approved"
@@ -343,37 +345,29 @@ export default function PaymentsView() {
                       {t.status === "approved" ? "Approved" : t.status === "refund" ? "Refund" : "Declined"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-[var(--foreground)] whitespace-nowrap">
+                  <td className="px-2 py-3 text-[var(--foreground)] whitespace-nowrap">
                     {formatTime(t.txnTime)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-3">
                     {t.clientName ? (
-                      <button
-                        onClick={() => setHistoryClient(t.clientName!)}
-                        className="text-[var(--foreground)] font-medium hover:text-[var(--accent)] transition text-left"
-                      >
-                        {t.clientName}
-                      </button>
+                      <span className="text-[var(--foreground)] font-medium">{t.clientName}</span>
                     ) : (
-                      <button
-                        onClick={() => setCreateFromTxn(t)}
-                        className="group flex items-center gap-1.5"
-                      >
+                      <span className="inline-flex items-center gap-1.5">
                         <span className="text-[var(--foreground)] font-medium">
                           {getCompanyOrName(t)}
                         </span>
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium opacity-70 group-hover:opacity-100 transition">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
                           + Link
                         </span>
-                      </button>
+                      </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-[var(--muted)] max-w-[300px] truncate">
+                  <td className="px-2 py-3 text-[var(--muted)] max-w-[300px] truncate">
                     {t.description
                       ? t.description.replace(/^DECLINED:\s*\w+\s*\|\s*/i, "")
                       : "--"}
                   </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                  <td className="px-2 py-3 text-right whitespace-nowrap">
                     <span
                       className={`font-semibold ${
                         t.status === "declined"
@@ -395,7 +389,7 @@ export default function PaymentsView() {
                       {t.terminal}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center whitespace-nowrap">
+                  <td className="px-2 py-3 text-right whitespace-nowrap">
                     {(() => {
                       const exp = getExpiryStatus(t);
                       if (exp.color === "green") {

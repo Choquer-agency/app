@@ -113,7 +113,7 @@ export default function McpAccessClient() {
                 </code>
                 <button
                   onClick={() => copy(fullUrl, "url")}
-                  className="px-4 py-3 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 whitespace-nowrap font-medium"
+                  className="px-4 py-3 text-sm bg-[var(--accent)] text-white rounded-lg hover:opacity-90 whitespace-nowrap font-medium transition"
                 >
                   {copied === "url" ? "Copied!" : "Copy URL"}
                 </button>

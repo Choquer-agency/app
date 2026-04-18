@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Project, ProjectTemplateRole, TeamMember } from "@/types";
 import DatePicker from "./DatePicker";
+import FilterDropdown from "./FilterDropdown";
 import { useRouter } from "next/navigation";
 import { useClients } from "@/hooks/useClients";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
@@ -272,16 +273,16 @@ export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateF
             </div>
             <div>
               <label className="text-xs font-medium text-[var(--muted)] mb-1.5 block">Client</label>
-              <select
+              <FilterDropdown
+                label=""
                 value={clientId ?? ""}
-                onChange={(e) => setClientId(e.target.value || null)}
-                className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-lg bg-white"
-              >
-                <option value="">No client</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+                onChange={(v) => setClientId(v || null)}
+                options={[
+                  { value: "", label: "No client" },
+                  ...clients.map((c) => ({ value: String(c.id), label: c.name })),
+                ]}
+                fullWidth
+              />
               <button
                 type="button"
                 onClick={() => setShowAddClient(true)}
@@ -383,16 +384,16 @@ export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateF
             </div>
             <div>
               <label className="text-xs font-medium text-[var(--muted)] mb-1.5 block">Client *</label>
-              <select
+              <FilterDropdown
+                label=""
                 value={clientId ?? ""}
-                onChange={(e) => setClientId(e.target.value || null)}
-                className="w-full px-3 py-2.5 text-sm border border-[var(--border)] rounded-lg bg-white"
-              >
-                <option value="">Select a client...</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+                onChange={(v) => setClientId(v || null)}
+                options={[
+                  { value: "", label: "Select a client..." },
+                  ...clients.map((c) => ({ value: String(c.id), label: c.name })),
+                ]}
+                fullWidth
+              />
               <button
                 type="button"
                 onClick={() => setShowAddClient(true)}
@@ -452,27 +453,29 @@ export default function ProjectCreateFlow({ onClose, onCreated }: ProjectCreateF
                   <label className="text-sm font-medium w-40 shrink-0 truncate">
                     {role.name}
                   </label>
-                  <select
-                    value={roleAssignments[role.id] ?? ""}
-                    onChange={(e) => {
-                      const val = e.target.value || undefined;
-                      setRoleAssignments((prev) => {
-                        const next = { ...prev };
-                        if (val) {
-                          next[role.id] = val;
-                        } else {
-                          delete next[role.id];
-                        }
-                        return next;
-                      });
-                    }}
-                    className="flex-1 px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-white"
-                  >
-                    <option value="">Unassigned</option>
-                    {teamMembers.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
+                  <div className="flex-1">
+                    <FilterDropdown
+                      label=""
+                      value={roleAssignments[role.id] ?? ""}
+                      onChange={(v) => {
+                        const val = v || undefined;
+                        setRoleAssignments((prev) => {
+                          const next = { ...prev };
+                          if (val) {
+                            next[role.id] = val;
+                          } else {
+                            delete next[role.id];
+                          }
+                          return next;
+                        });
+                      }}
+                      options={[
+                        { value: "", label: "Unassigned" },
+                        ...teamMembers.map((m) => ({ value: String(m.id), label: m.name })),
+                      ]}
+                      fullWidth
+                    />
+                  </div>
                 </div>
               ))}
             </div>

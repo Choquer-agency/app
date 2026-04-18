@@ -113,47 +113,47 @@ export default function PayrollReport() {
       </div>
 
       {/* Report Table */}
-      <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] border border-[#F6F5F1] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
         {loading ? (
           <div className="py-12 text-center text-[#6B6B6B]">Loading...</div>
         ) : report.length === 0 ? (
           <div className="py-12 text-center text-[#6B6B6B]">No data for this period</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#F6F5F1] bg-[#F6F5F1]/50">
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Employee</th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Rate</th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">Hours</th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">Decimal</th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">Sick</th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">Vacation</th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">OT</th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Employee</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Rate</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Hours</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Decimal</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Sick</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Vacation</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">OT</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F6F5F1]">
+              <tbody>
                 {report.map((row) => (
-                  <tr key={row.teamMemberId} className="hover:bg-[#F6F5F1]/30 transition-colors">
-                    <td className="py-4 px-6 font-medium text-[#1A1A1A]">{row.memberName}</td>
-                    <td className="py-4 px-6 text-[#1A1A1A]">{row.hourlyRate ? `$${row.hourlyRate}/hr` : "—"}</td>
-                    <td className="py-4 px-6 text-right font-medium text-[#1A1A1A]">{formatDuration(row.totalWorkedMinutes)}</td>
-                    <td className="py-4 px-6 text-right text-[#6B6B6B] font-mono">{row.totalWorkedDecimalHours}</td>
-                    <td className="py-4 px-6 text-right text-[#1A1A1A]">{row.sickDays + row.halfSickDays * 0.5}</td>
-                    <td className="py-4 px-6 text-right text-[#1A1A1A]">{row.vacationDays}</td>
-                    <td className="py-4 px-6 text-right">{row.overtimeDays > 0 ? <span className="text-amber-600 font-bold">{row.overtimeDays}</span> : <span className="text-[#6B6B6B]">0</span>}</td>
+                  <tr key={row.teamMemberId} className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] transition-colors">
+                    <td className="px-2 py-3 font-medium text-[#1A1A1A]">{row.memberName}</td>
+                    <td className="px-2 py-3 text-[#1A1A1A]">{row.hourlyRate ? `$${row.hourlyRate}/hr` : "—"}</td>
+                    <td className="px-2 py-3 text-right font-medium text-[#1A1A1A]">{formatDuration(row.totalWorkedMinutes)}</td>
+                    <td className="px-2 py-3 text-right text-[#6B6B6B] font-mono">{row.totalWorkedDecimalHours}</td>
+                    <td className="px-2 py-3 text-right text-[#1A1A1A]">{row.sickDays + row.halfSickDays * 0.5}</td>
+                    <td className="px-2 py-3 text-right text-[#1A1A1A]">{row.vacationDays}</td>
+                    <td className="px-2 py-3 text-right">{row.overtimeDays > 0 ? <span className="text-amber-600 font-bold">{row.overtimeDays}</span> : <span className="text-[#6B6B6B]">0</span>}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-[#F6F5F1] bg-[#F6F5F1]/30">
-                  <td className="py-4 px-6 font-bold text-[#1A1A1A]">Total</td>
-                  <td className="py-4 px-6" />
-                  <td className="py-4 px-6 text-right font-bold text-[#1A1A1A]">{formatDuration(totalHours)}</td>
-                  <td className="py-4 px-6 text-right font-bold text-[#1A1A1A] font-mono">{Math.round((totalHours / 60) * 100) / 100}</td>
-                  <td className="py-4 px-6 text-right font-bold text-[#1A1A1A]">{totalSick}</td>
-                  <td className="py-4 px-6 text-right font-bold text-[#1A1A1A]">{totalVacation}</td>
-                  <td className="py-4 px-6" />
+                <tr className="border-t-2 border-[var(--border)]">
+                  <td className="px-2 py-3 font-bold text-[#1A1A1A]">Total</td>
+                  <td className="px-2 py-3" />
+                  <td className="px-2 py-3 text-right font-bold text-[#1A1A1A]">{formatDuration(totalHours)}</td>
+                  <td className="px-2 py-3 text-right font-bold text-[#1A1A1A] font-mono">{Math.round((totalHours / 60) * 100) / 100}</td>
+                  <td className="px-2 py-3 text-right font-bold text-[#1A1A1A]">{totalSick}</td>
+                  <td className="px-2 py-3 text-right font-bold text-[#1A1A1A]">{totalVacation}</td>
+                  <td className="px-2 py-3" />
                 </tr>
               </tfoot>
             </table>

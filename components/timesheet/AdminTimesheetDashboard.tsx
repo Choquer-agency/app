@@ -424,38 +424,38 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
           </div>
 
           {/* Desktop Table Layout */}
-          <div className="hidden md:block bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] border border-[#F6F5F1] overflow-hidden">
-            <table className="w-full text-left border-collapse">
+          <div className="hidden md:block bg-white rounded-xl border border-[var(--border)] overflow-hidden">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#F6F5F1] bg-[#F0EEE6]">
-                  <th className="py-4 px-5 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Employee</th>
-                  <th className="py-4 px-4 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Time Range</th>
-                  <th className="py-4 px-4 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">Worked</th>
-                  <th className="py-4 px-4 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">Break</th>
-                  <th className="py-4 px-4 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Status</th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Employee</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Time Range</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Worked</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Break</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F6F5F1]">
+              <tbody>
                 {dailySummaries.map(({ member, entry }) => (
                   <tr
                     key={member.id}
-                    className="hover:bg-[#F0EEE6] cursor-pointer transition-colors"
+                    className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] cursor-pointer transition-colors"
                     onClick={() => openTimeCard(entry, viewDate, member.name)}
                   >
-                    <td className="py-4 px-5">
+                    <td className="px-2 py-3">
                       <div className="font-medium text-[#1A1A1A]">{member.name}</div>
                       <div className="text-xs text-[#6B6B6B]">{member.role}</div>
                     </td>
-                    <td className="py-4 px-4 font-mono text-sm text-[#484848]">
+                    <td className="px-2 py-3 font-mono text-sm text-[#484848]">
                       {entry?.clockInTime && !entry.isSickDay && !entry.isVacation ? (
                         <>{formatTime(entry.clockInTime)} <span className="text-[#E5E3DA] mx-1">–</span> {formatTime(entry.clockOutTime)}</>
                       ) : entry?.isSickDay ? <span className="text-rose-400">Sick Day</span>
                       : entry?.isVacation ? <span className="text-sky-400">Vacation</span>
                       : <span className="text-[#E5E3DA]">--:--</span>}
                     </td>
-                    <td className="py-4 px-4 text-right font-medium text-[#1A1A1A]">{entry?.workedMinutes ? formatDuration(entry.workedMinutes) : "—"}</td>
-                    <td className="py-4 px-4 text-right text-[#6B6B6B] text-sm">{entry?.totalBreakMinutes ? formatDuration(entry.totalBreakMinutes) : "—"}</td>
-                    <td className="py-4 px-4">
+                    <td className="px-2 py-3 text-right font-medium text-[#1A1A1A]">{entry?.workedMinutes ? formatDuration(entry.workedMinutes) : "—"}</td>
+                    <td className="px-2 py-3 text-right text-[#6B6B6B] text-sm">{entry?.totalBreakMinutes ? formatDuration(entry.totalBreakMinutes) : "—"}</td>
+                    <td className="px-2 py-3">
                       {entry ? <EntryBadge entry={entry} /> : <span className="text-[#E5E3DA] italic text-xs">No Entry</span>}
                     </td>
                   </tr>
@@ -534,34 +534,34 @@ export default function AdminTimesheetDashboard({ teamMemberId }: { teamMemberId
           </div>
 
           {/* Period Table (aggregated per employee, matches Ollie exactly) */}
-          <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] border border-[#F6F5F1] overflow-hidden">
-            <table className="w-full text-left border-collapse">
+          <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#F6F5F1] bg-[#F0EEE6]">
-                  <th className="py-4 px-5 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Employee</th>
-                  <th className="py-4 px-4 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Total Hours</th>
-                  <th className="py-4 px-4 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-center">Days Worked</th>
-                  <th className="py-4 px-4 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-center">Sick</th>
-                  <th className="py-4 px-4 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-center">Vacation</th>
-                  <th className="py-4 px-4 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">Total Pay</th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Employee</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Total Hours</th>
+                  <th className="px-2 py-2.5 text-center font-medium text-[var(--muted)] text-xs whitespace-nowrap">Days Worked</th>
+                  <th className="px-2 py-2.5 text-center font-medium text-[var(--muted)] text-xs whitespace-nowrap">Sick</th>
+                  <th className="px-2 py-2.5 text-center font-medium text-[var(--muted)] text-xs whitespace-nowrap">Vacation</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Total Pay</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F6F5F1]">
+              <tbody>
                 {periodSummaries.map((s: any) => (
                   <tr
                     key={s.employee.id}
-                    className="hover:bg-[#F0EEE6] cursor-pointer transition-colors"
+                    className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] cursor-pointer transition-colors"
                     onClick={() => openPeriodDetail(s.employee, findAllEntriesForMember(s.employee))}
                   >
-                    <td className="py-4 px-5">
+                    <td className="px-2 py-3">
                       <div className="font-medium text-[#1A1A1A]">{s.employee.name}</div>
                       <div className="text-xs text-[#6B6B6B]">{s.employee.role}</div>
                     </td>
-                    <td className="py-4 px-4 font-medium text-[#1A1A1A]">{formatDuration(s.totalMinutes)}</td>
-                    <td className="py-4 px-4 text-center text-[#1A1A1A]">{s.daysWorked}</td>
-                    <td className="py-4 px-4 text-center text-[#1A1A1A]">{s.sickDays}</td>
-                    <td className="py-4 px-4 text-center text-[#1A1A1A]">{s.vacationDays}</td>
-                    <td className="py-4 px-4 text-right font-bold text-[#FF9500]">{formatCurrency(s.totalPay)}</td>
+                    <td className="px-2 py-3 font-medium text-[#1A1A1A]">{formatDuration(s.totalMinutes)}</td>
+                    <td className="px-2 py-3 text-center text-[#1A1A1A]">{s.daysWorked}</td>
+                    <td className="px-2 py-3 text-center text-[#1A1A1A]">{s.sickDays}</td>
+                    <td className="px-2 py-3 text-center text-[#1A1A1A]">{s.vacationDays}</td>
+                    <td className="px-2 py-3 text-right font-bold text-[#FF9500]">{formatCurrency(s.totalPay)}</td>
                   </tr>
                 ))}
                 {periodSummaries.length === 0 && (

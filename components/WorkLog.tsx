@@ -1,6 +1,7 @@
 import { WorkLogEntry } from "@/types";
 import { AnalyticsEnrichment } from "@/types/enrichment";
 import { friendlyDate } from "@/lib/date-format";
+import InlineMetricChart from "./InlineMetricChart";
 
 interface WorkLogProps {
   entries: WorkLogEntry[];
@@ -208,6 +209,15 @@ export default function WorkLog({ entries, summary, monthLabel, isComplete, goal
                       {cleanLinkLabel(link)}
                     </a>
                   ))}
+                </div>
+              )}
+              {entry.chartHints && entry.chartHints.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {entry.chartHints
+                    .filter((h) => h.series && h.series.length > 0)
+                    .map((h, idx) => (
+                      <InlineMetricChart key={idx} hint={h} />
+                    ))}
                 </div>
               )}
               {(() => {

@@ -5,7 +5,7 @@ import { hasPermission } from "@/lib/permissions";
 import { TeamMember } from "@/types";
 
 function stripWages(member: TeamMember): TeamMember {
-  return { ...member, hourlyRate: null, salary: null, payType: "hourly" };
+  return { ...member, hourlyRate: null, salary: null, payType: "hourly", timeMultiplier: null };
 }
 
 export async function GET(request: NextRequest) {
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     // Gate wage fields
     const wageData = hasPermission(session.roleLevel, "team:edit_wages")
-      ? { hourlyRate: body.hourlyRate, salary: body.salary, payType: body.payType }
+      ? { hourlyRate: body.hourlyRate, salary: body.salary, payType: body.payType, timeMultiplier: body.timeMultiplier }
       : {};
 
     // Gate role/status assignment
@@ -90,6 +90,7 @@ export async function PUT(request: NextRequest) {
       delete body.hourlyRate;
       delete body.salary;
       delete body.payType;
+      delete body.timeMultiplier;
     }
 
     // Strip role/status changes if user lacks permission

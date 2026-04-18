@@ -39,7 +39,20 @@ export default function AdminLogin() {
       setPassword("");
       setError("");
       setFlipping(false);
-      setTimeout(() => passwordRef.current?.focus(), 100);
+      // In dev mode, auto-login after selecting
+      const isDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      if (isDev) {
+        setTimeout(async () => {
+          const res = await fetch("/api/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: profile.email, password: "dev" }),
+          });
+          if (res.ok) window.location.href = "/admin";
+        }, 100);
+      } else {
+        setTimeout(() => passwordRef.current?.focus(), 100);
+      }
     }, 250);
   }
 

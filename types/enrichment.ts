@@ -7,6 +7,16 @@ export interface SubtaskItem {
   linkLabel?: string;
 }
 
+export interface ChartHint {
+  bulletId: string;
+  metric: "ga4_organic_sessions" | "gsc_clicks" | "gsc_impressions" | "se_ranking_position";
+  dateRange: { start: string; end: string };
+  keyword?: string;
+  page?: string;
+  caption: string;
+  series?: Array<{ date: string; value: number }>;
+}
+
 export interface EnrichedTask {
   task: string;
   category: string[];
@@ -14,6 +24,7 @@ export interface EnrichedTask {
   deliverableLinks: string[];
   impact?: string;
   completed?: boolean;
+  chartHints?: ChartHint[];
 }
 
 export interface EnrichedGoal {

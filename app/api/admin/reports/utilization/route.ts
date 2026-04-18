@@ -3,6 +3,8 @@ import { getSession } from "@/lib/admin-auth";
 import { getUtilizationReport } from "@/lib/reports";
 import { hasPermission } from "@/lib/permissions";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const session = getSession(request);
   if (!session || !hasPermission(session.roleLevel, "report:utilization")) {
@@ -18,5 +20,7 @@ export async function GET(request: NextRequest) {
   }
 
   const report = await getUtilizationReport(start, end);
-  return NextResponse.json(report);
+  return NextResponse.json(report, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }

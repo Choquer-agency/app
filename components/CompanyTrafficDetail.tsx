@@ -234,30 +234,30 @@ export default function CompanyTrafficDetail({ companyId }: { companyId: string 
       {/* Visit timeline */}
       <div className="mb-8">
         <h2 className="text-sm font-semibold text-[var(--foreground)] mb-3">Visit Timeline</h2>
-        <div className="border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
           {timeline.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-[var(--muted)]">No page views recorded</div>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-[var(--border)]">
-                  <th className="text-left px-4 py-2.5 font-medium text-[var(--muted)]">Time</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-[var(--muted)]">Page</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-[var(--muted)] hidden sm:table-cell">Title</th>
-                  <th className="text-right px-4 py-2.5 font-medium text-[var(--muted)]">Duration</th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Time</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Page</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap hidden sm:table-cell">Title</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Duration</th>
                 </tr>
               </thead>
               <tbody>
                 {timeline.map((pv) => (
-                  <tr key={pv._id} className="border-b border-[var(--border)] last:border-b-0">
-                    <td className="px-4 py-2.5 text-[var(--muted)] whitespace-nowrap">
+                  <tr key={pv._id} className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--hover-tan)]">
+                    <td className="px-2 py-3 text-[var(--muted)] whitespace-nowrap">
                       {formatDate(pv.timestamp)}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-xs">{pv.path}</td>
-                    <td className="px-4 py-2.5 text-[var(--muted)] hidden sm:table-cell truncate max-w-[200px]">
+                    <td className="px-2 py-3 font-mono text-xs">{pv.path}</td>
+                    <td className="px-2 py-3 text-[var(--muted)] hidden sm:table-cell truncate max-w-[200px]">
                       {pv.title || "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-[var(--muted)]">
+                    <td className="px-2 py-3 text-right text-[var(--muted)]">
                       {pv.durationSeconds ? formatDuration(pv.durationSeconds) : "—"}
                     </td>
                   </tr>

@@ -299,59 +299,59 @@ export default function MyTimesheetHistory({
           </div>
 
           {/* Desktop Table Layout (matches Ollie exactly) */}
-          <div className="hidden md:block bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] border border-[#F6F5F1] overflow-hidden">
-            <table className="w-full text-left border-collapse">
+          <div className="hidden md:block bg-white rounded-xl border border-[var(--border)] overflow-hidden">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#F6F5F1] bg-[#F6F5F1]/50">
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">
+                <tr className="border-b border-[var(--border)]">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     Date
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     Clock In
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     Clock Out
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     Break
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     Worked
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     Status
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F6F5F1]">
+              <tbody>
                 {entries.map((entry) => (
                   <tr
                     key={entry.id}
-                    className="hover:bg-[#F6F5F1]/30 cursor-pointer transition-colors"
+                    className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] cursor-pointer transition-colors"
                     onClick={() => openEntryModal(entry)}
                   >
-                    <td className="py-4 px-6 font-medium text-[#1A1A1A]">
+                    <td className="px-2 py-3 font-medium text-[#1A1A1A]">
                       {formatDateForDisplay(entry.date)}
                     </td>
-                    <td className="py-4 px-6 text-[#1A1A1A] font-mono text-sm">
+                    <td className="px-2 py-3 text-[#1A1A1A] font-mono text-sm">
                       {entry.isSickDay || entry.isVacation
                         ? "—"
                         : formatTime(entry.clockInTime)}
                     </td>
-                    <td className="py-4 px-6 text-[#1A1A1A] font-mono text-sm">
+                    <td className="px-2 py-3 text-[#1A1A1A] font-mono text-sm">
                       {entry.isSickDay || entry.isVacation
                         ? "—"
                         : formatTime(entry.clockOutTime)}
                     </td>
-                    <td className="py-4 px-6 text-right text-[#6B6B6B] text-sm">
+                    <td className="px-2 py-3 text-right text-[#6B6B6B] text-sm">
                       {formatDuration(entry.totalBreakMinutes)}
                     </td>
-                    <td className="py-4 px-6 text-right font-medium text-[#1A1A1A]">
+                    <td className="px-2 py-3 text-right font-medium text-[#1A1A1A]">
                       {entry.workedMinutes !== null
                         ? formatDuration(entry.workedMinutes)
                         : "—"}
                     </td>
-                    <td className="py-4 px-6 text-right">
+                    <td className="px-2 py-3 text-right">
                       <EntryStatusBadge entry={entry} />
                     </td>
                   </tr>

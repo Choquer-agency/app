@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -9,6 +9,7 @@ import { TeamMember } from "@/types";
 import CopyField from "./CopyField";
 import { hasPermission, hasMinRole, ROLE_LEVELS, ROLE_LABELS, type RoleLevel } from "@/lib/permissions";
 import { friendlyDate, friendlyMonth } from "@/lib/date-format";
+import FilterDropdown from "./FilterDropdown";
 
 function TeamMemberFormModal({
   member,
@@ -47,6 +48,7 @@ function TeamMemberFormModal({
   const [hourlyRate, setHourlyRate] = useState<number | "">(member?.hourlyRate ?? "");
   const [salary, setSalary] = useState<number | "">(member?.salary ?? "");
   const [payType, setPayType] = useState<"hourly" | "salary">(member?.payType ?? "hourly");
+  const [timeMultiplier, setTimeMultiplier] = useState<number | "">(member?.timeMultiplier ?? "");
   const [memberRoleLevel, setMemberRoleLevel] = useState<RoleLevel>((member?.roleLevel as RoleLevel) ?? "employee");
   const [slackUserId, setSlackUserId] = useState(member?.slackUserId || "");
   const [tags, setTags] = useState<string[]>(member?.tags || []);
@@ -120,9 +122,10 @@ function TeamMemberFormModal({
     };
 
     if (canEditWages) {
-      body.hourlyRate = hourlyRate === "" ? null : hourlyRate;
-      body.salary = salary === "" ? null : salary;
+      body.hourlyRate = hourlyRate === "" ? undefined : hourlyRate;
+      body.salary = salary === "" ? undefined : salary;
       body.payType = payType;
+      body.timeMultiplier = timeMultiplier === "" ? undefined : timeMultiplier;
     }
 
     if (canManageRoles) {
@@ -252,7 +255,7 @@ function TeamMemberFormModal({
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Board Tags</label>
             <div className="flex flex-wrap gap-2 mb-2">
-              {["SEO", "Google Ads"].map((tag) => (
+              {["SEO", "Google Ads", "Meta Ads"].map((tag) => (
                 <button
                   key={tag}
                   type="button"
@@ -336,6 +339,22 @@ function TeamMemberFormModal({
                     <p className="text-xs text-[var(--muted)] mt-1">Converted to hourly rate using available hours/week</p>
                   </div>
                 )}
+
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Time Multiplier</label>
+                  <input
+                    type="number"
+                    min={0.1}
+                    step={0.05}
+                    value={timeMultiplier}
+                    onChange={(e) => setTimeMultiplier(e.target.value === "" ? "" : Number(e.target.value))}
+                    placeholder="1.0"
+                    className={inputClass}
+                  />
+                  <p className="text-xs text-[var(--muted)] mt-1">
+                    Speed this member&rsquo;s timer runs on non-website client work. 1.0 = normal, 1.5 = an hour counts as 1h 30m. Website client work always bills at 1.0.
+                  </p>
+                </div>
               </div>
             </>
           )}
@@ -375,15 +394,13 @@ function TeamMemberFormModal({
           {canManageRoles && (
             <div>
               <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Access Level</label>
-              <select
+              <FilterDropdown
+                label=""
                 value={memberRoleLevel}
-                onChange={(e) => setMemberRoleLevel(e.target.value as RoleLevel)}
-                className={inputClass}
-              >
-                {ROLE_LEVELS.map((rl) => (
-                  <option key={rl} value={rl}>{ROLE_LABELS[rl]}</option>
-                ))}
-              </select>
+                onChange={(v) => setMemberRoleLevel(v as RoleLevel)}
+                options={ROLE_LEVELS.map((rl) => ({ value: rl, label: ROLE_LABELS[rl] }))}
+                fullWidth
+              />
               <p className="text-xs text-[var(--muted)] mt-1">Controls what this team member can see and do</p>
             </div>
           )}
@@ -392,17 +409,19 @@ function TeamMemberFormModal({
           {canManageRoles && (
             <div>
               <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Employee Status</label>
-              <select
+              <FilterDropdown
+                label=""
                 value={employeeStatus}
-                onChange={(e) => setEmployeeStatus(e.target.value)}
-                className={inputClass}
-              >
-                <option value="active">Active</option>
-                <option value="maternity_leave">Maternity Leave</option>
-                <option value="leave">On Leave</option>
-                <option value="terminated">Terminated</option>
-                <option value="past_employee">Past Employee</option>
-              </select>
+                onChange={(v) => setEmployeeStatus(v)}
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "maternity_leave", label: "Maternity Leave" },
+                  { value: "leave", label: "On Leave" },
+                  { value: "terminated", label: "Terminated" },
+                  { value: "past_employee", label: "Past Employee" },
+                ]}
+                fullWidth
+              />
               <p className="text-xs text-[var(--muted)] mt-1">Non-active employees are hidden from timesheets and daily views</p>
             </div>
           )}
@@ -431,6 +450,20 @@ export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: R
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [needsMigration, setNeedsMigration] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [filter, setFilter] = useState<"active" | "inactive" | "past">("active");
+
+  const isPast = (m: TeamMember) =>
+    m.employeeStatus === "terminated" || m.employeeStatus === "past_employee";
+  const visibleMembers = members.filter((m) => {
+    if (filter === "past") return isPast(m);
+    if (filter === "active") return m.active && !isPast(m);
+    return !m.active && !isPast(m);
+  });
+  const counts = {
+    active: members.filter((m) => m.active && !isPast(m)).length,
+    inactive: members.filter((m) => !m.active && !isPast(m)).length,
+    past: members.filter(isPast).length,
+  };
 
   const createMember = useMutation(api.teamMembers.create);
   const updateMember = useMutation(api.teamMembers.update);
@@ -506,10 +539,27 @@ export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: R
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-[var(--foreground)]">Team</h2>
-          <p className="text-sm text-[var(--muted)] mt-1">Manage your agency team members</p>
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <div className="flex items-center gap-5">
+          <div>
+            <h2 className="text-2xl font-bold text-[var(--foreground)]">Team</h2>
+            <p className="text-sm text-[var(--muted)] mt-1">Manage your agency team members</p>
+          </div>
+          <div className="inline-flex rounded-lg bg-gray-100 p-0.5 text-xs font-medium">
+            {(["active", "inactive", "past"] as const).map((key) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`px-3 py-1.5 rounded-md transition capitalize ${
+                  filter === key
+                    ? "bg-white text-[var(--foreground)] shadow-sm"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {key} <span className="text-[var(--muted)] font-normal">{counts[key]}</span>
+              </button>
+            ))}
+          </div>
         </div>
         {canAddMembers && (
           <button
@@ -522,12 +572,16 @@ export default function TeamList({ roleLevel, currentMemberId }: { roleLevel?: R
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {members.length === 0 ? (
+        {visibleMembers.length === 0 ? (
           <p className="text-sm text-[var(--muted)] col-span-full text-center py-8">
-            No team members yet. Click &quot;+ Add Member&quot; to get started.
+            {filter === "active"
+              ? "No active team members. Click \u201C+ Add Member\u201D to get started."
+              : filter === "inactive"
+                ? "No inactive team members."
+                : "No past team members."}
           </p>
         ) : (
-          [...members].sort((a, b) => {
+          [...visibleMembers].sort((a, b) => {
             const aOnLeave = a.employeeStatus && a.employeeStatus !== "active" ? 1 : 0;
             const bOnLeave = b.employeeStatus && b.employeeStatus !== "active" ? 1 : 0;
             return aOnLeave - bOnLeave;

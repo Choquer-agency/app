@@ -41,6 +41,7 @@ export function docToClient(doc: any): ClientConfig {
     socialFacebook: doc.socialFacebook ?? "",
     socialInstagram: doc.socialInstagram ?? "",
     socialX: doc.socialX ?? "",
+    billable: doc.billable ?? true,
   };
 }
 

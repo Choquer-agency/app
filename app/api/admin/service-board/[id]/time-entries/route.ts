@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/admin-auth";
 import { getServiceBoardEntryById, getOrCreateServiceTicket } from "@/lib/service-board";
-import { getServiceHoursForClient } from "@/lib/time-entries";
-import { getTimeEntriesForTicket, startTimer, addManualEntry } from "@/lib/time-entries";
+import { getCascadedHoursForPackage, startTimer, addManualEntry } from "@/lib/time-entries";
 
 export async function GET(
   request: NextRequest,
@@ -20,9 +19,9 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const hours = await getServiceHoursForClient(
+    const hours = await getCascadedHoursForPackage(
       entry.clientId,
-      entry.category,
+      entry.clientPackageId,
       entry.month
     );
 

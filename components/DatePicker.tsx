@@ -10,6 +10,7 @@ interface DatePickerProps {
   displayFormat?: "short" | "full"; // short: "3/20/26", full: "Mar 20, 2026"
   className?: string;
   clearable?: boolean;
+  highlightOverdue?: boolean; // Default true — turn off when used as a filter range (not a due date)
 }
 
 const MONTH_NAMES = [
@@ -57,6 +58,7 @@ export default function DatePicker({
   displayFormat = "full",
   className = "",
   clearable = true,
+  highlightOverdue = true,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const [viewYear, setViewYear] = useState(() => {
@@ -98,28 +100,6 @@ export default function DatePicker({
 
   function toggleOpen(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-      const calendarWidth = 300;
-      const calendarHeight = 380; // approximate height of calendar popup
-
-      let left = rect.left / zoom;
-      // Keep within viewport horizontally
-      if (left + calendarWidth > window.innerWidth / zoom - 8) {
-        left = rect.right / zoom - calendarWidth;
-      }
-      if (left < 8) left = 8;
-
-      // Place below button, or above if not enough room below
-      let top = rect.bottom / zoom + 4;
-      if (top + calendarHeight > window.innerHeight / zoom) {
-        top = rect.top / zoom - calendarHeight - 4;
-        if (top < 8) top = 8; // fallback: don't go above viewport
-      }
-
-      setPos({ top, left });
-    }
     if (!open && value) {
       const d = new Date(value + "T00:00:00");
       setViewYear(d.getFullYear());
@@ -194,17 +174,23 @@ export default function DatePicker({
     }
   }
 
-  const isOverdue = selectedDate && selectedDate < today;
+  const isOverdue = highlightOverdue && selectedDate && selectedDate < today;
+
+  const flipUp = (() => {
+    if (!buttonRef.current) return false;
+    const rect = buttonRef.current.getBoundingClientRect();
+    return rect.bottom + 400 > window.innerHeight - 8;
+  })();
 
   const calendarEl = (
     <div
       ref={menuRef}
-      className="bg-white border border-[var(--border)] rounded-xl shadow-xl p-4"
+      className="bg-white border border-[var(--border)] rounded-xl shadow-xl p-4 absolute z-50"
       style={{
-        position: "fixed",
-        top: pos.top,
-        left: pos.left,
-        zIndex: 9999,
+        [flipUp ? "bottom" : "top"]: "100%",
+        right: 0,
+        marginTop: flipUp ? 0 : 4,
+        marginBottom: flipUp ? 4 : 0,
         width: 300,
       }}
       onClick={(e) => e.stopPropagation()}
@@ -287,7 +273,7 @@ export default function DatePicker({
   );
 
   return (
-    <>
+    <div className="relative inline-block w-full">
       <button
         ref={buttonRef}
         onClick={toggleOpen}
@@ -301,9 +287,7 @@ export default function DatePicker({
           <span className={`${className.includes("text-sm") ? "" : "text-xs"} text-[var(--muted)]`}>{placeholder}</span>
         )}
       </button>
-      {open &&
-        typeof document !== "undefined" &&
-        ReactDOM.createPortal(calendarEl, document.body)}
-    </>
+      {open && calendarEl}
+    </div>
   );
 }

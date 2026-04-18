@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   // If employee, force to their own ID. Otherwise, use requested filter (or undefined for all)
   const memberId = isEmployee
     ? session.teamMemberId
-    : requestedMemberId ? Number(requestedMemberId) : undefined;
+    : requestedMemberId || undefined;
 
   const report = await getPerformanceReport(start, end, memberId);
   return NextResponse.json(report);

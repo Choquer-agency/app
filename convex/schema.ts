@@ -54,6 +54,8 @@ export default defineSchema({
     socialX: v.optional(v.string()),
     // Tags
     tags: v.optional(v.array(v.string())),
+    // Billable flag — defaults to true; false excludes from billable utilization
+    billable: v.optional(v.boolean()),
   })
     .index("by_slug", ["slug"])
     .index("by_active", ["active"])
@@ -126,6 +128,17 @@ export default defineSchema({
     .index("by_qualification", ["qualification"])
     .index("by_source", ["source"])
     .index("by_leadgen_id", ["metaLeadgenId"]),
+
+  // --- Lead activity log: emails, meetings, notes, transcripts — anything client-related
+  leadLogs: defineTable({
+    leadId: v.id("leads"),
+    type: v.string(), // "email" | "meeting" | "note" | "transcript" | "phone"
+    title: v.string(),
+    content: v.string(),
+    occurredAt: v.number(), // when the interaction happened (user-provided or createdAt)
+    createdBy: v.optional(v.id("teamMembers")),
+    createdByName: v.optional(v.string()),
+  }).index("by_lead", ["leadId"]),
 
   // Singleton config for Meta Ads / Conversions API integration.
   // Access tokens + app secret are AES-256-GCM encrypted before storage.
@@ -286,6 +299,8 @@ export default defineSchema({
     hourlyRate: v.optional(v.number()),
     salary: v.optional(v.number()),
     payType: v.optional(v.string()), // "hourly" | "salary"
+    // Time-tracking speed multiplier — non-website work ticks at this rate (e.g. 1.5 = SEO hour counts as 1.5h)
+    timeMultiplier: v.optional(v.number()),
     // Vacation & sick balance
     vacationDaysTotal: v.optional(v.number()),
     vacationDaysUsed: v.optional(v.number()),
@@ -447,6 +462,8 @@ export default defineSchema({
     durationSeconds: v.optional(v.number()),
     isManual: v.optional(v.boolean()),
     note: v.optional(v.string()),
+    // Rate multiplier captured at timer start — 1.0 for website work, team member's timeMultiplier otherwise
+    rate: v.optional(v.number()),
   })
     .index("by_ticket", ["ticketId"])
     .index("by_member", ["teamMemberId"])
@@ -579,6 +596,43 @@ export default defineSchema({
     enrichedData: v.optional(v.any()),
   }).index("by_client_month", ["clientSlug", "month"]),
 
+  // Per-month SEO strategy doc — written from the CRM SEO Strategy tab,
+  // enriched into `enrichedContent` for the client-facing dashboard.
+  seoStrategyMonths: defineTable({
+    clientId: v.id("clients"),
+    clientSlug: v.string(), // denormalized for fast slug lookups
+    year: v.number(),
+    month: v.number(), // 1-12
+    monthKey: v.string(), // "YYYY-MM" — stable per (client, month)
+    status: v.union(
+      v.literal("forecast"), // future month, stub
+      v.literal("active"), // current month, being edited
+      v.literal("complete") // past month, frozen
+    ),
+    rawContent: v.string(), // TipTap JSON serialized
+    rawContentHash: v.string(), // MD5 for skip-if-unchanged
+    lastEditedAt: v.number(),
+    lastEditedBy: v.optional(v.id("teamMembers")),
+    enrichmentState: v.union(
+      v.literal("idle"),
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("error")
+    ),
+    enrichmentQueuedAt: v.optional(v.number()),
+    enrichmentStartedAt: v.optional(v.number()),
+    enrichmentCompletedAt: v.optional(v.number()),
+    enrichmentError: v.optional(v.string()),
+    lastEnrichedHash: v.optional(v.string()),
+    quarterlyGoal: v.optional(v.string()),
+    clientApprovedAt: v.optional(v.number()),
+    clientApprovedBy: v.optional(v.id("teamMembers")),
+  })
+    .index("by_client_monthKey", ["clientId", "monthKey"])
+    .index("by_slug_monthKey", ["clientSlug", "monthKey"])
+    .index("by_client", ["clientId"])
+    .index("by_enrichment_queue", ["enrichmentState", "enrichmentQueuedAt"]),
+
   approvals: defineTable({
     clientSlug: v.string(),
     title: v.string(),
@@ -698,6 +752,25 @@ export default defineSchema({
     clientId: v.optional(v.id("clients")),
   }).index("by_member", ["teamMemberId"])
     .index("by_client", ["clientId"]),
+
+  meetingQuestionTemplates: defineTable({
+    teamMemberId: v.id("teamMembers"),
+    question: v.string(),
+    frequency: v.string(), // "weekly" | "monthly"
+    sortOrder: v.optional(v.number()),
+    active: v.boolean(),
+  }).index("by_member", ["teamMemberId"]),
+
+  meetingBriefings: defineTable({
+    teamMemberId: v.id("teamMembers"),
+    createdById: v.id("teamMembers"),
+    period: v.string(), // "last_week" | "this_week" | "this_month" | "last_month" | "this_year"
+    meetingDate: v.string(), // "YYYY-MM-DD"
+    briefingData: v.any(), // structured JSON output from Claude
+    generationMeta: v.optional(v.any()), // { model, inputTokens, outputTokens, durationMs, traceId }
+  })
+    .index("by_member", ["teamMemberId"])
+    .index("by_date", ["meetingDate"]),
 
   // === TIMESHEET (Payroll clock in/out — separate from ticket time tracking) ===
   timesheetEntries: defineTable({

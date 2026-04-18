@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Package, BillingFrequency } from "@/types";
+import FilterDropdown from "./FilterDropdown";
 
 interface PackageFormModalProps {
   pkg?: Package | null;
@@ -166,37 +167,41 @@ export default function PackageFormModal({ pkg, onClose, onSaved }: PackageFormM
             <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
               Category
             </label>
-            <select
+            <FilterDropdown
+              label=""
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className={`${inputClass} bg-white`}
-            >
-              <option value="seo">SEO</option>
-              <option value="retainer">Retainer</option>
-              <option value="google_ads">Google Ads</option>
-              <option value="social_media_ads">Social Media Ads</option>
-              <option value="blog">Blog</option>
-              <option value="website">Website</option>
-              <option value="other">Other</option>
-            </select>
+              onChange={(v) => setCategory(v)}
+              options={[
+                { value: "seo", label: "SEO" },
+                { value: "retainer", label: "Retainer" },
+                { value: "google_ads", label: "Google Ads" },
+                { value: "social_media_ads", label: "Social Media Ads" },
+                { value: "blog", label: "Blog" },
+                { value: "website", label: "Website" },
+                { value: "other", label: "Other" },
+              ]}
+              fullWidth
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
               Billing Frequency
             </label>
-            <select
+            <FilterDropdown
+              label=""
               value={billingFrequency}
-              onChange={(e) => setBillingFrequency(e.target.value as BillingFrequency)}
-              className={`${inputClass} bg-white`}
-            >
-              <option value="one_time">One-Time</option>
-              <option value="weekly">Weekly</option>
-              <option value="bi_weekly">Bi-Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="annually">Annually</option>
-            </select>
+              onChange={(v) => setBillingFrequency(v as BillingFrequency)}
+              options={[
+                { value: "one_time", label: "One-Time" },
+                { value: "weekly", label: "Weekly" },
+                { value: "bi_weekly", label: "Bi-Weekly" },
+                { value: "monthly", label: "Monthly" },
+                { value: "quarterly", label: "Quarterly" },
+                { value: "annually", label: "Annually" },
+              ]}
+              fullWidth
+            />
           </div>
 
           {showHours && (

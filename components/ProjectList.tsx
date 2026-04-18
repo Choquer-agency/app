@@ -7,6 +7,7 @@ import { Project } from "@/types";
 import { friendlyDate } from "@/lib/date-format";
 import { useClients } from "@/hooks/useClients";
 import ProjectCreateFlow from "./ProjectCreateFlow";
+import FilterDropdown from "./FilterDropdown";
 import { Id } from "@/convex/_generated/dataModel";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -134,16 +135,15 @@ export default function ProjectList() {
           placeholder="Search projects..."
           className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg w-48 bg-white"
         />
-        <select
+        <FilterDropdown
+          label="Client"
           value={filterClient ?? ""}
-          onChange={(e) => setFilterClient(e.target.value || null)}
-          className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-white"
-        >
-          <option value="">All Clients</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+          onChange={(v) => setFilterClient(v || null)}
+          options={[
+            { value: "", label: "All Clients" },
+            ...clients.map((c) => ({ value: String(c.id), label: c.name })),
+          ]}
+        />
         <label className="flex items-center gap-1.5 text-sm text-[var(--muted)] cursor-pointer">
           <input
             type="checkbox"

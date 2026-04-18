@@ -8,6 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { ProjectGroup, ProjectTemplateRole, Ticket, TeamMember, TicketDependency } from "@/types";
 import TicketDetailModal from "./TicketDetailModal";
 import DatePicker from "./DatePicker";
+import FilterDropdown from "./FilterDropdown";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface TemplateEditorViewProps {
@@ -720,16 +721,16 @@ export default function TemplateEditorView({ projectId }: TemplateEditorViewProp
                         className="px-2 py-1 text-sm border border-[var(--border)] rounded"
                         autoFocus
                       />
-                      <select
+                      <FilterDropdown
+                        label=""
                         value={quickAddRoleId ?? ""}
-                        onChange={(e) => setQuickAddRoleId(e.target.value || null)}
-                        className="px-1 py-1 text-xs border border-[var(--border)] rounded bg-white"
-                      >
-                        <option value="">No role</option>
-                        {roles.map((r) => (
-                          <option key={r.id} value={r.id}>{r.name}</option>
-                        ))}
-                      </select>
+                        onChange={(v) => setQuickAddRoleId(v || null)}
+                        options={[
+                          { value: "", label: "No role" },
+                          ...roles.map((r) => ({ value: String(r.id), label: r.name })),
+                        ]}
+                        fullWidth
+                      />
                       <span />
                       <input
                         value={quickAddOffsetStart}

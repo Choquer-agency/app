@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Ticket, TicketStatus, TicketPriority, TeamMember, ProjectGroup } from "@/types";
 import { docToTicket } from "@/lib/ticket-mappers";
+import FilterDropdown from "./FilterDropdown";
 import StatusDropdown from "./StatusDropdown";
 import { PriorityDropdown } from "./TicketPriorityBadge";
 import ClientDropdown from "./ClientDropdown";
@@ -237,16 +238,15 @@ export default function TicketCreateModal({
                   </svg>
                   <span className="text-sm text-[var(--muted)]">Stage</span>
                 </div>
-                <select
+                <FilterDropdown
+                  label=""
                   value={groupId ?? ""}
-                  onChange={(e) => setGroupId(e.target.value || null)}
-                  className="text-sm border border-[var(--border)] rounded-lg px-2 py-1 bg-white cursor-pointer"
-                >
-                  <option value="">No stage</option>
-                  {projectGroups.map((g) => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setGroupId(v || null)}
+                  options={[
+                    { value: "", label: "No stage" },
+                    ...projectGroups.map((g) => ({ value: g.id, label: g.name })),
+                  ]}
+                />
               </div>
               )}
 

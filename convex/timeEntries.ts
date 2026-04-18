@@ -60,6 +60,56 @@ export const getRunning = query({
   },
 });
 
+// Cascade order used to identify a client's "primary" package category for rate lookup.
+// Website work is billed at 1.0x; everything else uses the team member's timeMultiplier.
+const RATE_CASCADE_ORDER = [
+  "website",
+  "seo",
+  "retainer",
+  "google_ads",
+  "blog",
+  "hosting",
+  "ai",
+  "ai_chat",
+] as const;
+
+async function computeEntryRate(
+  ctx: { db: any },
+  ticketId: Id<"tickets">,
+  teamMemberId: Id<"teamMembers">
+): Promise<number> {
+  const member = await ctx.db.get(teamMemberId);
+  const multiplier = member?.timeMultiplier ?? 1.0;
+  if (multiplier === 1.0) return 1.0;
+
+  const ticket = await ctx.db.get(ticketId);
+  const clientId = ticket?.clientId;
+  if (!clientId) return multiplier;
+
+  const assignments = await ctx.db
+    .query("clientPackages")
+    .withIndex("by_client", (q: any) => q.eq("clientId", clientId))
+    .collect();
+  const active = assignments.filter((cp: any) => cp.active && !cp.isOneTime);
+  if (active.length === 0) return multiplier;
+
+  // Find the highest-priority package category (lowest cascade index)
+  let bestRank = RATE_CASCADE_ORDER.length;
+  let primaryCategory: string | undefined;
+  for (const cp of active) {
+    const pkg = await ctx.db.get(cp.packageId);
+    const category = pkg?.category ?? "other";
+    const rank = (RATE_CASCADE_ORDER as readonly string[]).indexOf(category);
+    const effectiveRank = rank === -1 ? RATE_CASCADE_ORDER.length : rank;
+    if (effectiveRank < bestRank) {
+      bestRank = effectiveRank;
+      primaryCategory = category;
+    }
+  }
+
+  return primaryCategory === "website" ? 1.0 : multiplier;
+}
+
 export const start = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -78,7 +128,9 @@ export const start = mutation({
       if (entry.endTime === undefined) {
         const startMs = new Date(entry.startTime).getTime();
         const endMs = new Date(now).getTime();
-        const durationSeconds = Math.round((endMs - startMs) / 1000);
+        const wallSeconds = Math.round((endMs - startMs) / 1000);
+        const rate = entry.rate ?? 1.0;
+        const durationSeconds = Math.round(wallSeconds * rate);
         await ctx.db.patch(entry._id, {
           endTime: now,
           durationSeconds,
@@ -86,11 +138,14 @@ export const start = mutation({
       }
     }
 
+    const rate = await computeEntryRate(ctx, args.ticketId, args.teamMemberId);
+
     // Insert new running timer
     const id = await ctx.db.insert("timeEntries", {
       ticketId: args.ticketId,
       teamMemberId: args.teamMemberId,
       startTime: now,
+      rate,
     });
     return await ctx.db.get(id);
   },
@@ -111,7 +166,9 @@ export const stop = mutation({
     const now = new Date().toISOString();
     const startMs = new Date(entry.startTime).getTime();
     const endMs = new Date(now).getTime();
-    const durationSeconds = Math.round((endMs - startMs) / 1000);
+    const wallSeconds = Math.round((endMs - startMs) / 1000);
+    const rate = entry.rate ?? 1.0;
+    const durationSeconds = Math.round(wallSeconds * rate);
 
     await ctx.db.patch(args.id, {
       endTime: now,
@@ -137,7 +194,9 @@ export const stopByMember = mutation({
     const now = new Date().toISOString();
     const startMs = new Date(running.startTime).getTime();
     const endMs = new Date(now).getTime();
-    const durationSeconds = Math.round((endMs - startMs) / 1000);
+    const wallSeconds = Math.round((endMs - startMs) / 1000);
+    const rate = running.rate ?? 1.0;
+    const durationSeconds = Math.round(wallSeconds * rate);
 
     await ctx.db.patch(running._id, {
       endTime: now,
@@ -164,7 +223,9 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const startMs = new Date(args.startTime).getTime();
     const endMs = new Date(args.endTime).getTime();
-    const durationSeconds = Math.round((endMs - startMs) / 1000);
+    const wallSeconds = Math.round((endMs - startMs) / 1000);
+    const rate = await computeEntryRate(ctx, args.ticketId, args.teamMemberId);
+    const durationSeconds = Math.round(wallSeconds * rate);
 
     const id = await ctx.db.insert("timeEntries", {
       ticketId: args.ticketId,
@@ -174,6 +235,7 @@ export const create = mutation({
       durationSeconds,
       isManual: true,
       note: args.note ?? "",
+      rate,
     });
     return await ctx.db.get(id);
   },
@@ -198,7 +260,9 @@ export const update = mutation({
     if (endTime) {
       const startMs = new Date(startTime).getTime();
       const endMs = new Date(endTime).getTime();
-      durationSeconds = Math.round((endMs - startMs) / 1000);
+      const wallSeconds = Math.round((endMs - startMs) / 1000);
+      const rate = existing.rate ?? 1.0;
+      durationSeconds = Math.round(wallSeconds * rate);
     }
 
     await ctx.db.patch(args.id, {

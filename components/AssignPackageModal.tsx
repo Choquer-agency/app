@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Package } from "@/types";
+import FilterDropdown from "./FilterDropdown";
 
 interface AssignPackageModalProps {
   clientId: number;
@@ -127,22 +128,20 @@ export default function AssignPackageModal({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Package
             </label>
-            <select
+            <FilterDropdown
+              fullWidth
+              label=""
               value={packageId}
-              onChange={(e) => {
-                const newId = e.target.value;
+              onChange={(newId) => {
                 setPackageId(newId);
                 const pkg = packages.find((p) => String(p.id) === newId);
                 if (pkg) setContractTerm(getDefaultContractTerm(pkg.category));
               }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9500] focus:border-transparent bg-white"
-            >
-              {packages.map((pkg) => (
-                <option key={String(pkg.id)} value={String(pkg.id)}>
-                  {pkg.name} — {formatPrice(pkg.defaultPrice)}/{pkg.billingFrequency === "annually" ? "yr" : "mo"} {currency}
-                </option>
-              ))}
-            </select>
+              options={packages.map((pkg) => ({
+                value: String(pkg.id),
+                label: `${pkg.name} — ${formatPrice(pkg.defaultPrice)}/${pkg.billingFrequency === "annually" ? "yr" : "mo"} ${currency}`,
+              }))}
+            />
           </div>
 
           <div className="flex items-center gap-2">

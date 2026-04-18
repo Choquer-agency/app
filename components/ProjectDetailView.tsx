@@ -6,6 +6,7 @@ import TicketListView from "./TicketListView";
 import TemplateEditorView from "./TemplateEditorView";
 import GanttView from "./GanttView";
 import { friendlyDate } from "@/lib/date-format";
+import FilterDropdown from "./FilterDropdown";
 
 const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
   { value: "active", label: "Active" },
@@ -300,15 +301,12 @@ export default function ProjectDetailView({ projectId }: { projectId: number }) 
               className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg resize-none"
             />
             <div className="flex items-center gap-3 flex-wrap">
-              <select
+              <FilterDropdown
+                label="Status"
                 value={editStatus}
-                onChange={(e) => setEditStatus(e.target.value as ProjectStatus)}
-                className="px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-white"
-              >
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
+                onChange={(v) => setEditStatus(v as ProjectStatus)}
+                options={STATUS_OPTIONS.map((s) => ({ value: String(s.value), label: s.label }))}
+              />
               <div className="flex items-center gap-2">
                 <label className="text-xs text-[var(--muted)]">Start:</label>
                 <input

@@ -273,23 +273,23 @@ export default function ClientBillingHealth({ clientId }: Props) {
           <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">
             Payment Issue History
           </h3>
-          <div className="border border-gray-100 rounded-lg overflow-hidden">
+          <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left px-4 py-2 text-xs text-[var(--muted)] font-medium">
+                <tr className="border-b border-[var(--border)]">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     Status
                   </th>
-                  <th className="text-left px-4 py-2 text-xs text-[var(--muted)] font-medium">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     First Failed
                   </th>
-                  <th className="text-left px-4 py-2 text-xs text-[var(--muted)] font-medium">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     Emails Sent
                   </th>
-                  <th className="text-left px-4 py-2 text-xs text-[var(--muted)] font-medium">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     Resolved
                   </th>
-                  <th className="text-left px-4 py-2 text-xs text-[var(--muted)] font-medium">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                     Note
                   </th>
                 </tr>
@@ -298,9 +298,9 @@ export default function ClientBillingHealth({ clientId }: Props) {
                 {issues.map((issue) => (
                   <tr
                     key={issue._id}
-                    className="border-b border-gray-50 last:border-0"
+                    className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--hover-tan)]"
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                           issue.status === "resolved"
@@ -313,16 +313,16 @@ export default function ClientBillingHealth({ clientId }: Props) {
                         {issue.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-[var(--foreground)]">
+                    <td className="px-2 py-3 text-[var(--foreground)]">
                       {formatDate(issue.firstFailedAt)}
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted)]">
+                    <td className="px-2 py-3 text-[var(--muted)]">
                       {issue.emailCount ?? 0}
                     </td>
-                    <td className="px-4 py-3 text-[var(--foreground)]">
+                    <td className="px-2 py-3 text-[var(--foreground)]">
                       {formatDate(issue.resolvedAt)}
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted)] text-xs">
+                    <td className="px-2 py-3 text-[var(--muted)] text-xs">
                       {issue.resolutionNote || "--"}
                     </td>
                   </tr>

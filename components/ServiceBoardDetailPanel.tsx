@@ -5,8 +5,10 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useSession } from "@/hooks/useSession";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { ServiceBoardEntry } from "@/types";
 import HourCountdown from "./HourCountdown";
+import SeoStrategyTab from "./SeoStrategyTab";
 
 interface DetailPanelProps {
   entry: ServiceBoardEntry;
@@ -29,9 +31,11 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
   const [manualMinutes, setManualMinutes] = useState("");
   const [manualNote, setManualNote] = useState("");
   const [emailCopied, setEmailCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<"details" | "email">(
-    entry.generatedEmail ? "email" : "details"
+  const showStrategyTab = entry.category === "seo";
+  const [activeTab, setActiveTab] = useState<"details" | "email" | "strategy">(
+    showStrategyTab ? "strategy" : entry.generatedEmail ? "email" : "details"
   );
+  const { teamMembers } = useTeamMembers();
 
   // ── Real-time Convex query for running timer ──
   const runningTimer = useQuery(
@@ -98,8 +102,14 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
 
   useEffect(() => {
     setNotes(entry.notes);
-    setActiveTab(entry.generatedEmail ? "email" : "details");
-  }, [entry.id, entry.notes, entry.generatedEmail]);
+    setActiveTab(
+      entry.category === "seo"
+        ? "strategy"
+        : entry.generatedEmail
+          ? "email"
+          : "details"
+    );
+  }, [entry.id, entry.notes, entry.generatedEmail, entry.category]);
 
   // Lock body scroll when panel is open
   useEffect(() => {
@@ -196,10 +206,15 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={onClose} />
 
-      {/* Panel — slides in from right */}
-      <div className="fixed right-0 top-0 bottom-0 w-full max-w-xl bg-white shadow-2xl z-50 flex flex-col animate-slide-in">
+      {/* Centered modal */}
+      <div
+        className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full bg-white shadow-2xl rounded-2xl z-50 flex flex-col overflow-hidden transition-[max-width] ${
+          activeTab === "strategy" ? "max-w-5xl" : "max-w-2xl"
+        }`}
+        style={{ maxHeight: activeTab === "strategy" ? "90vh" : "calc(80vh / 1.1875)" }}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <div className="min-w-0">
@@ -218,6 +233,18 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 px-6 shrink-0">
+          {showStrategyTab && (
+            <button
+              onClick={() => setActiveTab("strategy")}
+              className={`px-3 py-2 text-xs font-medium border-b-2 transition ${
+                activeTab === "strategy"
+                  ? "border-[var(--accent)] text-[var(--accent)]"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              SEO Strategy
+            </button>
+          )}
           <button
             onClick={() => setActiveTab("details")}
             className={`px-3 py-2 text-xs font-medium border-b-2 transition ${
@@ -245,7 +272,14 @@ export default function ServiceBoardDetailPanel({ entry, month, onClose, onUpdat
 
         {/* Content */}
         <div className="flex-1 overflow-auto px-6 py-4 space-y-6">
-          {activeTab === "email" ? (
+          {activeTab === "strategy" ? (
+            <SeoStrategyTab
+              clientId={entry.clientId}
+              clientSlug={entry.clientSlug || ""}
+              clientName={entry.clientName || ""}
+              teamMembers={teamMembers}
+            />
+          ) : activeTab === "email" ? (
             /* ── Email Tab ── */
             entry.generatedEmail ? (
               <div className="space-y-3">

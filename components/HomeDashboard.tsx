@@ -17,6 +17,7 @@ import QuickClockBar from "./timesheet/QuickClockBar";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import FilterDropdown from "./FilterDropdown";
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -816,17 +817,18 @@ export default function HomeDashboard({
                 className="w-full text-sm px-3 py-2 rounded-lg border border-[#d4c4f0] bg-white focus:outline-none focus:ring-1 focus:ring-[#9b6fd4] resize-none"
               />
               <div className="flex items-center gap-2 flex-wrap">
-                <select
+                <FilterDropdown
+                  label="Category"
                   value={changelogCategory}
-                  onChange={(e) => setChangelogCategory(e.target.value as ChangelogCategory)}
-                  className="text-xs px-2 py-1.5 rounded-lg border border-[#d4c4f0] bg-white focus:outline-none"
-                >
-                  <option value="feature">Feature</option>
-                  <option value="improvement">Improvement</option>
-                  <option value="fix">Fix</option>
-                  <option value="design">Design</option>
-                  <option value="moved">Moved</option>
-                </select>
+                  onChange={(v) => setChangelogCategory(v as ChangelogCategory)}
+                  options={[
+                    { value: "feature", label: "Feature" },
+                    { value: "improvement", label: "Improvement" },
+                    { value: "fix", label: "Fix" },
+                    { value: "design", label: "Design" },
+                    { value: "moved", label: "Moved" },
+                  ]}
+                />
                 <input
                   type="text"
                   placeholder="Image URL (optional)"

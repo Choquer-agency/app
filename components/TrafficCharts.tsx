@@ -128,35 +128,35 @@ export default function TrafficCharts({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Traffic Acquisition table */}
         {trafficChannels.length > 0 && (
-          <div className="border border-[#E5E5E5] rounded-xl bg-white">
-            <div className="px-4 py-3 border-b border-[#F0F0F0]">
+          <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[var(--border)]">
               <p className="text-xs text-muted font-medium">
                 <MetricTooltip label="Traffic Acquisition" tooltip="Breakdown of where your website visitors come from — organic search, direct visits, referrals, and social media" />
               </p>
             </div>
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[10px] text-muted uppercase tracking-wide">
-                  <th className="pl-4 pr-2 py-2 text-left font-medium">Channel</th>
-                  <th className="px-2 py-2 text-right font-medium">Users</th>
-                  <th className="px-2 py-2 text-right font-medium">Sessions</th>
-                  <th className="pl-2 pr-4 py-2 text-right font-medium">%</th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Channel</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Users</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Sessions</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">%</th>
                 </tr>
               </thead>
               <tbody>
                 {trafficChannels.map((ch) => {
                   const pct = totalChannelUsers > 0 ? (ch.users / totalChannelUsers) * 100 : 0;
                   return (
-                    <tr key={ch.channel} className="border-t border-[#F0F0F0] hover:bg-[#FAFAFA] transition-colors">
-                      <td className="pl-4 pr-2 py-2.5">
+                    <tr key={ch.channel} className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] transition-colors">
+                      <td className="px-2 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getChannelColor(ch.channel) }} />
                           <span className="text-xs text-[#1A1A1A] whitespace-nowrap">{ch.channel}</span>
                         </div>
                       </td>
-                      <td className="px-2 py-2.5 text-xs text-right font-medium">{fmtNumber(ch.users)}</td>
-                      <td className="px-2 py-2.5 text-xs text-right text-muted">{fmtNumber(ch.sessions)}</td>
-                      <td className="pl-2 pr-4 py-2.5 text-xs text-right text-muted">{pct.toFixed(1)}%</td>
+                      <td className="px-2 py-3 text-xs text-right font-medium">{fmtNumber(ch.users)}</td>
+                      <td className="px-2 py-3 text-xs text-right text-muted">{fmtNumber(ch.sessions)}</td>
+                      <td className="px-2 py-3 text-xs text-right text-muted">{pct.toFixed(1)}%</td>
                     </tr>
                   );
                 })}

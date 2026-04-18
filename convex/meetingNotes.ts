@@ -52,6 +52,7 @@ export const update = mutation({
     id: v.id("meetingNotes"),
     summary: v.optional(v.string()),
     rawExtraction: v.optional(v.any()),
+    meetingDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;

@@ -23,6 +23,7 @@ export function docToTeamMember(doc: any): TeamMember {
     hourlyRate: doc.hourlyRate ?? null,
     salary: doc.salary ?? null,
     payType: doc.payType === "salary" ? "salary" : "hourly",
+    timeMultiplier: doc.timeMultiplier ?? null,
     sickDaysTotal: doc.sickDaysTotal,
     vacationDaysTotal: doc.vacationDaysTotal,
     vacationDaysUsed: doc.vacationDaysUsed,
@@ -57,6 +58,7 @@ export async function addTeamMember(data: {
   hourlyRate?: number | null;
   salary?: number | null;
   payType?: string;
+  timeMultiplier?: number | null;
   roleLevel?: string;
   slackUserId?: string;
   tags?: string[];
@@ -75,6 +77,7 @@ export async function addTeamMember(data: {
     hourlyRate: data.hourlyRate ?? undefined,
     salary: data.salary ?? undefined,
     payType: data.payType,
+    timeMultiplier: data.timeMultiplier ?? undefined,
     roleLevel: data.roleLevel,
     slackUserId: data.slackUserId,
     tags: data.tags,
@@ -91,7 +94,7 @@ export async function getTeamMemberByEmail(email: string): Promise<TeamMember | 
 
 export async function updateTeamMember(
   id: string,
-  data: { name?: string; email?: string; role?: string; calLink?: string; profilePicUrl?: string; color?: string; startDate?: string; birthday?: string; active?: boolean; employeeStatus?: string; availableHoursPerWeek?: number; hourlyRate?: number | null; salary?: number | null; payType?: string; roleLevel?: string; slackUserId?: string; tags?: string[]; vacationDaysTotal?: number; vacationDaysUsed?: number; sickDaysTotal?: number; bypassClockIn?: boolean }
+  data: { name?: string; email?: string; role?: string; calLink?: string; profilePicUrl?: string; color?: string; startDate?: string; birthday?: string; active?: boolean; employeeStatus?: string; availableHoursPerWeek?: number; hourlyRate?: number | null; salary?: number | null; payType?: string; timeMultiplier?: number | null; roleLevel?: string; slackUserId?: string; tags?: string[]; vacationDaysTotal?: number; vacationDaysUsed?: number; sickDaysTotal?: number; bypassClockIn?: boolean }
 ): Promise<TeamMember | null> {
   const convex = getConvexClient();
   const updates: Record<string, any> = { id: id as any };

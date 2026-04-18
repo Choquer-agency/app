@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { ServiceBoardEntry, ServiceBoardStatus, ServiceBoardCategory, TeamMember } from "@/types";
@@ -11,54 +11,76 @@ import ServiceBoardDetailPanel from "./ServiceBoardDetailPanel";
 import TimeTracker from "./TimeTracker";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 
-// Wrapper that lazily gets/creates the service ticket for a board entry
-function ServiceTimeTracker({ entryId }: { entryId: number }) {
-  const [ticketId, setTicketId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+// Wrapper that renders TimeTracker when a service ticket exists, or a visually
+// identical idle state (play + clock icons) that lazily creates the ticket on click.
+function ServiceTimeTracker({
+  entryId,
+  initialTicketId,
+  onTimerChange,
+}: {
+  entryId: string;
+  initialTicketId: string | null;
+  onTimerChange?: () => void;
+}) {
+  const [ticketId, setTicketId] = useState<string | null>(initialTicketId);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`/api/admin/service-board/${entryId}/time-entries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "get_or_create_ticket" }) })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.ticketId) setTicketId(data.ticketId); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [entryId]);
+    setTicketId(initialTicketId);
+  }, [initialTicketId]);
 
   if (ticketId) {
     return (
       <TimeTracker
-        ticketId={ticketId}
+        ticketId={ticketId as unknown as string}
+        onTimerChange={onTimerChange}
       />
     );
   }
 
-  // Show consistent play button style (matches TimeTracker) while loading or before ticket exists
+  // Idle state when no service ticket exists yet — matches TimeTracker's idle
+  // visual (play icon + clock icon, both icon-only). Clicking play lazily
+  // creates the ticket via the existing start_timer action.
+  const handleStart = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (starting) return;
+    setStarting(true);
+    try {
+      const res = await fetch(`/api/admin/service-board/${entryId}/time-entries`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start_timer" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ticketId) {
+          setTicketId(data.ticketId);
+          onTimerChange?.();
+        }
+      }
+    } catch {} finally {
+      setStarting(false);
+    }
+  };
+
   return (
-    <button
-      disabled={loading}
-      onClick={async (e) => {
-        e.stopPropagation();
-        try {
-          const res = await fetch(`/api/admin/service-board/${entryId}/time-entries`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "start_timer" }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.ticketId) setTicketId(data.ticketId);
-          }
-        } catch {}
-      }}
-      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-50 transition"
-      title="Start timer"
-    >
-      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-      </svg>
-      <span>Start</span>
-    </button>
+    <div className="flex items-center gap-0.5">
+      <button
+        onClick={handleStart}
+        disabled={starting}
+        className="flex items-center text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-50 transition rounded-md p-1 disabled:opacity-50"
+        title="Start timer"
+      >
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+        </svg>
+      </button>
+      <div className="flex items-center text-[var(--muted)] rounded-md p-1 opacity-60">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -92,6 +114,7 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
     profilePicUrl: m.profilePicUrl || "",
   }));
   const [selectedEntry, setSelectedEntry] = useState<ServiceBoardEntry | null>(null);
+  const [lostOpen, setLostOpen] = useState(false);
   const [hoursMap, setHoursMap] = useState<Record<string, { loggedHours?: number; percentUsed?: number; hourStatus?: string }>>({});
 
   const categoryLabel = category === "google_ads" ? "Google Ads" : category === "seo" ? "SEO" : "Retainer";
@@ -99,6 +122,14 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
 
   // Real-time Convex subscription for entry data (status, specialist, notes update instantly)
   const rawEntries = useQuery(api.serviceBoardEntries.list, { category, month });
+
+  // Previous month — for "lost clients" comparison
+  const prevMonth = (() => {
+    const [y, m] = month.split("-").map(Number);
+    const d = new Date(y, m - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  })();
+  const prevRawEntries = useQuery(api.serviceBoardEntries.list, { category, month: prevMonth });
   const loading = rawEntries === undefined;
 
   // Map Convex docs to ServiceBoardEntry type
@@ -118,6 +149,7 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
     clientName: doc.clientName ?? undefined,
     clientSlug: doc.clientSlug ?? undefined,
     clientNotionPageUrl: doc.clientNotionPageUrl ?? undefined,
+    serviceTicketId: doc.serviceTicketId ?? null,
     packageName: doc.packageName ?? undefined,
     includedHours: doc.includedHours ?? undefined,
     specialistName: doc.specialistName ?? undefined,
@@ -126,7 +158,29 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
     generatedEmail: doc.generatedEmail ?? undefined,
     // Merge hours from REST fetch
     loggedHours: hoursMap[doc._id]?.loggedHours ?? 0,
-  }));
+  })).filter(
+    (e) =>
+      e.clientName &&
+      e.clientName.trim().length > 0 &&
+      // Exclude orphan entries whose underlying clientPackage was deleted
+      e.packageName &&
+      e.packageName.trim().length > 0
+  );
+
+  // Clients present last month but missing this month (deduped by clientId, real packages only)
+  const prevEntries = ((prevRawEntries ?? []) as any[]).filter(
+    (e) => e.clientName && e.packageName
+  );
+  const currentClientIds = new Set(entries.map((e) => String(e.clientId)));
+  const lostClients = prevEntries
+    .filter((e) => !currentClientIds.has(String(e.clientId)))
+    .map((e) => ({
+      id: String(e.clientId),
+      name: e.clientName as string,
+      slug: e.clientSlug as string | undefined,
+      packageName: e.packageName as string | undefined,
+    }))
+    .filter((c, idx, arr) => arr.findIndex((x) => x.id === c.id) === idx);
 
   // Keep selectedEntry in sync with Convex updates
   useEffect(() => {
@@ -139,7 +193,7 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
   }, [entries, selectedEntry]);
 
   // Fetch hours via REST (also ensures entries exist for the month)
-  useEffect(() => {
+  const fetchHours = useCallback(() => {
     fetch(`/api/admin/service-board?category=${category}&month=${month}`)
       .then((r) => r.ok ? r.json() : [])
       .then((data: any[]) => {
@@ -155,6 +209,19 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
       })
       .catch(() => {});
   }, [category, month]);
+
+  useEffect(() => {
+    fetchHours();
+  }, [fetchHours]);
+
+  // Re-fetch hours when the tab regains focus (another user may have logged time elsewhere)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchHours();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchHours]);
 
   async function handleStatusChange(entryId: string, status: ServiceBoardStatus) {
     try {
@@ -234,44 +301,39 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
             <p className="text-sm">No clients with an active {categoryLabel} package</p>
           </div>
         ) : (
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                <th className="px-6 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium">Time Tracked</th>
-                <th className="px-4 py-3 font-medium">Hours</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Specialist</th>
-                <th className="px-4 py-3 font-medium">Monthly Email</th>
-                {isQuarterly && <th className="px-4 py-3 font-medium">Quarterly Email</th>}
-                <th className="px-3 py-3 font-medium w-10 text-center" title="InsightPulse Dashboard">IP</th>
-                <th className="px-3 py-3 font-medium w-10 text-center" title="Comments">
-                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="inline-block">
-                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                  </svg>
-                </th>
+              <tr className="border-b border-[var(--border)]">
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Client</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-[110px]">Time Tracked</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-[130px]">Hours</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-[130px]">Status</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-[70px]">Specialist</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-[120px]">Monthly Email</th>
+                {isQuarterly && <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-[120px]">Quarterly Email</th>}
+                <th className="px-2 py-2.5 text-center font-medium text-[var(--muted)] text-xs w-10" title="InsightPulse Dashboard">IP</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((entry) => (
                 <tr
                   key={entry.id}
-                  className="border-b border-gray-50 hover:bg-gray-50/50 transition cursor-pointer"
+                  className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] transition cursor-pointer"
                   onClick={() => setSelectedEntry(entry)}
                 >
                   {/* Client Name */}
-                  <td className="px-6 py-3">
-                    <span className="text-sm font-medium text-gray-900">{entry.clientName}</span>
-                    <div className="text-xs text-gray-400">{entry.packageName}</div>
+                  <td className="px-2 py-3 whitespace-nowrap">
+                    <div className="text-sm font-medium text-[var(--foreground)]">{entry.clientName}</div>
+                    <div className="text-xs text-[var(--muted)]">{entry.packageName}</div>
                   </td>
 
                   {/* Time Tracked */}
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <ServiceTimeTracker entryId={entry.id} />
+                  <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                    <ServiceTimeTracker entryId={entry.id} initialTicketId={entry.serviceTicketId ?? null} onTimerChange={fetchHours} />
                   </td>
 
                   {/* Hours */}
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                     <HourCountdown
                       logged={entry.loggedHours || 0}
                       allocated={entry.includedHours || 0}
@@ -280,7 +342,7 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
                   </td>
 
                   {/* Status */}
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                     <ServiceBoardStatusBadge
                       status={entry.status}
                       onChange={(s) => handleStatusChange(entry.id, s)}
@@ -288,7 +350,7 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
                   </td>
 
                   {/* Specialist */}
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                     <SpecialistDropdown
                       value={entry.specialistId}
                       specialistName={entry.specialistName}
@@ -300,7 +362,7 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
                   </td>
 
                   {/* Monthly Email */}
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                     <EmailAction
                       sentAt={entry.monthlyEmailSentAt}
                       status={entry.status}
@@ -311,7 +373,7 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
 
                   {/* Quarterly Email (only on quarterly months) */}
                   {isQuarterly && (
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                       <EmailAction
                         sentAt={entry.quarterlyEmailSentAt}
                         status={entry.status}
@@ -322,47 +384,90 @@ export default function ServiceBoard({ category }: ServiceBoardProps) {
                   )}
 
                   {/* IP Link */}
-                  <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     {entry.clientSlug ? (
-                      <a
-                        href={`/${entry.clientSlug}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const url = `${window.location.origin}/${entry.clientSlug}`;
+                          const tauri = (window as any).__TAURI__;
+                          if (tauri?.core?.invoke) {
+                            try {
+                              await tauri.core.invoke("plugin:opener|open_url", { url });
+                              return;
+                            } catch {}
+                          }
+                          window.open(url, "_blank", "noopener,noreferrer");
+                        }}
                         className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
                         title={`Open ${entry.clientName} dashboard`}
                       >
                         <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                           <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
                         </svg>
-                      </a>
+                      </button>
                     ) : (
                       <span className="text-gray-200">--</span>
                     )}
                   </td>
 
-                  {/* Comments */}
-                  <td className="px-3 py-3 text-center">
-                    {entry.notes ? (
-                      <span className="inline-flex items-center gap-0.5 text-xs text-gray-500">
-                        <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                        </svg>
-                        {entry.commentCount || 1}
-                      </span>
-                    ) : (
-                      <span className="text-gray-200">
-                        <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" className="inline-block">
-                          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                        </svg>
-                      </span>
-                    )}
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* Lost clients from last month */}
+      {lostClients.length > 0 && (
+        <div className="mt-4 bg-white rounded-xl border border-[var(--border)] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setLostOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm text-[var(--foreground)] hover:bg-[var(--hover-tan)] transition"
+          >
+            <span className="inline-flex items-center gap-2">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                className={`text-[var(--muted)] transition ${lostOpen ? "rotate-90" : ""}`}
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+              <span className="font-medium">Lost this month</span>
+              <span className="text-xs text-[var(--muted)]">
+                ({lostClients.length})
+              </span>
+            </span>
+            <span className="text-xs text-[var(--muted)]">
+              On this list last month but not this month
+            </span>
+          </button>
+          {lostOpen && (
+            <ul className="border-t border-[var(--border)] divide-y divide-[var(--border)]">
+              {lostClients.map((c) => (
+                <li key={c.id}>
+                  <a
+                    href={`/admin/crm/${c.id}`}
+                    className="flex items-center justify-between px-4 py-3 text-sm hover:bg-[var(--hover-tan)] transition"
+                  >
+                    <span className="text-[var(--foreground)] font-medium">{c.name}</span>
+                    {c.packageName && (
+                      <span className="text-xs text-[var(--muted)]">{c.packageName}</span>
+                    )}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Detail Panel */}
       {selectedEntry && (
@@ -404,24 +509,26 @@ function SpecialistDropdown({
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-xs hover:bg-gray-100 rounded-md px-1.5 py-1 transition"
+        className="flex items-center hover:opacity-80 rounded-full transition"
+        title={specialistName || "Assign specialist"}
       >
         {value && specialistName ? (
-          <>
-            {specialistPic ? (
-              <img src={specialistPic} alt="" className="w-5 h-5 rounded-full object-cover" />
-            ) : (
-              <span
-                className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
-                style={{ backgroundColor: specialistColor || "#6B7280" }}
-              >
-                {specialistName.charAt(0)}
-              </span>
-            )}
-            <span className="text-gray-700">{specialistName}</span>
-          </>
+          specialistPic ? (
+            <img src={specialistPic} alt={specialistName} className="w-7 h-7 rounded-full object-cover border border-[var(--border)]" />
+          ) : (
+            <span
+              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold"
+              style={{ backgroundColor: specialistColor || "#6B7280" }}
+            >
+              {specialistName.charAt(0)}
+            </span>
+          )
         ) : (
-          <span className="text-gray-400">Assign</span>
+          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-dashed border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--accent)] transition">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </span>
         )}
       </button>
 

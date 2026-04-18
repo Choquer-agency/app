@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { getSessionFromCookies } from "@/lib/admin-auth";
 import { redirect } from "next/navigation";
 import { hasPermission } from "@/lib/permissions";
-import SettingsSubNav from "@/components/SettingsSubNav";
 import OrgConnections from "@/components/connections/OrgConnections";
 import AllClientPlatforms from "@/components/connections/AllClientPlatforms";
 
@@ -19,8 +18,7 @@ export default async function ConnectionsPage() {
 
   return (
     <>
-      <SettingsSubNav roleLevel={session.roleLevel} />
-      <div className="max-w-3xl mx-auto py-8 px-6">
+      <div className="max-w-3xl">
         <div className="mb-6">
           <h1 className="text-lg font-semibold text-[var(--foreground)]">Connections</h1>
           <p className="text-xs text-[var(--muted)] mt-1">

@@ -151,12 +151,12 @@ export default function PackageList() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Name</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Price</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Services</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Actions</th>
+              <tr className="border-b border-[var(--border)]">
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Name</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Price</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Services</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Status</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -168,8 +168,8 @@ export default function PackageList() {
                 </tr>
               ) : (
                 packages.map((pkg) => (
-                  <tr key={pkg.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                  <tr key={pkg.id} className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)]">
+                    <td className="px-2 py-3">
                       <div>
                         <span className="font-medium">{pkg.name}</span>
                         {pkg.description && (
@@ -179,13 +179,13 @@ export default function PackageList() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-medium">
+                    <td className="px-2 py-3 font-medium">
                       {formatCurrency(pkg.defaultPrice)}{formatBillingFrequency(pkg.billingFrequency)}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-2 py-3 text-gray-500">
                       {pkg.includedServices.length} service{pkg.includedServices.length !== 1 ? "s" : ""}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       {pkg.active ? (
                         <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
                           Active
@@ -196,7 +196,7 @@ export default function PackageList() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 space-x-3">
+                    <td className="px-2 py-3 space-x-3">
                       <button
                         onClick={() => handleEdit(pkg)}
                         className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"

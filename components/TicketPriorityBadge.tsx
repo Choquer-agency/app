@@ -80,16 +80,11 @@ export function PriorityDropdown({
 
   function toggleOpen(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-      setPos({ top: rect.bottom / zoom + 4, left: rect.left / zoom });
-    }
     setOpen(!open);
   }
 
   return (
-    <>
+    <div className="relative inline-block">
       <button
         ref={buttonRef}
         onClick={toggleOpen}
@@ -100,40 +95,31 @@ export function PriorityDropdown({
           <span className={`${size === "sm" ? "text-sm" : "text-xs"} font-medium`}>{PRIORITY_CONFIG[priority].label}</span>
         </span>
       </button>
-      {open &&
-        typeof document !== "undefined" &&
-        ReactDOM.createPortal(
-          <div
-            ref={menuRef}
-            className="bg-white border border-[var(--border)] rounded-lg shadow-xl py-0 overflow-hidden min-w-[160px]"
-            style={{
-              position: "fixed",
-              top: pos.top,
-              left: pos.left,
-              zIndex: 9999,
-            }}
-          >
-            {PRIORITY_ORDER.map((p) => (
-              <button
-                key={p}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onChange(p);
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--accent-light)] transition flex items-center gap-2.5 ${
-                  p === priority ? "font-semibold bg-[var(--accent-light)]" : ""
-                }`}
-              >
-                <span style={{ color: PRIORITY_CONFIG[p].hex }}>
-                  <PriorityIcon className="w-4 h-4" />
-                </span>
-                {PRIORITY_CONFIG[p].label}
-              </button>
-            ))}
-          </div>,
-          document.body
-        )}
-    </>
+      {open && (
+        <div
+          ref={menuRef}
+          className="absolute right-0 top-full mt-1 z-50 bg-white border border-[var(--border)] rounded-lg shadow-xl py-0 overflow-hidden min-w-[160px]"
+        >
+          {PRIORITY_ORDER.map((p) => (
+            <button
+              key={p}
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange(p);
+                setOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--accent-light)] transition flex items-center gap-2.5 ${
+                p === priority ? "font-semibold bg-[var(--accent-light)]" : ""
+              }`}
+            >
+              <span style={{ color: PRIORITY_CONFIG[p].hex }}>
+                <PriorityIcon className="w-4 h-4" />
+              </span>
+              {PRIORITY_CONFIG[p].label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -212,7 +212,7 @@ function ClientRow({
             ) : (
               <button
                 onClick={handleConnect}
-                className="text-[10px] font-medium px-3 py-1 rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition"
+                className="text-xs font-medium px-4 py-2 rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition"
               >
                 Connect
               </button>

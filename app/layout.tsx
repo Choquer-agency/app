@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, IBM_Plex_Sans } from "next/font/google";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import "./globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+});
+
+const ibmPlex = IBM_Plex_Sans({
+  variable: "--font-ibm-plex",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -20,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} font-sans antialiased bg-gray-50 text-gray-900`}>
+      <body className={`${inter.variable} ${ibmPlex.variable} font-sans antialiased bg-gray-50 text-gray-900 overflow-x-hidden`}>
         <ConvexClientProvider>
           {children}
         </ConvexClientProvider>

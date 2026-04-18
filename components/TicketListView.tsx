@@ -238,7 +238,7 @@ function SubTicketRows({
             </div>
           </td>
           <td className="px-1 py-3" />
-          <td className="px-3 py-3">
+          <td className="px-2 py-3">
             <div className="flex items-center gap-2.5 pl-6">
               <StatusDot status={sub.status} size={10} />
               <span className="font-medium text-[var(--foreground)]">
@@ -246,24 +246,24 @@ function SubTicketRows({
               </span>
             </div>
           </td>
-          <td className="px-3 py-3" />
-          {!projectId && <td className="px-3 py-3 text-xs text-[var(--muted)]">{sub.clientName || "\u2014"}</td>}
-          <td className="px-3 py-3">
+          <td className="px-2 py-3" />
+          {!projectId && <td className="px-2 py-3 text-xs text-[var(--muted)]">{sub.clientName || "\u2014"}</td>}
+          <td className="px-2 py-3">
             <StatusDropdown status={sub.status} onChange={(s) => onStatusChange(sub.id, s)} />
           </td>
-          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
             <TimeTracker ticketId={sub.id} onTimerChange={() => window.dispatchEvent(new CustomEvent("timerChange"))} />
           </td>
-          <td className="px-3 py-3">
+          <td className="px-2 py-3">
             <AssigneeDropdown ticketId={sub.id} assignees={sub.assignees || []} teamMembers={teamMembers} onToggle={onAssigneeToggle} />
           </td>
-          <td className="px-0 py-0">
-            <DatePicker value={sub.dueDate} onChange={(d) => onDueDateChange(sub.id, d)} placeholder="\u2014" displayFormat="short" className="w-full h-full px-3 py-3 block" />
+          <td className="px-0 py-0 w-[68px] whitespace-nowrap">
+            <DatePicker value={sub.dueDate} onChange={(d) => onDueDateChange(sub.id, d)} placeholder="\u2014" displayFormat="short" className="w-full h-full px-2 py-3 block whitespace-nowrap" />
           </td>
-          <td className="px-3 py-3">
+          <td className="px-2 py-3">
             <PriorityDropdown priority={sub.priority} onChange={(p) => onPriorityChange(sub.id, p)} />
           </td>
-          {!projectId && <td className="px-3 py-3" />}
+          {!projectId && <td className="px-2 py-3" />}
         </tr>
       ))}
     </>
@@ -287,6 +287,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
   const [filters, setFilters] = useState<Filters>({ archived: false });
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showCheckboxes, setShowCheckboxes] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     // "closed" group defaults to collapsed; restore any persisted state
     if (typeof window !== "undefined") {
@@ -1032,29 +1033,51 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-[var(--border)]">
-                            <th className="w-8 px-2 py-2.5">
-                              <input
-                                type="checkbox"
-                                checked={allSelected}
-                                onChange={() => toggleSelectAll(group.tickets)}
-                                className="rounded"
-                              />
+                            <th colSpan={2} className="pl-3 pr-0 py-2.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!showCheckboxes) {
+                                    setShowCheckboxes(true);
+                                  } else if (!allSelected) {
+                                    toggleSelectAll(group.tickets);
+                                  } else {
+                                    setShowCheckboxes(false);
+                                    setSelectedIds(new Set());
+                                  }
+                                }}
+                                className="inline-flex items-center justify-center w-4 h-4 rounded border border-[var(--border)] bg-white text-[var(--muted)] hover:border-[var(--accent)] transition"
+                                title={
+                                  !showCheckboxes
+                                    ? "Show selection checkboxes"
+                                    : allSelected
+                                      ? "Hide selection"
+                                      : "Select all"
+                                }
+                              >
+                                {!showCheckboxes ? (
+                                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <path d="M5 12h14" />
+                                  </svg>
+                                ) : allSelected ? (
+                                  <svg className="w-3 h-3 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                    <path d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : null}
+                              </button>
                             </th>
-                            <th className="w-6 px-1 py-2.5" />
                             {[
-                              { key: "title", label: "Name", width: "" },
-                              { key: null, label: "Comments", width: "w-20" },
-                              ...(!projectId ? [{ key: "client", label: "Client", width: "w-28" }] : []),
-                              { key: "status", label: "Status", width: "w-32" },
-                              { key: null, label: "Time tracked", width: "w-28" },
-                              { key: null, label: "Assignee", width: "w-20" },
-                              { key: "dueDate", label: "Due date", width: "w-24" },
-                              { key: "priority", label: "Priority", width: "w-24" },
-                              ...(!projectId ? [{ key: null, label: "Created by", width: "whitespace-nowrap" }] : []),
+                              { key: "title", label: "Name", width: "w-[260px] max-w-[260px]" },
+                              ...(!projectId ? [{ key: "client", label: "Client", width: "w-auto min-w-[120px] whitespace-nowrap" }] : []),
+                              { key: "status", label: "Status", width: "w-28" },
+                              { key: null, label: "Time tracked", width: "w-[110px]" },
+                              { key: null, label: "Assign", width: "w-16" },
+                              { key: "dueDate", label: "Due", width: "w-[68px]" },
+                              { key: "priority", label: "Priority", width: "w-20" },
                             ].map((col) => (
                               <th
                                 key={col.label}
-                                className={`px-3 py-2.5 text-left font-medium text-[var(--muted)] text-xs ${col.width} ${col.key ? "cursor-pointer select-none group/sort" : ""}`}
+                                className={`px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap ${col.width} ${col.key ? "cursor-pointer select-none group/sort" : ""}`}
                                 onClick={col.key ? () => handleSort(col.key!) : undefined}
                               >
                                 <span className="inline-flex items-center gap-1">
@@ -1104,7 +1127,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                               } ${focusedTicketId === ticket.id ? "ring-2 ring-[var(--accent)] ring-inset" : ""}`}
                             >
                               {/* Checkbox + expand arrow */}
-                              <td className="px-2 py-3">
+                              <td className={`${showCheckboxes ? "w-6 pl-2" : "w-2 pl-1"} pr-0 py-3`}>
                                 <div className="flex items-center gap-1">
                                   {(ticket.subTicketCount ?? 0) > 0 ? (
                                     <button
@@ -1122,23 +1145,25 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                         <path d="M6.3 2.84A1.5 1.5 0 0 1 8.21 2.1l7.5 5.25a1.5 1.5 0 0 1 0 2.46l-7.5 5.25A1.5 1.5 0 0 1 6 13.86V3.28a1.5 1.5 0 0 1 .3-.44Z" />
                                       </svg>
                                     </button>
-                                  ) : (
+                                  ) : !showCheckboxes ? null : (
                                     <span className="w-4" />
                                   )}
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedIds.has(ticket.id)}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      toggleSelect(ticket.id);
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="rounded"
-                                  />
+                                  {showCheckboxes && (
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedIds.has(ticket.id)}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        toggleSelect(ticket.id);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="rounded"
+                                    />
+                                  )}
                                 </div>
                               </td>
                               {/* Drag handle */}
-                              <td className="px-1 py-3 cursor-grab active:cursor-grabbing">
+                              <td className="w-4 pl-0 pr-0 py-3 cursor-grab active:cursor-grabbing">
                                 <svg
                                   className="w-4 h-4 text-gray-300 hover:text-gray-500 transition"
                                   fill="currentColor"
@@ -1148,7 +1173,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                 </svg>
                               </td>
                               {/* Name with status dot / meeting icon + subtask indicator */}
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-3">
                                 <div className="flex items-center gap-2.5">
                                   {ticket.isMeeting ? (
                                     <svg className="w-4 h-4 text-violet-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -1157,7 +1182,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                   ) : (
                                     <StatusDot status={ticket.status} size={10} />
                                   )}
-                                  <span className={`font-medium ${ticket.isMeeting ? "text-violet-900" : "text-[var(--foreground)]"}`}>
+                                  <span className={`font-medium text-[13px] ${ticket.isMeeting ? "text-violet-900" : "text-[var(--foreground)]"}`}>
                                     {ticket.title}
                                   </span>
                                   {ticket.isMeeting && (ticket.dueDate || ticket.dueTime) && (
@@ -1190,7 +1215,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                               </td>
                               {ticket.isMeeting ? (
                                 /* Meeting row: single cell spanning all remaining columns */
-                                <td className="px-3 py-3" colSpan={999} onClick={(e) => e.stopPropagation()}>
+                                <td className="px-2 py-3" colSpan={999} onClick={(e) => e.stopPropagation()}>
                                   <div className="flex items-center gap-4">
                                     {/* Done toggle */}
                                     <button
@@ -1226,34 +1251,31 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                 </td>
                               ) : (
                               <>
-                              {/* Comments */}
-                              <td className="px-3 py-3">
-                                <div className="relative flex items-center gap-1.5 text-[var(--muted)] w-fit">
-                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 256 256">
-                                    <path d="M216,48H40A16,16,0,0,0,24,64V224a15.84,15.84,0,0,0,9.25,14.5A16.05,16.05,0,0,0,40,240a15.89,15.89,0,0,0,10.25-3.78l.09-.07L83,208H216a16,16,0,0,0,16-16V64A16,16,0,0,0,216,48ZM40,224h0ZM216,192H80a8,8,0,0,0-5.23,1.95L40,224V64H216Z" />
-                                  </svg>
+                              {/* Client */}
+                              {!projectId && (
+                              <td className="px-2 py-3 text-xs text-[var(--muted)] whitespace-nowrap truncate">
+                                {ticket.clientName || "—"}
+                              </td>
+                              )}
+                              {/* Status dropdown (with unread-comments badge) */}
+                              <td className="px-2 py-3">
+                                <div className="relative inline-flex">
+                                  <StatusDropdown
+                                    status={ticket.status}
+                                    onChange={(s) => handleStatusChange(ticket.id, s)}
+                                  />
                                   {(ticket.commentCount ?? 0) > 0 && (
-                                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold text-white bg-[var(--foreground)] rounded-full">
+                                    <span
+                                      className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold text-white bg-[var(--accent)] rounded-full ring-2 ring-white"
+                                      title={`${ticket.commentCount} comment${ticket.commentCount === 1 ? "" : "s"}`}
+                                    >
                                       {ticket.commentCount}
                                     </span>
                                   )}
                                 </div>
                               </td>
-                              {/* Client */}
-                              {!projectId && (
-                              <td className="px-3 py-3 text-xs text-[var(--muted)]">
-                                {ticket.clientName || "—"}
-                              </td>
-                              )}
-                              {/* Status dropdown */}
-                              <td className="px-3 py-3">
-                                <StatusDropdown
-                                  status={ticket.status}
-                                  onChange={(s) => handleStatusChange(ticket.id, s)}
-                                />
-                              </td>
                               {/* Time tracked */}
-                              <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                              <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                                 <TimeTracker
                                   ticketId={ticket.id}
                                   onTimerChange={() => {
@@ -1262,7 +1284,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                 />
                               </td>
                               {/* Assignees */}
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-3">
                                 <AssigneeDropdown
                                   ticketId={ticket.id}
                                   assignees={ticket.assignees || []}
@@ -1271,50 +1293,22 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                 />
                               </td>
                               {/* Due Date */}
-                              <td className="px-0 py-0">
+                              <td className="px-0 py-0 w-[68px] whitespace-nowrap">
                                 <DatePicker
                                   value={ticket.dueDate}
                                   onChange={(d) => handleDueDateChange(ticket.id, d)}
                                   placeholder="—"
                                   displayFormat="short"
-                                  className="w-full h-full px-3 py-3 block"
+                                  className="w-full h-full px-2 py-3 block whitespace-nowrap"
                                 />
                               </td>
                               {/* Priority */}
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-3">
                                 <PriorityDropdown
                                   priority={ticket.priority}
                                   onChange={(p) => handlePriorityChange(ticket.id, p)}
                                 />
                               </td>
-                              {/* Created by */}
-                              {!projectId && (
-                              <td className="px-3 py-3">
-                                {(() => {
-                                  const creator = ticket.createdById ? teamMembers.find((m) => m.id === ticket.createdById) : null;
-                                  if (!creator && !ticket.createdByName) return <span className="text-xs text-[var(--muted)]">—</span>;
-                                  const name = creator?.name || ticket.createdByName || "";
-                                  const pic = creator?.profilePicUrl;
-                                  const color = creator?.color || "#6b7280";
-                                  return pic ? (
-                                    <img
-                                      src={pic}
-                                      alt={name}
-                                      title={name}
-                                      className="w-6 h-6 rounded-full object-cover shrink-0"
-                                    />
-                                  ) : (
-                                    <div
-                                      className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                                      style={{ backgroundColor: color }}
-                                      title={name}
-                                    >
-                                      {name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-                              )}
                               </>
                               )}
                             </tr>

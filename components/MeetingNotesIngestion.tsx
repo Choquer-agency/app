@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { TeamMember } from "@/types";
 import DatePicker from "./DatePicker";
+import FilterDropdown from "./FilterDropdown";
 import { StatusDot } from "./TicketStatusBadge";
 import type { TicketStatus } from "@/types";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
@@ -83,7 +84,7 @@ const PRIORITY_OPTIONS = [
   { value: "low", label: "Low", color: "text-gray-600" },
 ];
 
-export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { roleLevel?: string; teamMemberId?: string | number }) {
+export default function MeetingNotesIngestion({ roleLevel, teamMemberId, presetMemberId }: { roleLevel?: string; teamMemberId?: string | number; presetMemberId?: string }) {
   const isAdmin = roleLevel === "owner" || roleLevel === "c_suite";
 
   // Data — from Convex hooks
@@ -112,7 +113,15 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
   const clientDropdownRef = useRef<HTMLDivElement>(null);
   const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
   const memberDropdownRef = useRef<HTMLDivElement>(null);
-  const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split("T")[0]);
+  const [meetingDate, setMeetingDate] = useState("");
+  const [meetingTitle, setMeetingTitle] = useState("");
+
+  // Defer date initialization to avoid SSR/client hydration mismatch
+  useEffect(() => {
+    setMeetingDate(new Date().toISOString().split("T")[0]);
+    const label = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    setMeetingTitle(`Weekly Huddle - ${label}`);
+  }, []);
   const [transcript, setTranscript] = useState("");
 
   // Extraction
@@ -125,9 +134,20 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
   const [creating, setCreating] = useState(false);
   const [createdTickets, setCreatedTickets] = useState<CreatedTicket[]>([]);
 
+  // Auto-select member when embedded in MeetingView
+  const isEmbedded = !!presetMemberId;
+  useEffect(() => {
+    if (presetMemberId && teamMembers.length > 0) {
+      const member = teamMembers.find((m) => String(m.id) === presetMemberId);
+      if (member && !selectedMemberIds.includes(member.id as any)) {
+        setSelectedMemberIds([member.id as any]);
+      }
+    }
+  }, [presetMemberId, teamMembers]);
+
   // Past notes
   const [pastNotes, setPastNotes] = useState<MeetingNote[]>([]);
-  const [showPastNotes, setShowPastNotes] = useState(false);
+  const [showPastNotes, setShowPastNotes] = useState(true);
   const [expandedNoteId, setExpandedNoteId] = useState<number | null>(null);
 
   // Close dropdowns on outside click
@@ -187,10 +207,19 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
         unique.sort((a, b) => new Date(b.meeting_date).getTime() - new Date(a.meeting_date).getTime());
         setPastNotes(unique);
       });
+    } else if (!isEmbedded) {
+      // No member selected in standalone mode — show all notes
+      fetch("/api/admin/meeting-notes")
+        .then((r) => r.ok ? r.json() : [])
+        .then((notes: MeetingNote[]) => {
+          notes.sort((a, b) => new Date(b.meeting_date).getTime() - new Date(a.meeting_date).getTime());
+          setPastNotes(notes);
+        })
+        .catch(() => setPastNotes([]));
     } else {
       setPastNotes([]);
     }
-  }, [selectedMemberIds, selectedClientId, interactionType]);
+  }, [selectedMemberIds, selectedClientId, interactionType, isEmbedded]);
 
   function toggleMember(memberId: number) {
     setSelectedMemberIds((prev) =>
@@ -214,8 +243,7 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
     const isClientType = ["client_meeting", "client_email", "client_phone_call"].includes(interactionType);
     const isGeneral = interactionType === "general_notes";
 
-    // Validate based on type
-    if (interactionType === "team_meeting" && selectedMemberIds.length === 0) return;
+    if (interactionType === "team_meeting" && selectedMemberIds.length === 0 && !presetMemberId) return;
     if (isClientType && !selectedClientId) return;
     if (!transcript.trim()) return;
 
@@ -230,7 +258,7 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          teamMemberIds: isClientType || isGeneral ? [] : selectedMemberIds,
+          teamMemberIds: isClientType || isGeneral ? [] : (selectedMemberIds.length > 0 ? selectedMemberIds : presetMemberId ? [presetMemberId] : []),
           transcript: transcript.trim(),
           meetingDate,
           source: "manual",
@@ -250,7 +278,7 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
         body: JSON.stringify({
           meetingNoteId: saved.id,
           transcript: transcript.trim(),
-          teamMemberId: interactionType === "team_meeting" ? selectedMemberIds[0] : undefined,
+          teamMemberId: interactionType === "team_meeting" ? String(selectedMemberIds[0] || presetMemberId) : undefined,
           interactionType,
           clientId: isClientType ? selectedClientId : undefined,
         }),
@@ -376,34 +404,72 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
       {/* Input section */}
       {createdTickets.length === 0 && items.length === 0 && (
         <div className="bg-white rounded-xl border border-[var(--border)] p-6 space-y-4">
-          {/* Interaction type selector */}
-          <div className="flex flex-wrap gap-2">
-            {INTERACTION_TYPES.map((type) => (
-              <button
-                key={type.value}
-                onClick={() => {
-                  setInteractionType(type.value);
-                  setSelectedMemberIds([]);
-                  setSelectedClientId(null);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border transition ${
-                  interactionType === type.value
-                    ? "bg-[var(--accent)] text-white border-[var(--accent)]"
-                    : "bg-white text-[var(--muted)] border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--foreground)]"
-                }`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={type.icon} />
-                </svg>
-                {type.label}
-              </button>
-            ))}
-          </div>
+          {/* Interaction type selector — hidden when embedded in MeetingView */}
+          {!isEmbedded && (
+            <div className="flex flex-wrap gap-2">
+              {INTERACTION_TYPES.map((type) => (
+                <button
+                  key={type.value}
+                  onClick={() => {
+                    setInteractionType(type.value);
+                    setSelectedMemberIds([]);
+                    setSelectedClientId(null);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border transition ${
+                    interactionType === type.value
+                      ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                      : "bg-white text-[var(--muted)] border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d={type.icon} />
+                  </svg>
+                  {type.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* Context fields — conditional on interaction type */}
+          {/* Context fields — embedded mode: single row with avatar */}
+          {isEmbedded && interactionType === "team_meeting" && (
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Meeting with</label>
+                <div style={{ height: 42 }} className="flex items-center gap-2 px-3 border border-[var(--border)] rounded-lg bg-white">
+                  {(() => {
+                    const m = teamMembers.find((t) => String(t.id) === presetMemberId);
+                    if (!m) return <span className="text-sm text-[var(--muted)]">Loading...</span>;
+                    return (
+                      <>
+                        {m.profilePicUrl ? (
+                          <img src={m.profilePicUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ backgroundColor: m.color || "#6b7280" }}>
+                            {m.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
+                          </div>
+                        )}
+                        <span className="text-sm font-medium text-[var(--foreground)]">{m.name}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Title</label>
+                <input type="text" value={meetingTitle} onChange={(e) => setMeetingTitle(e.target.value)} style={{ height: 42 }} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Date</label>
+                <DatePicker value={meetingDate} onChange={(date) => setMeetingDate(date || new Date().toISOString().split("T")[0])} />
+              </div>
+            </div>
+          )}
+
+          {/* Context fields — standard mode */}
+          {!isEmbedded && (
           <div className={`grid ${interactionType === "general_notes" ? "grid-cols-1" : "grid-cols-2"} gap-4`}>
-            {/* Team member selector (team_meeting only) */}
-            {interactionType === "team_meeting" && (
+            {/* Team member selector (team_meeting only — hidden when embedded, shown in standalone) */}
+            {interactionType === "team_meeting" && !isEmbedded && (
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
                   Meeting with
@@ -425,13 +491,15 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
                             className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--accent-light)] text-[var(--accent)] rounded-md text-xs font-medium"
                           >
                             {m.name.split(" ")[0]}
-                            <button
-                              type="button"
+                            <span
+                              role="button"
+                              tabIndex={0}
                               onClick={(e) => { e.stopPropagation(); toggleMember(id); }}
-                              className="hover:text-red-600 ml-0.5"
+                              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); toggleMember(id); } }}
+                              className="hover:text-red-600 ml-0.5 cursor-pointer"
                             >
                               &times;
-                            </button>
+                            </span>
                           </span>
                         ) : null;
                       })
@@ -518,7 +586,7 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
               </div>
             )}
 
-            {/* Date picker (all types) */}
+            {/* Date picker */}
             <div>
               <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
                 Date
@@ -529,16 +597,19 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
               />
             </div>
           </div>
+          )}
 
           {/* Transcript / content textarea */}
           <div>
-            <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-              {interactionType === "team_meeting" && "Paste transcript"}
-              {interactionType === "client_meeting" && "Meeting notes or transcript"}
-              {interactionType === "client_email" && "Email body"}
-              {interactionType === "client_phone_call" && "Call notes"}
-              {interactionType === "general_notes" && "Notes"}
-            </label>
+            {!isEmbedded && (
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                {interactionType === "team_meeting" && "Paste transcript"}
+                {interactionType === "client_meeting" && "Meeting notes or transcript"}
+                {interactionType === "client_email" && "Email body"}
+                {interactionType === "client_phone_call" && "Call notes"}
+                {interactionType === "general_notes" && "Notes"}
+              </label>
+            )}
             <textarea
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
@@ -567,9 +638,10 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
                 : "Paste content above to extract action items"}
             </p>
             <button
+              type="button"
               onClick={handleExtract}
               disabled={
-                (interactionType === "team_meeting" && selectedMemberIds.length === 0) ||
+                (interactionType === "team_meeting" && selectedMemberIds.length === 0 && !presetMemberId) ||
                 (["client_meeting", "client_email", "client_phone_call"].includes(interactionType) && !selectedClientId) ||
                 !transcript.trim() ||
                 extracting
@@ -691,20 +763,18 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
                       <label className="block text-[10px] font-medium text-[var(--muted)] uppercase tracking-wider mb-1">
                         Assignee
                       </label>
-                      <select
-                        value={item.editedAssigneeId ?? ""}
-                        onChange={(e) =>
-                          updateItem(index, "editedAssigneeId", e.target.value ? Number(e.target.value) : null)
+                      <FilterDropdown
+                        label=""
+                        value={item.editedAssigneeId != null ? String(item.editedAssigneeId) : ""}
+                        onChange={(v) =>
+                          updateItem(index, "editedAssigneeId", v ? Number(v) : null)
                         }
-                        className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-white"
-                      >
-                        <option value="">Unassigned</option>
-                        {teamMembers.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: "", label: "Unassigned" },
+                          ...teamMembers.map((m) => ({ value: String(m.id), label: m.name })),
+                        ]}
+                        fullWidth
+                      />
                     </div>
 
                     {/* Client */}
@@ -712,20 +782,18 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
                       <label className="block text-[10px] font-medium text-[var(--muted)] uppercase tracking-wider mb-1">
                         Client
                       </label>
-                      <select
-                        value={item.editedClientId ?? ""}
-                        onChange={(e) =>
-                          updateItem(index, "editedClientId", e.target.value ? Number(e.target.value) : null)
+                      <FilterDropdown
+                        label=""
+                        value={item.editedClientId != null ? String(item.editedClientId) : ""}
+                        onChange={(v) =>
+                          updateItem(index, "editedClientId", v ? Number(v) : null)
                         }
-                        className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-white"
-                      >
-                        <option value="">Internal</option>
-                        {clients.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: "", label: "Internal" },
+                          ...clients.map((c) => ({ value: String(c.id), label: c.name })),
+                        ]}
+                        fullWidth
+                      />
                     </div>
 
                     {/* Due Date */}
@@ -746,19 +814,15 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
                       <label className="block text-[10px] font-medium text-[var(--muted)] uppercase tracking-wider mb-1">
                         Priority
                       </label>
-                      <select
-                        value={item.editedPriority}
-                        onChange={(e) =>
-                          updateItem(index, "editedPriority", e.target.value)
+                      <FilterDropdown
+                        label=""
+                        value={String(item.editedPriority)}
+                        onChange={(v) =>
+                          updateItem(index, "editedPriority", v)
                         }
-                        className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-white"
-                      >
-                        {PRIORITY_OPTIONS.map((p) => (
-                          <option key={p.value} value={p.value}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
+                        options={PRIORITY_OPTIONS.map((p) => ({ value: String(p.value), label: p.label }))}
+                        fullWidth
+                      />
                     </div>
                   </div>
 
@@ -831,11 +895,14 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
                   key={note.id}
                   className="bg-white rounded-lg border border-[var(--border)] overflow-hidden"
                 >
-                  <button
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() =>
                       setExpandedNoteId(expandedNoteId === note.id ? null : note.id)
                     }
-                    className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition"
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedNoteId(expandedNoteId === note.id ? null : note.id); } }}
+                    className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium text-[var(--foreground)]">
@@ -850,11 +917,11 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
                           {note.interaction_type === "client_meeting" ? "Client Mtg" : note.interaction_type === "client_email" ? "Email" : note.interaction_type === "client_phone_call" ? "Phone" : note.interaction_type === "general_notes" ? "General" : "Meeting"}
                         </span>
                       )}
+                      {note.member_name && (
+                        <span className="text-xs text-[var(--foreground)] font-medium">{note.member_name}</span>
+                      )}
                       {note.client_name && (
                         <span className="text-xs text-[var(--accent)] font-medium">{note.client_name}</span>
-                      )}
-                      {note.member_name && (!note.interaction_type || note.interaction_type === "team_meeting") && (
-                        <span className="text-xs text-[var(--muted)]">{note.member_name}</span>
                       )}
                       {note.summary && (
                         <span className="text-xs text-[var(--muted)] truncate max-w-[200px]">
@@ -884,7 +951,7 @@ export default function MeetingNotesIngestion({ roleLevel, teamMemberId }: { rol
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </div>
-                  </button>
+                  </div>
                   {expandedNoteId === note.id && (
                     <div className="px-4 pb-4 border-t border-[var(--border)]">
                       <pre className="text-xs text-[var(--muted)] whitespace-pre-wrap mt-3 max-h-[300px] overflow-y-auto">

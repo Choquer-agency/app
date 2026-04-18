@@ -101,6 +101,88 @@ export const remove = mutation({
   },
 });
 
+/** Convert a lead into a full client record. Returns the new client ID. */
+export const convertToClient = mutation({
+  args: {
+    id: v.id("leads"),
+    // Overrides / additions beyond the lead data (required for a complete client)
+    name: v.string(),
+    websiteUrl: v.string(),
+    contactName: v.string(),
+    contactEmail: v.string(),
+    contactPhone: v.optional(v.string()),
+    country: v.string(), // "US" | "CA"
+    industry: v.optional(v.string()),
+    accountSpecialist: v.optional(v.string()),
+    addressLine1: v.optional(v.string()),
+    addressLine2: v.optional(v.string()),
+    city: v.optional(v.string()),
+    provinceState: v.optional(v.string()),
+    postalCode: v.optional(v.string()),
+    // Integration IDs
+    ga4PropertyId: v.optional(v.string()),
+    gscSiteUrl: v.optional(v.string()),
+    googleAdsCustomerId: v.optional(v.string()),
+    notionPageUrl: v.optional(v.string()),
+    calLink: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const lead = await ctx.db.get(args.id);
+    if (!lead) throw new Error("Lead not found");
+
+    const baseSlug = (args.name || "client")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+      .slice(0, 60) || "client";
+
+    let slug = baseSlug;
+    let i = 2;
+    while (true) {
+      const existing = await ctx.db
+        .query("clients")
+        .withIndex("by_slug", (q) => q.eq("slug", slug))
+        .unique()
+        .catch(() => null);
+      if (!existing) break;
+      slug = `${baseSlug}-${i}`;
+      i++;
+    }
+
+    const clientId = await ctx.db.insert("clients", {
+      name: args.name,
+      slug,
+      active: true,
+      websiteUrl: args.websiteUrl,
+      contactName: args.contactName,
+      contactEmail: args.contactEmail,
+      contactPhone: args.contactPhone || undefined,
+      country: args.country,
+      industry: args.industry || undefined,
+      accountSpecialist: args.accountSpecialist || undefined,
+      addressLine1: args.addressLine1 || undefined,
+      addressLine2: args.addressLine2 || undefined,
+      city: args.city || undefined,
+      provinceState: args.provinceState || undefined,
+      postalCode: args.postalCode || undefined,
+      ga4PropertyId: args.ga4PropertyId || undefined,
+      gscSiteUrl: args.gscSiteUrl || undefined,
+      googleAdsCustomerId: args.googleAdsCustomerId || undefined,
+      notionPageUrl: args.notionPageUrl || undefined,
+      calLink: args.calLink || undefined,
+      clientStatus: "new",
+    });
+
+    const now = Date.now();
+    await ctx.db.patch(args.id, {
+      qualification: "converted",
+      qualificationChangedAt: now,
+    });
+
+    return { clientId, slug };
+  },
+});
+
 // ────────────────────────────────────────────────────────────────────────────
 // Meta Ads integration
 // ────────────────────────────────────────────────────────────────────────────

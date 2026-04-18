@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import FilterDropdown from "./FilterDropdown";
 
 interface CalendarEvent {
   id: string;
@@ -244,27 +245,23 @@ export default function CalendarSettings() {
             </div>
             <div>
               <label className="block text-xs font-medium text-[var(--foreground)] mb-1">Type</label>
-              <select
+              <FilterDropdown
+                label=""
                 value={eventType}
-                onChange={(e) => setEventType(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-white"
-              >
-                {EVENT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
+                onChange={(v) => setEventType(v)}
+                options={EVENT_TYPES.map((t) => ({ value: String(t.value), label: t.label }))}
+                fullWidth
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-[var(--foreground)] mb-1">Recurrence</label>
-              <select
+              <FilterDropdown
+                label=""
                 value={recurrence}
-                onChange={(e) => setRecurrence(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-white"
-              >
-                {RECURRENCE_OPTIONS.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
+                onChange={(v) => setRecurrence(v)}
+                options={RECURRENCE_OPTIONS.map((r) => ({ value: String(r.value), label: r.label }))}
+                fullWidth
+              />
             </div>
           </div>
           <div className="flex gap-2 justify-end">

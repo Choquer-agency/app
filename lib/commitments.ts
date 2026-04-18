@@ -166,13 +166,31 @@ export async function getReliabilityScoreForMember(
 
 // === Meeting Data ===
 
+export interface MeetingReliability {
+  score: number;
+  onTime: number;
+  missed: number;
+  total: number;
+}
+
+export interface MeetingWorkMetrics {
+  loggedHours: number;
+  clockedHours: number;
+  utilizationPct: number;
+  ticketsAssigned: number;
+  ticketsClosed: number;
+  ticketsOpen: number;
+  avgResolutionHours: number;
+  avgClosedPerWeek: number;
+}
+
 export interface MeetingMemberData {
   overdue: MeetingTicket[];
-  missedCommitments: MeetingTicket[];
   dueThisWeek: MeetingTicket[];
   inProgress: MeetingTicket[];
   needsAttention: MeetingTicket[];
-  reliability: ReliabilityScore;
+  reliability: MeetingReliability;
+  workMetrics: MeetingWorkMetrics;
 }
 
 export interface MeetingTicket {
@@ -188,20 +206,141 @@ export interface MeetingTicket {
   missedCommitmentCount: number;
 }
 
-export async function getMemberMeetingData(teamMemberId: number | string): Promise<MeetingMemberData> {
+export async function getMemberMeetingData(teamMemberId: number | string, period?: string): Promise<MeetingMemberData> {
   const convex = getConvexClient();
-  const reliability = await getReliabilityScoreForMember(teamMemberId);
 
-  // Get tickets assigned to this member
+  // Determine date range based on period
+  const now = new Date();
+  let periodStart: Date;
+  let periodEnd: Date = new Date(now);
+  periodEnd.setHours(23, 59, 59, 999);
+
+  switch (period) {
+    case "last_week": {
+      const day = now.getDay();
+      const diffToMonday = day === 0 ? 6 : day - 1;
+      const thisMonday = new Date(now);
+      thisMonday.setDate(now.getDate() - diffToMonday);
+      periodStart = new Date(thisMonday);
+      periodStart.setDate(thisMonday.getDate() - 7);
+      periodStart.setHours(0, 0, 0, 0);
+      periodEnd = new Date(periodStart);
+      periodEnd.setDate(periodStart.getDate() + 4);
+      periodEnd.setHours(23, 59, 59, 999);
+      break;
+    }
+    case "this_month":
+      periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      break;
+    case "last_month":
+      periodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      periodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      periodEnd.setHours(23, 59, 59, 999);
+      break;
+    case "this_year":
+      periodStart = new Date(now.getFullYear(), 0, 1);
+      break;
+    default: { // this_week
+      const day = now.getDay();
+      const diffToMonday = day === 0 ? 6 : day - 1;
+      periodStart = new Date(now);
+      periodStart.setDate(now.getDate() - diffToMonday);
+      periodStart.setHours(0, 0, 0, 0);
+      break;
+    }
+  }
+
+  const periodStartStr = periodStart.toISOString().split("T")[0];
+  const periodEndStr = periodEnd.toISOString().split("T")[0];
+  const periodMs = periodEnd.getTime() - periodStart.getTime();
+  const periodWeeks = Math.max(1, periodMs / (7 * 24 * 60 * 60 * 1000));
+
+  // Get ALL tickets assigned to this member
   const ticketDocs = await convex.query(api.tickets.listByAssignee, {
     teamMemberId: teamMemberId as any,
-    archived: false,
+    limit: 500,
   });
 
   const today = new Date().toISOString().split("T")[0];
   const weekEnd = new Date();
   weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
   const weekEndStr = weekEnd.toISOString().split("T")[0];
+
+  const allTickets = ticketDocs as any[];
+
+  // Reliability: scoped to tickets that were DUE within the selected period
+  // On Time = due date was in period AND closed on or before due date
+  // Missed = due date was in period AND either closed after due date OR still open
+  const ticketsDueInPeriod = allTickets.filter((t) => t.dueDate && t.dueDate >= periodStartStr && t.dueDate <= periodEndStr);
+  let onTime = 0;
+  let missed = 0;
+  for (const t of ticketsDueInPeriod) {
+    if (t.status === "closed" && t.closedAt) {
+      const closedDate = t.closedAt.split("T")[0];
+      if (closedDate <= t.dueDate) onTime++;
+      else missed++;
+    } else {
+      // Still open and due date has passed = missed
+      if (t.dueDate < today) missed++;
+    }
+  }
+  const reliabilityTotal = onTime + missed;
+  const score = reliabilityTotal > 0 ? Math.round((onTime / reliabilityTotal) * 100) : 0;
+
+  // Work metrics: tickets closed in period
+  const closedInPeriod = allTickets.filter((t) =>
+    t.status === "closed" && t.closedAt &&
+    t.closedAt >= periodStart.toISOString() && t.closedAt <= periodEnd.toISOString()
+  );
+  const open = allTickets.filter((t) => t.status !== "closed" && !t.archived);
+
+  // Avg resolution for closed in period
+  let totalResHours = 0;
+  for (const t of closedInPeriod) {
+    const created = new Date(t._creationTime).getTime();
+    const closed = new Date(t.closedAt).getTime();
+    totalResHours += (closed - created) / (1000 * 60 * 60);
+  }
+  const avgResolutionHours = closedInPeriod.length > 0 ? Math.round((totalResHours / closedInPeriod.length) * 10) / 10 : 0;
+
+  // Timesheet: clocked hours in period
+  const member = await convex.query(api.teamMembers.getById, { id: teamMemberId as any });
+  const isSalary = (member as any)?.payType === "salary";
+  let clockedHours: number;
+
+  if (isSalary) {
+    clockedHours = ((member as any)?.availableHoursPerWeek ?? 40) * Math.round(periodWeeks);
+  } else {
+    const timesheetEntries = await convex.query(api.timesheetEntries.listByMember, {
+      teamMemberId: teamMemberId as any,
+      startDate: periodStartStr,
+      endDate: periodEndStr,
+      limit: 500,
+    });
+    const clockedMinutes = (timesheetEntries as any[])
+      .filter((e) => !e.isSickDay && !e.isVacation)
+      .reduce((sum, e) => sum + (e.workedMinutes ?? 0), 0);
+    clockedHours = Math.round((clockedMinutes / 60) * 100) / 100;
+  }
+
+  // Time entries: logged hours in period
+  const allEntries = await convex.query(api.timeEntries.listAll, { limit: 5000 });
+  const memberEntries = (allEntries as any[]).filter((e) => {
+    if (e.teamMemberId !== teamMemberId || !e.startTime) return false;
+    const eStart = new Date(e.startTime);
+    const eEnd = e.endTime ? new Date(e.endTime) : new Date();
+    return eStart < periodEnd && eEnd > periodStart;
+  });
+  let loggedSeconds = 0;
+  for (const entry of memberEntries) {
+    const eStart = new Date(entry.startTime);
+    const eEnd = entry.endTime ? new Date(entry.endTime) : new Date();
+    const clampedStart = eStart < periodStart ? periodStart : eStart;
+    const clampedEnd = eEnd > periodEnd ? periodEnd : eEnd;
+    loggedSeconds += Math.max(0, (clampedEnd.getTime() - clampedStart.getTime()) / 1000);
+  }
+  const loggedHours = Math.round((loggedSeconds / 3600) * 100) / 100;
+  const utilizationPct = clockedHours > 0 ? Math.round((loggedHours / clockedHours) * 100) : 0;
 
   const toMeetingTicket = (t: any): MeetingTicket => ({
     id: t._id,
@@ -216,7 +355,6 @@ export async function getMemberMeetingData(teamMemberId: number | string): Promi
     missedCommitmentCount: 0,
   });
 
-  const open = (ticketDocs as any[]).filter((t) => t.status !== "closed");
   const overdue = open.filter((t) => t.dueDate && t.dueDate < today && isOverdueEligible(t.status)).map(toMeetingTicket);
   const dueThisWeek = open.filter((t) => t.dueDate && t.dueDate >= today && t.dueDate <= weekEndStr).map(toMeetingTicket);
   const inProgress = open.filter((t) => t.status === "in_progress").map(toMeetingTicket);
@@ -224,10 +362,19 @@ export async function getMemberMeetingData(teamMemberId: number | string): Promi
 
   return {
     overdue,
-    missedCommitments: [],
     dueThisWeek,
     inProgress,
     needsAttention,
-    reliability,
+    reliability: { score, onTime, missed, total: reliabilityTotal },
+    workMetrics: {
+      loggedHours,
+      clockedHours,
+      utilizationPct,
+      ticketsAssigned: allTickets.length,
+      ticketsClosed: closedInPeriod.length,
+      ticketsOpen: open.length,
+      avgResolutionHours,
+      avgClosedPerWeek: Math.round((closedInPeriod.length / periodWeeks) * 10) / 10,
+    },
   };
 }

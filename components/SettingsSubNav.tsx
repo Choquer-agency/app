@@ -30,24 +30,25 @@ export default function SettingsSubNav({ roleLevel }: { roleLevel?: RoleLevel | 
     return hasMinRole(roleLevel as RoleLevel, tab.minRole);
   });
 
-  const tabClass = (href: string) =>
-    `whitespace-nowrap px-3 py-2 text-sm transition border-b-2 ${
-      pathname.startsWith(href)
-        ? "border-[var(--accent)] text-[var(--accent)] font-semibold"
-        : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)] hover:border-gray-200"
-    }`;
-
   return (
-    <div className="border-b border-[var(--border)] bg-white sticky top-[49px] z-20">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex items-center gap-1">
-          {visibleTabs.map((tab) => (
-            <a key={tab.href} href={tab.href} className={tabClass(tab.href)}>
-              {tab.label}
-            </a>
-          ))}
-        </div>
-      </div>
-    </div>
+    <nav className="flex flex-col gap-0.5">
+      {visibleTabs.map((tab) => {
+        const active = pathname === tab.href || pathname.startsWith(tab.href + "/");
+        return (
+          <a
+            key={tab.href}
+            href={tab.href}
+            className={`px-3 py-2 text-sm rounded-md transition ${
+              active
+                ? "text-[var(--accent)] font-semibold"
+                : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-black/5"
+            }`}
+            style={active ? { backgroundColor: "#FFEFDE" } : undefined}
+          >
+            {tab.label}
+          </a>
+        );
+      })}
+    </nav>
   );
 }

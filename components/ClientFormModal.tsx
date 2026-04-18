@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ClientConfig, CreateClientInput } from "@/types";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import FilterDropdown from "./FilterDropdown";
 
 const BOOKING_OPTIONS = [
   { label: "Andreas - 15min", value: "https://cal.com/andres-agudelo-hqlknm/15min" },
@@ -182,17 +183,16 @@ export default function ClientFormModal({ client, onClose, onSaved }: ClientForm
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Account Specialist <span className="text-red-400">*</span>
             </label>
-            <select
+            <FilterDropdown
+              label=""
               value={accountSpecialist}
-              onChange={(e) => setAccountSpecialist(e.target.value)}
-              required
-              className={inputClass + " bg-white"}
-            >
-              <option value="">Select specialist...</option>
-              {teamMembers.map((m) => (
-                <option key={m.id} value={m.name}>{m.name}</option>
-              ))}
-            </select>
+              onChange={(v) => setAccountSpecialist(v)}
+              options={[
+                { value: "", label: "Select specialist..." },
+                ...teamMembers.map((m) => ({ value: m.name, label: m.name })),
+              ]}
+              fullWidth
+            />
           </div>
 
           {/* ── Optional: Integrations & Settings ── */}
@@ -238,19 +238,19 @@ export default function ClientFormModal({ client, onClose, onSaved }: ClientForm
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Booking Link</label>
-                  <select
+                  <FilterDropdown
+                    label=""
                     value={isCustomBooking ? "__custom__" : calLink}
-                    onChange={(e) => {
-                      if (e.target.value === "__custom__") setIsCustomBooking(true);
-                      else { setIsCustomBooking(false); setCalLink(e.target.value); }
+                    onChange={(v) => {
+                      if (v === "__custom__") setIsCustomBooking(true);
+                      else { setIsCustomBooking(false); setCalLink(v); }
                     }}
-                    className={inputClass + " bg-white"}
-                  >
-                    {BOOKING_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                    <option value="__custom__">Custom</option>
-                  </select>
+                    options={[
+                      ...BOOKING_OPTIONS.map((opt) => ({ value: String(opt.value), label: opt.label })),
+                      { value: "__custom__", label: "Custom" },
+                    ]}
+                    fullWidth
+                  />
                   {isCustomBooking && (
                     <input type="url" value={customCalLink} onChange={(e) => setCustomCalLink(e.target.value)} placeholder="https://cal.com/..." className={inputClass + " mt-2"} />
                   )}

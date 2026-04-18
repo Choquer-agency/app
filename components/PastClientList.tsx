@@ -30,12 +30,12 @@ export default function PastClientList() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Name</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Contact</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Industry</th>
-                <th className="px-4 py-3 text-right font-medium text-[var(--foreground)]">Last Updated</th>
+              <tr className="border-b border-[var(--border)]">
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Name</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Status</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Contact</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Industry</th>
+                <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Last Updated</th>
               </tr>
             </thead>
             <tbody>
@@ -55,22 +55,22 @@ export default function PastClientList() {
                     onClick={() => {
                       window.location.href = `/admin/crm/${client.id}`;
                     }}
-                    className="border-b border-[var(--border)] hover:bg-[var(--accent-light)] cursor-pointer transition"
+                    className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] cursor-pointer transition"
                   >
-                    <td className="px-4 py-3 font-medium text-[var(--foreground)]">
+                    <td className="px-2 py-3 font-medium text-[var(--foreground)]">
                       {client.name}
                       <p className="text-xs text-[var(--muted)]">{client.slug}</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       <ClientStatusBadge status={client.clientStatus} />
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted)] text-xs">
+                    <td className="px-2 py-3 text-[var(--muted)] text-xs">
                       {client.contactName || "—"}
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted)] text-xs">
+                    <td className="px-2 py-3 text-[var(--muted)] text-xs">
                       {client.industry || "—"}
                     </td>
-                    <td className="px-4 py-3 text-right text-[var(--muted)] text-xs">
+                    <td className="px-2 py-3 text-right text-[var(--muted)] text-xs">
                       {client.updatedAt
                         ? new Date(client.updatedAt).toLocaleDateString("en-US", {
                             month: "short",

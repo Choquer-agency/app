@@ -55,6 +55,14 @@
     {
       "path": "/api/cron/sync-dispatcher",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/seo-enrich-queue",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/seo-monthly-rollover",
+      "schedule": "0 5 1 * *"
     }
   ]
 }

@@ -107,16 +107,18 @@ export default function AdminNav({ userName, roleLevel, profilePicUrl, bypassClo
   }
 
   return (
-    <nav className="bg-white border-b border-[var(--border)] px-6 py-3 sticky top-0 z-30">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <nav
+      className="px-6 py-3 sticky top-0 z-30"
+      style={{ background: "#FAF9F5" }}
+    >
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-8">
           <a href="/admin">
             <Image
               src="/choquer-logo.svg"
               alt="Choquer Agency"
-              width={156}
-              height={36}
-              style={{ objectFit: "contain" }}
+              width={173}
+              height={16}
               priority
             />
           </a>
@@ -331,6 +333,11 @@ export default function AdminNav({ userName, roleLevel, profilePicUrl, bypassClo
                 </div>
               )}
             </div>
+          )}
+          {process.env.NODE_ENV === "development" && (
+            <span className="px-1.5 py-0.5 text-[10px] font-bold tracking-wider rounded bg-amber-400 text-black">
+              DEV
+            </span>
           )}
         </div>
       </div>

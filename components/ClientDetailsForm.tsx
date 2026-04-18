@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ClientConfig } from "@/types";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import FilterDropdown from "./FilterDropdown";
 
 interface ClientDetailsFormProps {
   client: ClientConfig;
@@ -82,6 +83,7 @@ export default function ClientDetailsForm({
     gscSiteUrl: client.gscSiteUrl?.replace("sc-domain:", "") || "",
     seRankingsProjectId: client.seRankingsProjectId || "",
     calLink: client.calLink,
+    billable: client.billable ?? true,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -203,12 +205,25 @@ export default function ClientDetailsForm({
           </div>
           <div>
             <label className={labelClass}>Country</label>
-            <select value={form.country} onChange={(e) => update("country", e.target.value)} className={`${inputClass} bg-white`}>
-              {COUNTRY_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            <FilterDropdown
+              label=""
+              value={form.country}
+              onChange={(v) => update("country", v)}
+              options={COUNTRY_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+              fullWidth
+            />
           </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className={labelClass + " mb-0"}>Billable</label>
+          <button
+            type="button"
+            onClick={() => update("billable", !form.billable)}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${form.billable ? "bg-[#FF9500]" : "bg-gray-300"}`}
+          >
+            <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${form.billable ? "translate-x-[18px]" : "translate-x-[3px]"}`} />
+          </button>
+          <span className="text-xs text-[var(--muted)]">{form.billable ? "Included in billable utilization" : "Excluded from billable utilization"}</span>
         </div>
         <div>
           <label className={labelClass}>Client Status</label>
@@ -312,15 +327,21 @@ export default function ClientDetailsForm({
         </div>
         <div>
           <label className={labelClass}>Account Specialist</label>
-          <select value={form.accountSpecialist} onChange={(e) => update("accountSpecialist", e.target.value)} className={`${inputClass} bg-white`}>
-            <option value="">Select a team member</option>
-            {teamMembers.filter((m) => m.active).map((m) => (
-              <option key={m.id} value={m.name}>{m.name}{m.role ? ` — ${m.role}` : ""}</option>
-            ))}
-            {form.accountSpecialist && !teamMembers.some((m) => m.name === form.accountSpecialist) && (
-              <option value={form.accountSpecialist}>{form.accountSpecialist}</option>
-            )}
-          </select>
+          <FilterDropdown
+            label=""
+            value={form.accountSpecialist}
+            onChange={(v) => update("accountSpecialist", v)}
+            options={[
+              { value: "", label: "Select a team member" },
+              ...teamMembers
+                .filter((m) => m.active)
+                .map((m) => ({ value: m.name, label: `${m.name}${m.role ? ` — ${m.role}` : ""}` })),
+              ...(form.accountSpecialist && !teamMembers.some((m) => m.name === form.accountSpecialist)
+                ? [{ value: form.accountSpecialist, label: form.accountSpecialist }]
+                : []),
+            ]}
+            fullWidth
+          />
         </div>
         <p className="text-xs text-[var(--muted)]">
           Contract start &amp; end dates are set per-package in the Packages &amp; Billing tab.

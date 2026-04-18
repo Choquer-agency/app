@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 export const list = query({
   args: {
@@ -25,15 +26,56 @@ export const list = query({
       entries = await ctx.db.query("serviceBoardEntries").collect();
     }
 
-    // Join with clients, packages, clientPackages, and teamMembers
+    // Fetch team members once so we can fall back to client.accountSpecialist
+    // when the entry has no explicit specialistId.
+    const allMembers = await ctx.db.query("teamMembers").collect();
+    const memberByName = new Map<string, typeof allMembers[number]>();
+    for (const m of allMembers) memberByName.set(m.name, m);
+
+    // Pre-fetch service tickets matching this category+month so we can include
+    // serviceTicketId on each entry without a per-row client roundtrip.
+    let ticketByClientId = new Map<string, { _id: Id<"tickets"> }>();
+    if (args.category && args.month) {
+      const categoryLabel =
+        args.category === "google_ads"
+          ? "Google Ads"
+          : args.category === "seo"
+            ? "SEO"
+            : "Retainer";
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+      ];
+      const [y, m] = args.month.split("-").map(Number);
+      const monthLabel = `${monthNames[(m ?? 1) - 1]} ${y}`;
+      const expectedTitle = `${categoryLabel} — ${monthLabel}`;
+      const serviceTickets = await ctx.db
+        .query("tickets")
+        .withIndex("by_service_category", (q) =>
+          q.eq("serviceCategory", args.category!)
+        )
+        .collect();
+      for (const t of serviceTickets) {
+        if (t.clientId && t.title === expectedTitle && t.archived !== true) {
+          ticketByClientId.set(String(t.clientId), { _id: t._id });
+        }
+      }
+    }
+
     const enriched = await Promise.all(
       entries.map(async (entry) => {
         const client = await ctx.db.get(entry.clientId);
         const clientPkg = await ctx.db.get(entry.clientPackageId);
         const pkg = clientPkg ? await ctx.db.get(clientPkg.packageId) : null;
-        const specialist = entry.specialistId
+
+        let specialist = entry.specialistId
           ? await ctx.db.get(entry.specialistId)
           : null;
+        if (!specialist && client?.accountSpecialist) {
+          specialist = memberByName.get(client.accountSpecialist) ?? null;
+        }
+
+        const serviceTicket = ticketByClientId.get(String(entry.clientId));
 
         return {
           ...entry,
@@ -45,6 +87,7 @@ export const list = query({
           specialistName: specialist?.name ?? undefined,
           specialistColor: specialist?.color ?? undefined,
           specialistProfilePicUrl: specialist?.profilePicUrl ?? undefined,
+          serviceTicketId: serviceTicket?._id ?? null,
         };
       })
     );

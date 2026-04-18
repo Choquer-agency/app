@@ -26,18 +26,18 @@ function fmtHours(h: number): string {
   return `${hrs}h${mins}m`;
 }
 
-const PRIORITY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  urgent: { label: "Urgent", color: "text-red-700", bg: "bg-red-50" },
-  high: { label: "High", color: "text-orange-700", bg: "bg-orange-50" },
-  normal: { label: "Normal", color: "text-blue-700", bg: "bg-blue-50" },
-  low: { label: "Low", color: "text-gray-600", bg: "bg-gray-50" },
+const PRIORITY_COLORS: Record<string, string> = {
+  urgent: "#EF4444",
+  high: "#F97316",
+  normal: "#3B82F6",
+  low: "#9CA3AF",
 };
 
 export default function PerformanceTab({ start, end }: PerformanceTabProps) {
   const [data, setData] = useState<PerformanceReport | null>(null);
   const [loading, setLoading] = useState(true);
   const { teamMembers } = useTeamMembers();
-  const [selectedMemberId, setSelectedMemberId] = useState<number | "all">("all");
+  const [selectedMemberId, setSelectedMemberId] = useState<string | "all">("all");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -86,7 +86,7 @@ export default function PerformanceTab({ start, end }: PerformanceTabProps) {
       <MemberFilter members={teamMembers} value={selectedMemberId} onChange={setSelectedMemberId} />
 
       {/* Member cards */}
-      <div className={`grid gap-4 ${isSingleMember ? "grid-cols-1 max-w-2xl" : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"}`}>
+      <div className={`grid gap-4 ${isSingleMember ? "grid-cols-1 max-w-2xl" : "grid-cols-1 md:grid-cols-2"}`}>
         {data.members.map((m) => (
           <div key={m.teamMemberId} className="border border-[var(--border)] rounded-xl p-5 bg-white">
             {/* Header */}
@@ -149,7 +149,7 @@ export default function PerformanceTab({ start, end }: PerformanceTabProps) {
 
       {/* Team comparison table (only when viewing all) */}
       {!isSingleMember && (
-        <div className="border border-[var(--border)] rounded-xl bg-white overflow-hidden">
+        <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
           <div className="px-4 py-3 border-b border-[var(--border)]">
             <h3 className="text-sm font-medium text-[var(--foreground)]">Team Comparison</h3>
           </div>
@@ -157,38 +157,38 @@ export default function PerformanceTab({ start, end }: PerformanceTabProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)]">
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--muted)]">Member</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-[var(--muted)]">Closed</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-[var(--muted)]">Hours</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-[var(--muted)]">Avg Resolution</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-[var(--muted)]">On-Time %</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-[var(--muted)]">Overdue</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-[var(--muted)]">Avg Open Age</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Member</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Closed</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Hours</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Avg Resolution</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">On-Time %</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Overdue</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Avg Open Age</th>
                 </tr>
               </thead>
               <tbody>
                 {data.members.map((m) => (
-                  <tr key={m.teamMemberId} className="border-t border-[var(--border)] hover:bg-gray-50">
-                    <td className="px-4 py-2.5">
+                  <tr key={m.teamMemberId} className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)]">
+                    <td className="px-2 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: m.memberColor }} />
                         <span className="text-[var(--foreground)] font-medium">{m.memberName}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-right">{m.ticketsClosed}</td>
-                    <td className="px-4 py-2.5 text-right">{fmtHours(m.hoursLogged)}<span className="text-[var(--muted)]"> / {m.availableHoursPerWeek}h</span></td>
-                    <td className="px-4 py-2.5 text-right">{fmtDuration(m.avgResolutionHours)}</td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-2 py-3 text-right">{m.ticketsClosed}</td>
+                    <td className="px-2 py-3 text-right">{fmtHours(m.hoursLogged)}<span className="text-[var(--muted)]"> / {m.availableHoursPerWeek}h</span></td>
+                    <td className="px-2 py-3 text-right">{fmtDuration(m.avgResolutionHours)}</td>
+                    <td className="px-2 py-3 text-right">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         m.onTimePct >= 80 ? "bg-green-50 text-green-700" : m.onTimePct >= 50 ? "bg-yellow-50 text-yellow-700" : "bg-red-50 text-red-700"
                       }`}>
                         {m.onTimePct}%
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-2 py-3 text-right">
                       <span className={m.overdueTickets > 0 ? "text-red-600 font-medium" : ""}>{m.overdueTickets}</span>
                     </td>
-                    <td className="px-4 py-2.5 text-right">{fmtDuration(m.avgOpenHours)}</td>
+                    <td className="px-2 py-3 text-right">{fmtDuration(m.avgOpenHours)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -199,44 +199,66 @@ export default function PerformanceTab({ start, end }: PerformanceTabProps) {
 
       {/* Open Tickets — sorted by priority + overdue */}
       {data.openTickets.length > 0 && (
-        <div className="border border-[var(--border)] rounded-xl bg-white overflow-hidden">
+        <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
           <div className="px-4 py-3 border-b border-[var(--border)]">
-            <h3 className="text-sm font-medium text-[var(--foreground)]">Open Tickets</h3>
-            <p className="text-xs text-[var(--muted)] mt-0.5">Sorted by priority and overdue status</p>
+            <h3 className="text-sm font-medium text-[var(--foreground)]">Open Tickets <span className="text-red-500 ml-1">{data.openTickets.length}</span></h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)]">
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--muted)] w-16">Priority</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--muted)]">Ticket</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--muted)]">Client</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--muted)]">Status</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--muted)]">Due Date</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-16">Priority</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Ticket</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Client</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Status</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Due Date</th>
                 </tr>
               </thead>
               <tbody>
-                {data.openTickets.map((t) => {
-                  const pri = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.normal;
+                {[...data.openTickets].sort((a, b) => {
+                  const now = Date.now();
+                  const aOverdue = a.dueDate ? (now - new Date(a.dueDate + "T23:59:59").getTime()) / 86400000 : -Infinity;
+                  const bOverdue = b.dueDate ? (now - new Date(b.dueDate + "T23:59:59").getTime()) / 86400000 : -Infinity;
+                  return bOverdue - aOverdue;
+                }).map((t) => {
+                  const priColor = PRIORITY_COLORS[t.priority] || PRIORITY_COLORS.normal;
                   const isOverdue = t.dueDate && new Date(t.dueDate + "T23:59:59") < new Date() && isOverdueEligible(t.status);
                   const daysUntil = t.dueDate ? Math.ceil((new Date(t.dueDate + "T23:59:59").getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
 
                   return (
-                    <tr key={t.id} className="border-t border-[var(--border)] hover:bg-gray-50">
-                      <td className="px-4 py-2.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${pri.bg} ${pri.color}`}>
-                          {pri.label}
-                        </span>
+                    <tr key={t.id} className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)]">
+                      <td className="px-2 py-3">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill={priColor} stroke={priColor} strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" />
+                        </svg>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-2 py-3">
                         <div>
                           <span className="font-mono text-xs text-[var(--muted)] mr-2">{t.ticketNumber}</span>
                           <span className="text-[var(--foreground)]">{t.title}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 text-[var(--muted)]">{t.clientName || "—"}</td>
-                      <td className="px-4 py-2.5 text-xs text-[var(--muted)] capitalize">{t.status.replace(/_/g, " ")}</td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-2 py-3 text-[var(--muted)]">{t.clientName || "—"}</td>
+                      <td className="px-2 py-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          t.status === "needs_attention" ? "bg-orange-100 text-orange-700" :
+                          t.status === "stuck" ? "bg-red-100 text-red-700" :
+                          t.status === "in_progress" ? "bg-blue-100 text-blue-700" :
+                          t.status === "qa_ready" ? "bg-purple-100 text-purple-700" :
+                          t.status === "client_review" ? "bg-amber-100 text-amber-700" :
+                          t.status === "approved_go_live" ? "bg-green-100 text-green-700" :
+                          "bg-gray-100 text-gray-600"
+                        }`}>
+                          {t.status === "needs_attention" ? "Backlog" :
+                           t.status === "in_progress" ? "In Progress" :
+                           t.status === "qa_ready" ? "QA Ready" :
+                           t.status === "client_review" ? "Client Review" :
+                           t.status === "approved_go_live" ? "Go Live" :
+                           t.status === "stuck" ? "Stuck" :
+                           t.status.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="px-2 py-3 whitespace-nowrap">
                         {t.dueDate ? (
                           <span className={isOverdue ? "text-red-600 font-medium" : ""}>
                             {friendlyDate(t.dueDate)}
@@ -271,8 +293,8 @@ function MemberFilter({
   onChange,
 }: {
   members: TeamMember[];
-  value: number | "all";
-  onChange: (id: number | "all") => void;
+  value: string | "all";
+  onChange: (id: string | "all") => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -285,9 +307,10 @@ function MemberFilter({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  if (members.length === 0) return null;
+  const filtered = members.filter((m) => m.roleLevel !== "bookkeeper" && m.roleLevel !== "owner" && m.active);
+  if (filtered.length === 0) return null;
 
-  const selected = value === "all" ? null : members.find((m) => m.id === value);
+  const selected = value === "all" ? null : filtered.find((m) => m.id === value);
 
   return (
     <div className="flex items-center gap-2">
@@ -324,7 +347,7 @@ function MemberFilter({
             >
               All Members
             </button>
-            {members.map((m) => (
+            {filtered.map((m) => (
               <button
                 key={m.id}
                 onClick={() => { onChange(m.id); setOpen(false); }}

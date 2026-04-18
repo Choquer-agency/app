@@ -38,6 +38,7 @@ export interface ClientConfig {
   socialFacebook: string;
   socialInstagram: string;
   socialX: string;
+  billable: boolean;
 }
 
 // Input for creating/updating a client via admin UI
@@ -172,6 +173,7 @@ export interface TeamMember {
   hourlyRate: number | null;
   salary: number | null;
   payType: "hourly" | "salary";
+  timeMultiplier?: number | null;
   sickDaysTotal?: number;
   vacationDaysTotal?: number;
   vacationDaysUsed?: number;
@@ -371,6 +373,7 @@ export interface TimeEntry {
   isManual: boolean;
   note: string;
   createdAt: string;
+  rate?: number;
   // Joined fields
   memberName?: string;
   memberColor?: string;
@@ -406,6 +409,30 @@ export interface ClientHoursSummary {
     ticketTitle: string;
     hours: number;
   }>;
+  entries?: Array<{
+    id: string;
+    memberId: string | null;
+    memberName: string;
+    memberColor?: string;
+    ticketId: string;
+    ticketNumber: string;
+    ticketTitle: string;
+    start: number;
+    end: number | null;
+    seconds: number;
+  }>;
+  pools?: Array<{
+    id: string;
+    name: string;
+    type: "recurring" | "one_time";
+    included: number;
+    used: number;
+    remaining: number;
+    percent: number;
+    status: "ok" | "warning" | "exceeded";
+  }>;
+  minMonth?: string; // first valid month for navigation (YYYY-MM-01)
+  maxMonth?: string; // last valid month (YYYY-MM-01)
   // Package pool breakdown
   monthlyRetainerHours: number; // from recurring packages only (resets each month)
   oneTimeBalanceHours: number; // remaining one-time top-up hours (before this month's usage)
@@ -611,6 +638,15 @@ export interface WorkLogEntry {
   isPlan: boolean;
   impact?: string;
   completed?: boolean;
+  chartHints?: Array<{
+    bulletId: string;
+    metric: "ga4_organic_sessions" | "gsc_clicks" | "gsc_impressions" | "se_ranking_position";
+    dateRange: { start: string; end: string };
+    keyword?: string;
+    page?: string;
+    caption: string;
+    series?: Array<{ date: string; value: number }>;
+  }>;
 }
 
 // KPI card data
@@ -937,6 +973,7 @@ export interface ServiceBoardEntry {
   specialistProfilePicUrl?: string;
   generatedEmail?: string;
   commentCount?: number;
+  serviceTicketId?: string | null;
   // Computed
   loggedHours?: number;
   percentUsed?: number;

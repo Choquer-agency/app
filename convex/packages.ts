@@ -4,13 +4,36 @@ import { query, mutation, internalMutation } from "./_generated/server";
 export const list = query({
   args: { activeOnly: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
-    if (args.activeOnly) {
-      return await ctx.db
-        .query("packages")
-        .withIndex("by_active", (q) => q.eq("active", true))
-        .collect();
+    const rows = args.activeOnly
+      ? await ctx.db
+          .query("packages")
+          .withIndex("by_active", (q) => q.eq("active", true))
+          .collect()
+      : await ctx.db.query("packages").collect();
+
+    // Sort: group by category, then numerically by hours/tier in the name
+    // so Retainer packages line up as 5, 10, 15, 20, 30, 40.
+    const categoryOrder: Record<string, number> = {
+      retainer: 0,
+      seo: 1,
+      google_ads: 2,
+      social_media_ads: 3,
+      web_dev: 4,
+      other: 5,
+    };
+    function extractNumber(name: string): number {
+      const m = name.match(/(\d+(?:\.\d+)?)/);
+      return m ? parseFloat(m[1]) : Number.POSITIVE_INFINITY;
     }
-    return await ctx.db.query("packages").collect();
+    return rows.sort((a, b) => {
+      const ca = categoryOrder[a.category ?? "other"] ?? 99;
+      const cb = categoryOrder[b.category ?? "other"] ?? 99;
+      if (ca !== cb) return ca - cb;
+      const na = extractNumber(a.name ?? "");
+      const nb = extractNumber(b.name ?? "");
+      if (na !== nb) return na - nb;
+      return (a.name ?? "").localeCompare(b.name ?? "");
+    });
   },
 });
 

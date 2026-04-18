@@ -7,6 +7,7 @@ import { STATUS_ORDER, getStatusLabel } from "./TicketStatusBadge";
 import { getPriorityLabel } from "./TicketPriorityBadge";
 import { useClients } from "@/hooks/useClients";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import FilterDropdown from "./FilterDropdown";
 
 interface TicketFiltersProps {
   filters: Filters;
@@ -119,18 +120,18 @@ export default function TicketFilters({
                   </svg>
                   Client
                 </label>
-                <select
-                  value={filters.clientId || ""}
-                  onChange={(e) =>
-                    onFiltersChange({ ...filters, clientId: e.target.value ? Number(e.target.value) : undefined })
+                <FilterDropdown
+                  label=""
+                  value={filters.clientId != null ? String(filters.clientId) : ""}
+                  onChange={(v) =>
+                    onFiltersChange({ ...filters, clientId: v ? Number(v) : undefined })
                   }
-                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--accent)] bg-white"
-                >
-                  <option value="">All Clients</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "All Clients" },
+                    ...clients.map((c) => ({ value: String(c.id), label: c.name })),
+                  ]}
+                  fullWidth
+                />
               </div>
 
               <div>
@@ -140,18 +141,18 @@ export default function TicketFilters({
                   </svg>
                   Status
                 </label>
-                <select
-                  value={Array.isArray(filters.status) ? "" : filters.status || ""}
-                  onChange={(e) =>
-                    onFiltersChange({ ...filters, status: (e.target.value as TicketStatus) || undefined })
+                <FilterDropdown
+                  label=""
+                  value={Array.isArray(filters.status) ? "" : (filters.status as string) || ""}
+                  onChange={(v) =>
+                    onFiltersChange({ ...filters, status: (v as TicketStatus) || undefined })
                   }
-                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--accent)] bg-white"
-                >
-                  <option value="">All Statuses</option>
-                  {STATUS_ORDER.map((s) => (
-                    <option key={s} value={s}>{getStatusLabel(s)}</option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "All Statuses" },
+                    ...STATUS_ORDER.map((s) => ({ value: String(s), label: getStatusLabel(s) })),
+                  ]}
+                  fullWidth
+                />
               </div>
 
               <div>
@@ -161,18 +162,21 @@ export default function TicketFilters({
                   </svg>
                   Priority
                 </label>
-                <select
-                  value={Array.isArray(filters.priority) ? "" : filters.priority || ""}
-                  onChange={(e) =>
-                    onFiltersChange({ ...filters, priority: (e.target.value as TicketPriority) || undefined })
+                <FilterDropdown
+                  label=""
+                  value={Array.isArray(filters.priority) ? "" : (filters.priority as string) || ""}
+                  onChange={(v) =>
+                    onFiltersChange({ ...filters, priority: (v as TicketPriority) || undefined })
                   }
-                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--accent)] bg-white"
-                >
-                  <option value="">All Priorities</option>
-                  {(["urgent", "high", "normal", "low"] as TicketPriority[]).map((p) => (
-                    <option key={p} value={p}>{getPriorityLabel(p)}</option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "All Priorities" },
+                    ...(["urgent", "high", "normal", "low"] as TicketPriority[]).map((p) => ({
+                      value: String(p),
+                      label: getPriorityLabel(p),
+                    })),
+                  ]}
+                  fullWidth
+                />
               </div>
 
               <div>
@@ -182,18 +186,18 @@ export default function TicketFilters({
                   </svg>
                   Assignee
                 </label>
-                <select
-                  value={filters.assigneeId || ""}
-                  onChange={(e) =>
-                    onFiltersChange({ ...filters, assigneeId: e.target.value ? Number(e.target.value) : undefined })
+                <FilterDropdown
+                  label=""
+                  value={filters.assigneeId != null ? String(filters.assigneeId) : ""}
+                  onChange={(v) =>
+                    onFiltersChange({ ...filters, assigneeId: v ? Number(v) : undefined })
                   }
-                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--accent)] bg-white"
-                >
-                  <option value="">All Assignees</option>
-                  {teamMembers.filter((m) => m.active).map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "All Assignees" },
+                    ...teamMembers.filter((m) => m.active).map((m) => ({ value: String(m.id), label: m.name })),
+                  ]}
+                  fullWidth
+                />
               </div>
             </div>
           </div>,

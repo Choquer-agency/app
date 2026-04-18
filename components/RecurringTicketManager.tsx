@@ -164,32 +164,32 @@ export default function RecurringTicketManager({
           <p className="text-xs mt-1">Create one to auto-generate tickets on a schedule</p>
         </div>
       ) : (
-        <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
+        <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50/80 border-b border-[var(--border)]">
-                <th className="text-left px-4 py-2.5 font-medium text-[var(--muted)]">Title</th>
+              <tr className="border-b border-[var(--border)]">
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Title</th>
                 {!clientId && (
-                  <th className="text-left px-4 py-2.5 font-medium text-[var(--muted)]">Client</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Client</th>
                 )}
-                <th className="text-left px-4 py-2.5 font-medium text-[var(--muted)]">Recurrence</th>
-                <th className="text-left px-4 py-2.5 font-medium text-[var(--muted)]">Next Run</th>
-                <th className="text-left px-4 py-2.5 font-medium text-[var(--muted)]">Priority</th>
-                <th className="text-left px-4 py-2.5 font-medium text-[var(--muted)]">Assignees</th>
-                <th className="text-center px-4 py-2.5 font-medium text-[var(--muted)]">Active</th>
-                <th className="text-right px-4 py-2.5 font-medium text-[var(--muted)]">Actions</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Recurrence</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Next Run</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Priority</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Assignees</th>
+                <th className="px-2 py-2.5 text-center font-medium text-[var(--muted)] text-xs whitespace-nowrap">Active</th>
+                <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
               {templates.map((t) => (
                 <tr
                   key={t.id}
-                  className={`border-b border-[var(--border)] last:border-b-0 hover:bg-gray-50/50 transition ${
+                  className={`border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--hover-tan)] transition ${
                     !t.active ? "opacity-50" : ""
                   }`}
                 >
                   {/* Title */}
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-3">
                     <div className="font-medium text-[var(--foreground)]">{t.title}</div>
                     {t.projectName && (
                       <div className="text-xs text-[var(--muted)] mt-0.5">{t.projectName}</div>
@@ -198,30 +198,30 @@ export default function RecurringTicketManager({
 
                   {/* Client */}
                   {!clientId && (
-                    <td className="px-4 py-3 text-[var(--foreground)]">
+                    <td className="px-2 py-3 text-[var(--foreground)]">
                       {t.clientName || "—"}
                     </td>
                   )}
 
                   {/* Recurrence */}
-                  <td className="px-4 py-3 text-[var(--foreground)]">
+                  <td className="px-2 py-3 text-[var(--foreground)]">
                     {formatRecurrence(t.recurrenceRule, t.recurrenceDay)}
                   </td>
 
                   {/* Next Run */}
-                  <td className="px-4 py-3 text-[var(--foreground)]">
+                  <td className="px-2 py-3 text-[var(--foreground)]">
                     {formatDate(t.nextCreateAt)}
                   </td>
 
                   {/* Priority */}
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-3">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${PRIORITY_COLORS[t.priority] || ""}`}>
                       {t.priority}
                     </span>
                   </td>
 
                   {/* Assignees */}
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-3">
                     {t.assignees && t.assignees.length > 0 ? (
                       <div className="flex items-center -space-x-1.5">
                         {t.assignees.slice(0, 3).map((a) => (
@@ -258,7 +258,7 @@ export default function RecurringTicketManager({
                   </td>
 
                   {/* Active toggle */}
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-2 py-3 text-center">
                     <button
                       onClick={() => handleToggleActive(t)}
                       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
@@ -274,7 +274,7 @@ export default function RecurringTicketManager({
                   </td>
 
                   {/* Actions */}
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-2 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => {

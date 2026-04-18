@@ -93,22 +93,22 @@ export default function PeriodDetailModal({
         </div>
 
         {/* Entries Table */}
-        <div className="flex-1 bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)] border border-[#F6F5F1] overflow-hidden">
-          <table className="w-full text-left">
+        <div className="flex-1 bg-white rounded-xl border border-[var(--border)] overflow-hidden">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#F6F5F1] bg-[#F0EEE6]">
-                <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Date</th>
-                <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Clock In</th>
-                <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Clock Out</th>
-                <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">Break</th>
-                <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider text-right">Worked</th>
-                <th className="py-4 px-6 text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">Status</th>
+              <tr className="border-b border-[var(--border)]">
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Date</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Clock In</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Clock Out</th>
+                <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Break</th>
+                <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Worked</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#F6F5F1]">
+            <tbody>
               {sortedEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 px-6 text-center text-[#9CA3AF] italic">
+                  <td colSpan={6} className="py-8 px-2 text-center text-[#9CA3AF] italic">
                     No time entries for this period
                   </td>
                 </tr>
@@ -117,24 +117,24 @@ export default function PeriodDetailModal({
                   <tr
                     key={entry.id}
                     onClick={() => onEntryClick(entry, entry.date)}
-                    className="hover:bg-[#FAF9F5] cursor-pointer transition-colors"
+                    className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] cursor-pointer transition-colors"
                   >
-                    <td className="py-4 px-6 font-medium text-[#1A1A1A]">
+                    <td className="px-2 py-3 font-medium text-[#1A1A1A]">
                       {formatDateForDisplay(entry.date)}
                     </td>
-                    <td className="py-4 px-6 text-[#484848] font-mono text-sm">
+                    <td className="px-2 py-3 text-[#484848] font-mono text-sm">
                       {entry.isSickDay || entry.isVacation ? "—" : formatTime(entry.clockInTime)}
                     </td>
-                    <td className="py-4 px-6 text-[#484848] font-mono text-sm">
+                    <td className="px-2 py-3 text-[#484848] font-mono text-sm">
                       {entry.isSickDay || entry.isVacation ? "—" : formatTime(entry.clockOutTime)}
                     </td>
-                    <td className="py-4 px-6 text-right text-[#6B6B6B] text-sm">
+                    <td className="px-2 py-3 text-right text-[#6B6B6B] text-sm">
                       {formatDuration(entry.totalBreakMinutes)}
                     </td>
-                    <td className="py-4 px-6 text-right font-medium text-[#1A1A1A]">
+                    <td className="px-2 py-3 text-right font-medium text-[#1A1A1A]">
                       {entry.workedMinutes !== null ? formatDuration(entry.workedMinutes) : "—"}
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="px-2 py-3">
                       {entry.isSickDay && entry.isHalfSickDay ? (
                         <span className="px-3 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-full">
                           PARTIAL SICK{entry.sickHoursUsed ? ` (${entry.sickHoursUsed}h)` : ""}

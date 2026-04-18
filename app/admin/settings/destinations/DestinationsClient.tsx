@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import FilterDropdown from "@/components/FilterDropdown";
 
 interface Destination {
   _id: string;
@@ -82,37 +83,37 @@ export default function DestinationsClient() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-8 space-y-6">
-      <header className="flex items-end justify-between">
+    <div className="space-y-6">
+      <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Destinations</h1>
-          <p className="text-sm text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Destinations</h1>
+          <p className="text-sm text-[var(--muted)] mt-1">
             Where scheduled syncs deliver data. Notion databases, Google Sheets, or
             BigQuery tables you already own.
           </p>
         </div>
         <button
           onClick={() => setAddOpen(true)}
-          className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium"
+          className="shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium text-white bg-[var(--accent)] rounded-lg hover:opacity-90 transition"
         >
-          Add destination
+          + Add destination
         </button>
       </header>
 
       {loading ? (
-        <div className="text-sm text-gray-500">Loading…</div>
+        <div className="text-sm text-[var(--muted)]">Loading…</div>
       ) : destinations.length === 0 ? (
-        <div className="border border-dashed border-gray-300 rounded-lg p-12 text-center">
-          <div className="text-gray-500 text-sm">No destinations yet.</div>
+        <div className="border border-dashed border-[var(--border)] rounded-xl p-12 text-center">
+          <div className="text-sm text-[var(--muted)]">No destinations yet.</div>
           <button
             onClick={() => setAddOpen(true)}
-            className="mt-3 text-sm text-indigo-600 hover:text-indigo-800"
+            className="mt-3 text-sm font-medium text-[var(--accent)] hover:opacity-80"
           >
             Add your first →
           </button>
         </div>
       ) : (
-        <div className="border border-gray-200 rounded-lg bg-white divide-y divide-gray-100">
+        <div className="border border-[var(--border)] rounded-xl bg-white divide-y divide-[var(--border)]">
           {destinations.map((d) => (
             <div key={d._id} className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
@@ -235,160 +236,181 @@ function AddDestinationModal({
     }
   };
 
+  const inputClass =
+    "w-full px-3 py-2 text-sm bg-white border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)]";
+  const labelClass = "block text-xs font-medium text-[var(--muted)] mb-1.5";
+
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-lg p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Add destination</h2>
+    <div
+      className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+        style={{ maxHeight: "calc(90vh / 1.1875)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-8 pt-6 pb-4 border-b border-[var(--border)]">
+          <h2 className="text-lg font-bold text-[var(--foreground)]">Add Destination</h2>
+          <p className="text-xs text-[var(--muted)] mt-1">
+            Where scheduled syncs deliver data.
+          </p>
+        </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-700">Type</label>
-          <div className="flex gap-2">
-            {(["notion", "sheets", "bigquery"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setType(t)}
-                className={`px-3 py-2 text-sm border rounded ${
-                  type === t
-                    ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                    : "border-gray-300 text-gray-700"
-                }`}
-              >
-                {TYPE_LABELS[t]}
-              </button>
-            ))}
+        <div className="px-8 py-5 space-y-5 overflow-y-auto">
+          <div>
+            <label className={labelClass}>Type</label>
+            <div className="flex gap-2">
+              {(["notion", "sheets", "bigquery"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setType(t)}
+                  className={`flex-1 px-4 py-2.5 text-sm font-medium border rounded-lg transition ${
+                    type === t
+                      ? "border-[var(--accent)] bg-[#FFEFDE] text-[var(--accent)]"
+                      : "border-[var(--border)] bg-white text-[var(--foreground)] hover:bg-[var(--hover-tan)]"
+                  }`}
+                >
+                  {TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-700">Name</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Penni Cart Reporting Sheet"
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded"
-          />
-        </div>
+          <div>
+            <label className={labelClass}>Name</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Penni Cart Reporting Sheet"
+              className={inputClass}
+            />
+          </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-700">
-            Connection (from /admin/settings/connections)
-          </label>
-          <select
-            value={connectionId}
-            onChange={(e) => setConnectionId(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded"
-          >
-            <option value="">— pick a connection —</option>
-            {compatibleConnections.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.platform} · {c.displayName || c.scope}
-              </option>
-            ))}
-          </select>
-          {compatibleConnections.length === 0 && (
-            <p className="text-xs text-red-600 mt-1">
-              No compatible connections. Connect {type === "notion" ? "Notion" : "Google"} at{" "}
-              <a href="/admin/settings/connections" className="underline">
-                Settings → Connections
-              </a>
-              .
-            </p>
+          <div>
+            <label className={labelClass}>Connection</label>
+            {compatibleConnections.length === 0 ? (
+              <p className="text-xs text-rose-600 bg-rose-50 rounded-lg px-3 py-2">
+                No compatible connections. Connect {type === "notion" ? "Notion" : "Google"} at{" "}
+                <a href="/admin/settings/connections" className="underline font-medium">
+                  Settings → Connections
+                </a>
+                .
+              </p>
+            ) : (
+              <FilterDropdown
+                fullWidth
+                label=""
+                value={connectionId}
+                onChange={setConnectionId}
+                options={[
+                  { value: "", label: "— pick a connection —" },
+                  ...compatibleConnections.map((c) => ({
+                    value: c.id,
+                    label: `${c.platform} · ${c.displayName || c.scope}`,
+                  })),
+                ]}
+              />
+            )}
+          </div>
+
+          {type === "notion" && (
+            <div>
+              <label className={labelClass}>Notion database ID</label>
+              <input
+                value={databaseId}
+                onChange={(e) => setDatabaseId(e.target.value)}
+                placeholder="paste database ID from Notion URL"
+                className={`${inputClass} font-mono`}
+              />
+              <p className="text-xs text-[var(--muted)] mt-1.5">
+                Open the database in Notion → Share → copy the ID from the URL. Share the
+                database with the Choquer integration too.
+              </p>
+            </div>
+          )}
+
+          {type === "sheets" && (
+            <>
+              <div>
+                <label className={labelClass}>Spreadsheet ID</label>
+                <input
+                  value={spreadsheetId}
+                  onChange={(e) => setSpreadsheetId(e.target.value)}
+                  placeholder="paste from sheets URL"
+                  className={`${inputClass} font-mono`}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Sheet name</label>
+                  <input
+                    value={sheetName}
+                    onChange={(e) => setSheetName(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Write mode</label>
+                  <FilterDropdown
+                    fullWidth
+                    label=""
+                    value={writeMode}
+                    onChange={(v) => setWriteMode(v as any)}
+                    options={[
+                      { value: "replace", label: "Replace each run" },
+                      { value: "append", label: "Append" },
+                    ]}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {type === "bigquery" && (
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className={labelClass}>Project ID</label>
+                <input
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Dataset</label>
+                <input
+                  value={datasetId}
+                  onChange={(e) => setDatasetId(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Table</label>
+                <input
+                  value={tableId}
+                  onChange={(e) => setTableId(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+            </div>
           )}
         </div>
 
-        {type === "notion" && (
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-700">Notion database ID</label>
-            <input
-              value={databaseId}
-              onChange={(e) => setDatabaseId(e.target.value)}
-              placeholder="paste database ID from Notion URL"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded font-mono"
-            />
-            <p className="text-xs text-gray-500">
-              Open the database in Notion → Share → copy the ID from the URL. Share the
-              database with the Choquer integration too.
-            </p>
-          </div>
-        )}
-
-        {type === "sheets" && (
-          <>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">Spreadsheet ID</label>
-              <input
-                value={spreadsheetId}
-                onChange={(e) => setSpreadsheetId(e.target.value)}
-                placeholder="paste from sheets URL"
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded font-mono"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-700">Sheet name</label>
-                <input
-                  value={sheetName}
-                  onChange={(e) => setSheetName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-700">Write mode</label>
-                <select
-                  value={writeMode}
-                  onChange={(e) => setWriteMode(e.target.value as any)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded"
-                >
-                  <option value="replace">Replace each run</option>
-                  <option value="append">Append</option>
-                </select>
-              </div>
-            </div>
-          </>
-        )}
-
-        {type === "bigquery" && (
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">Project ID</label>
-              <input
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">Dataset</label>
-              <input
-                value={datasetId}
-                onChange={(e) => setDatasetId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">Table</label>
-              <input
-                value={tableId}
-                onChange={(e) => setTableId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded"
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
+        <div className="flex justify-end gap-2 px-8 py-4 border-t border-[var(--border)] bg-white">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+            disabled={submitting}
+            className="px-4 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition"
           >
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={submitting}
-            className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-semibold text-white bg-[var(--accent)] rounded-lg hover:opacity-90 transition disabled:opacity-50"
           >
-            {submitting ? "Saving…" : "Add destination"}
+            {submitting ? "Saving…" : "Add Destination"}
           </button>
         </div>
       </div>

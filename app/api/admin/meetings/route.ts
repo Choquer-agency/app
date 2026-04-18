@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const data = await getMemberMeetingData(Number(memberId));
+    const period = searchParams.get("period") || "last_week";
+    const data = await getMemberMeetingData(memberId, period);
     return NextResponse.json(data);
   } catch (error) {
     console.error("Failed to fetch meeting data:", error);

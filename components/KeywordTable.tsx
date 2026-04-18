@@ -136,35 +136,33 @@ export default function KeywordTable({ keywords, stats }: KeywordTableProps) {
         </div>
       )}
 
-      <div className="border border-[#E5E5E5] rounded-xl overflow-hidden bg-[#FAFAFA]">
+      <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#E5E5E5] bg-white text-xs text-muted relative z-10">
-              <th className="px-4 py-2.5 text-left font-medium">
+            <tr className="border-b border-[var(--border)]">
+              <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">
                 <MetricTooltip label="Keyword" tooltip="Search terms your site is being tracked for in Google" />
               </th>
-              <th className="px-3 py-2.5 text-left font-medium w-16">
+              <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-16">
                 <MetricTooltip label="Pos." tooltip="Current Google ranking position for this keyword — lower is better" />
               </th>
-              <th className="px-3 py-2.5 text-left font-medium w-16">
+              <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-16">
                 <MetricTooltip label="Change" tooltip="Position change since last check — green means improved ranking" />
               </th>
-              <th className="px-3 py-2.5 text-left font-medium w-16">
+              <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap w-16">
                 <MetricTooltip label="Vol." tooltip="Monthly search volume — how many people search for this keyword each month" />
               </th>
             </tr>
           </thead>
           <tbody>
-            {displayed.map((kw, i) => (
+            {displayed.map((kw) => (
               <tr
                 key={kw.id}
-                className={`${
-                  i < displayed.length - 1 || sorted.length > 5 ? "border-b border-[#F0F0F0]" : ""
-                } bg-white group/row hover:bg-[#FFFAF5] transition-colors cursor-default`}
+                className="border-b border-[var(--border)] last:border-b-0 bg-white group/row hover:bg-[var(--hover-tan)] transition-colors cursor-default"
               >
-                <td className="px-4 py-2 text-sm text-[#1A1A1A] group-hover/row:text-[#FF9500] transition-colors">{kw.keyword}</td>
-                <td className="px-3 py-2 text-sm font-medium">{kw.currentPosition > 0 ? kw.currentPosition : <span className="text-muted">--</span>}</td>
-                <td className="px-3 py-2">
+                <td className="px-2 py-3 text-sm text-[#1A1A1A] group-hover/row:text-[#FF9500] transition-colors">{kw.keyword}</td>
+                <td className="px-2 py-3 text-sm font-medium">{kw.currentPosition > 0 ? kw.currentPosition : <span className="text-muted">--</span>}</td>
+                <td className="px-2 py-3">
                   {kw.change > 0 ? (
                     <span className="text-xs font-semibold text-[#0d7a55]">+{kw.change}</span>
                   ) : kw.change < 0 ? (
@@ -173,7 +171,7 @@ export default function KeywordTable({ keywords, stats }: KeywordTableProps) {
                     <span className="text-xs text-muted">--</span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-xs text-muted">{kw.searchVolume.toLocaleString()}</td>
+                <td className="px-2 py-3 text-xs text-muted">{kw.searchVolume.toLocaleString()}</td>
               </tr>
             ))}
           </tbody>

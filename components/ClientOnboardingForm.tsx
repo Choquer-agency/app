@@ -5,6 +5,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { docToClient } from "@/lib/clients";
+import FilterDropdown from "./FilterDropdown";
 
 const SERVICE_ACCOUNT_EMAIL =
   "insightpulse@gen-lang-client-0803026287.iam.gserviceaccount.com";
@@ -60,11 +61,11 @@ function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+    <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-white">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center justify-between bg-[var(--accent-light)] hover:opacity-90 transition text-sm font-medium text-[var(--foreground)]"
+        className="w-full px-4 py-3 flex items-center justify-between bg-[var(--darker-tan)] hover:bg-[var(--hover-tan)] transition text-sm font-medium text-[var(--foreground)]"
       >
         {title}
         <span className="text-[var(--muted)]">{isOpen ? "−" : "+"}</span>
@@ -259,16 +260,13 @@ export default function ClientOnboardingForm({ onSaved, onCancel }: ClientOnboar
           </div>
           <div>
             <label className={labelClass}>Country *</label>
-            <select
+            <FilterDropdown
+              label=""
               value={form.country}
-              onChange={(e) => update("country", e.target.value)}
-              required
-              className={`${inputClass} bg-white`}
-            >
-              {COUNTRY_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+              onChange={(v) => update("country", v)}
+              options={COUNTRY_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+              fullWidth
+            />
           </div>
         </div>
         <div>
@@ -362,17 +360,18 @@ export default function ClientOnboardingForm({ onSaved, onCancel }: ClientOnboar
       <FormSection title="Account" isOpen={openSections.billing} onToggle={() => toggleSection("billing")}>
         <div>
           <label className={labelClass}>Account Specialist *</label>
-          <select
+          <FilterDropdown
+            label=""
             value={form.accountSpecialist}
-            onChange={(e) => update("accountSpecialist", e.target.value)}
-            required
-            className={`${inputClass} bg-white`}
-          >
-            <option value="">Select a team member</option>
-            {teamMembers.filter((m) => m.active).map((m) => (
-              <option key={m.id} value={m.name}>{m.name}{m.role ? ` — ${m.role}` : ""}</option>
-            ))}
-          </select>
+            onChange={(v) => update("accountSpecialist", v)}
+            options={[
+              { value: "", label: "Select a team member" },
+              ...teamMembers
+                .filter((m) => m.active)
+                .map((m) => ({ value: m.name, label: `${m.name}${m.role ? ` — ${m.role}` : ""}` })),
+            ]}
+            fullWidth
+          />
         </div>
       </FormSection>
 
@@ -432,23 +431,23 @@ export default function ClientOnboardingForm({ onSaved, onCancel }: ClientOnboar
         </div>
         <div>
           <label className={labelClass}>Booking Link *</label>
-          <select
+          <FilterDropdown
+            label=""
             value={form.isCustomBooking ? "__custom__" : form.calLink}
-            onChange={(e) => {
-              if (e.target.value === "__custom__") {
+            onChange={(v) => {
+              if (v === "__custom__") {
                 update("isCustomBooking", true);
               } else {
                 update("isCustomBooking", false);
-                update("calLink", e.target.value);
+                update("calLink", v);
               }
             }}
-            className={`${inputClass} bg-white`}
-          >
-            {BOOKING_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-            <option value="__custom__">Custom</option>
-          </select>
+            options={[
+              ...BOOKING_OPTIONS.map((opt) => ({ value: String(opt.value), label: opt.label })),
+              { value: "__custom__", label: "Custom" },
+            ]}
+            fullWidth
+          />
           {form.isCustomBooking && (
             <input
               type="url"

@@ -97,8 +97,8 @@ export default function TicketsSubNav() {
     }`;
 
   return (
-    <div className="border-b border-[var(--border)] bg-white sticky top-[49px] z-20">
-      <div className="max-w-7xl mx-auto px-6">
+    <div className="border-b border-[var(--border)] sticky top-[49px] z-20" style={{ background: "#FAF9F5" }}>
+      <div className="px-6">
         <div className="flex items-center gap-1">
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
           {fixedTabs.map((tab) => (

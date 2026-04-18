@@ -97,6 +97,10 @@ export function useClockStatus(teamMemberId: string, onStatusChange?: () => void
   const [fixClockOut, setFixClockOut] = useState("");
   const [fixSubmitting, setFixSubmitting] = useState(false);
 
+  // Client-side safety net: track entries dismissed this session so the modal
+  // doesn't flash back during the brief window between mutation and subscription update
+  const dismissedIssueIds = useRef<Set<string>>(new Set());
+
   // Detect past-day missing clock-out issues from real-time data
   useEffect(() => {
     if (!recentEntries) return;
@@ -105,6 +109,7 @@ export function useClockStatus(teamMemberId: string, onStatusChange?: () => void
       if (e.date >= today) return false;
       if (e.isSickDay || e.isVacation) return false;
       if ((e as any).changeRequest) return false;
+      if (dismissedIssueIds.current.has(e._id)) return false;
       if (!e.clockOutTime) return true;
       return false;
     });
@@ -274,6 +279,7 @@ export function useClockStatus(teamMemberId: string, onStatusChange?: () => void
         proposedClockOut: clockOutDate.toISOString(),
         reason: "Forgot to clock out",
       });
+      dismissedIssueIds.current.add(issueEntry.id);
       setIssueEntry(null);
       setShowFixModal(false);
       onStatusChange?.();

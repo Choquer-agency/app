@@ -67,14 +67,20 @@ export default function HourCountdown({ logged, allocated, compact }: HourCountd
 
   if (compact) {
     return (
-      <div className="flex items-center gap-2 min-w-[180px]">
-        <div className="flex-1">
-          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${barColor}`}
-              style={{ width: `${percent}%` }}
-            />
-          </div>
+      <div className="flex items-center gap-2 whitespace-nowrap">
+        <div
+          className="shrink-0 rounded-full overflow-hidden"
+          style={{
+            width: "72px",
+            height: "8px",
+            backgroundColor: "#e5e7eb",
+            border: "1px solid #d1d5db",
+          }}
+        >
+          <div
+            className={`h-full rounded-full transition-all ${barColor}`}
+            style={{ width: `${percent}%` }}
+          />
         </div>
         <span className="text-xs font-medium whitespace-nowrap text-gray-700 tabular-nums">
           {formatHours(logged)} / {formatHours(allocated)}

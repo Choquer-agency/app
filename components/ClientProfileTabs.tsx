@@ -6,14 +6,20 @@ import ClientPackagesPanel from "./ClientPackagesPanel";
 import ClientNotesTimeline from "./ClientNotesTimeline";
 import ClientDetailsForm from "./ClientDetailsForm";
 import RecurringTicketManager from "./RecurringTicketManager";
-import TicketListView from "./TicketListView";
+import ClientTicketsList from "./ClientTicketsList";
 import ClientHoursSummary from "./ClientHoursSummary";
 import ClientBillingHealth from "./ClientBillingHealth";
+import ClientBillingTab from "./ClientBillingTab";
+import SeoStrategyTab from "./SeoStrategyTab";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { friendlyDate } from "@/lib/date-format";
 
-const TABS = [
+type TabDef = { id: string; label: string; ownerOnly?: boolean; requiresSeoPackage?: boolean };
+
+const TABS: TabDef[] = [
   { id: "packages", label: "Packages & Billing" },
-  { id: "billing", label: "Billing Health" },
+  { id: "billing_all", label: "Billing", ownerOnly: true },
+  { id: "seo_strategy", label: "SEO Strategy", requiresSeoPackage: true },
   { id: "tickets", label: "Tickets" },
   { id: "hours", label: "Hours" },
   { id: "overview", label: "Overview" },
@@ -31,8 +37,27 @@ interface ClientProfileTabsProps {
 
 export default function ClientProfileTabs({ client, teamMembers = [], onClientUpdated, onPackagesChanged }: ClientProfileTabsProps) {
   const specialist = teamMembers.find((m) => m.name === client.accountSpecialist);
+  const { roleLevel } = useCurrentUser();
+  const isOwner = roleLevel === "owner";
   const [activeTab, setActiveTab] = useState("packages");
   const [clientPackages, setClientPackages] = useState<ClientPackage[]>([]);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const hasSeoPackage = clientPackages.some(
+    (cp) => cp.active && cp.packageCategory === "seo"
+  );
+  const visibleTabs = TABS.filter((t) => {
+    if (!mounted) {
+      // SSR + first client render: hide anything that depends on async client state
+      if (t.ownerOnly || t.requiresSeoPackage) return false;
+      return true;
+    }
+    if (t.ownerOnly && !isOwner) return false;
+    if (t.requiresSeoPackage && !hasSeoPackage) return false;
+    return true;
+  });
 
   const fetchClientPackages = useCallback(async () => {
     try {
@@ -96,7 +121,7 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
   return (
     <div>
       {/* KPI Cards — connects to header above, no gap */}
-      <div className="bg-[var(--accent-light)] rounded-b-xl p-5 border-t border-[var(--border)]">
+      <div className="rounded-b-xl p-5 border-t border-[var(--border)]" style={{ background: "#F0EEE6", ["--muted" as any]: "#6B705C" }}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <p className="text-xs text-[var(--muted)] mb-1">MRR</p>
@@ -137,7 +162,7 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
       {/* Tab bar */}
       <div className="border-b border-[var(--border)] mt-6">
         <nav className="flex gap-6">
-          {TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -212,8 +237,17 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
           <ClientPackagesPanel clientId={client.id} clientCountry={client.country} onPackagesChanged={handlePackagesChanged} />
         )}
 
-        {activeTab === "billing" && (
-          <ClientBillingHealth clientId={client.id} />
+        {activeTab === "billing_all" && isOwner && (
+          <ClientBillingTab clientName={client.name} />
+        )}
+
+        {activeTab === "seo_strategy" && hasSeoPackage && (
+          <SeoStrategyTab
+            clientId={client.id}
+            clientSlug={client.slug}
+            clientName={client.name}
+            teamMembers={teamMembers}
+          />
         )}
 
         {activeTab === "notes" && (
@@ -221,7 +255,7 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
         )}
 
         {activeTab === "tickets" && (
-          <TicketListView clientId={client.id} />
+          <ClientTicketsList clientId={client.id} />
         )}
 
         {activeTab === "hours" && (
@@ -237,11 +271,22 @@ export default function ClientProfileTabs({ client, teamMembers = [], onClientUp
         )}
 
         {activeTab === "edit" && (
-          <ClientDetailsForm
-            client={client}
-            onSaved={handleSaved}
-            onCancel={() => setActiveTab("overview")}
-          />
+          <div className="space-y-8">
+            <ClientDetailsForm
+              client={client}
+              onSaved={handleSaved}
+              onCancel={() => setActiveTab("overview")}
+            />
+            <div className="pt-6 border-t border-[var(--border)]">
+              <h3 className="text-sm font-semibold text-[var(--foreground)] mb-1">
+                Billing connections
+              </h3>
+              <p className="text-xs text-[var(--muted)] mb-4">
+                Link recurring Converge profiles for this client and track payment issues.
+              </p>
+              <ClientBillingHealth clientId={client.id} />
+            </div>
+          </div>
         )}
       </div>
     </div>

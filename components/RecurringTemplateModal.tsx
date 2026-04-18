@@ -12,6 +12,7 @@ import {
 import { PriorityDropdown } from "./TicketPriorityBadge";
 import ClientDropdown from "./ClientDropdown";
 import DatePicker from "./DatePicker";
+import FilterDropdown from "./FilterDropdown";
 
 const TiptapEditor = dynamic(() => import("./TiptapEditor"), { ssr: false });
 
@@ -292,16 +293,15 @@ export default function RecurringTemplateModal({
                   <span className="text-sm text-[var(--muted)]">Project</span>
                 </div>
                 {clientId ? (
-                  <select
-                    value={projectId ?? ""}
-                    onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)}
-                    className="text-sm border border-[var(--border)] rounded-lg px-2.5 py-1.5 bg-white text-[var(--foreground)] outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                  >
-                    <option value="">No project</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                  <FilterDropdown
+                    label=""
+                    value={projectId != null ? String(projectId) : ""}
+                    onChange={(v) => setProjectId(v ? Number(v) : null)}
+                    options={[
+                      { value: "", label: "No project" },
+                      ...projects.map((p) => ({ value: String(p.id), label: p.name })),
+                    ]}
+                  />
                 ) : (
                   <span className="text-sm text-gray-300">Select client first</span>
                 )}
@@ -346,15 +346,15 @@ export default function RecurringTemplateModal({
                   </svg>
                   <span className="text-sm text-[var(--muted)]">Repeat</span>
                 </div>
-                <select
+                <FilterDropdown
+                  label=""
                   value={recurrenceRule}
-                  onChange={(e) => setRecurrenceRule(e.target.value as RecurrenceRule)}
-                  className="text-sm border border-[var(--border)] rounded-lg px-2.5 py-1.5 bg-white text-[var(--foreground)] outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                >
-                  {(Object.keys(RECURRENCE_LABELS) as RecurrenceRule[]).map((rule) => (
-                    <option key={rule} value={rule}>{RECURRENCE_LABELS[rule]}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setRecurrenceRule(v as RecurrenceRule)}
+                  options={(Object.keys(RECURRENCE_LABELS) as RecurrenceRule[]).map((rule) => ({
+                    value: String(rule),
+                    label: RECURRENCE_LABELS[rule],
+                  }))}
+                />
               </div>
 
               {/* Recurrence Day */}
@@ -366,15 +366,12 @@ export default function RecurringTemplateModal({
                   <span className="text-sm text-[var(--muted)]">On day</span>
                 </div>
                 {isWeekly ? (
-                  <select
-                    value={recurrenceDay}
-                    onChange={(e) => setRecurrenceDay(Number(e.target.value))}
-                    className="text-sm border border-[var(--border)] rounded-lg px-2.5 py-1.5 bg-white text-[var(--foreground)] outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                  >
-                    {DAY_NAMES.map((name, i) => (
-                      <option key={i} value={i}>{name}</option>
-                    ))}
-                  </select>
+                  <FilterDropdown
+                    label=""
+                    value={String(recurrenceDay)}
+                    onChange={(v) => setRecurrenceDay(Number(v))}
+                    options={DAY_NAMES.map((name, i) => ({ value: String(i), label: name }))}
+                  />
                 ) : (
                   <div className="flex items-center gap-2">
                     <input

@@ -44,6 +44,16 @@ export const create = mutation({
     const entry = await ctx.db.get(args.timesheetEntryId);
     if (!entry) throw new Error("Timesheet entry not found");
 
+    // Duplicate protection: return existing pending request instead of creating another
+    const existing = await ctx.db
+      .query("timesheetChangeRequests")
+      .withIndex("by_timesheetEntryId", (q) =>
+        q.eq("timesheetEntryId", args.timesheetEntryId)
+      )
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .first();
+    if (existing) return existing;
+
     // Compute minutes delta
     let minutesDelta: number | undefined;
     if (args.proposedClockOut && entry.clockOutTime) {
@@ -71,6 +81,12 @@ export const create = mutation({
       status: "pending",
       minutesDelta,
     });
+
+    // Mark the entry so the "fix your timecard" modal won't re-trigger
+    await ctx.db.patch(args.timesheetEntryId, {
+      changeRequest: { status: "pending", changeRequestId: id },
+    });
+
     return await ctx.db.get(id);
   },
 });
@@ -115,6 +131,42 @@ export const approve = mutation({
   },
 });
 
+// One-time cleanup: deduplicate pending change requests per entry.
+// Keeps the most recent pending request, auto-denies the rest.
+export const deduplicatePending = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const pending = await ctx.db
+      .query("timesheetChangeRequests")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .order("desc")
+      .take(200);
+
+    // Group by timesheetEntryId, keep first (most recent), deny the rest
+    const seen = new Set<string>();
+    let closed = 0;
+    for (const req of pending) {
+      const key = req.timesheetEntryId;
+      if (!seen.has(key)) {
+        seen.add(key);
+        // Ensure the entry has the changeRequest marker
+        await ctx.db.patch(req.timesheetEntryId, {
+          changeRequest: { status: "pending", changeRequestId: req._id },
+        });
+        continue;
+      }
+      // Duplicate — auto-deny
+      await ctx.db.patch(req._id, {
+        status: "denied",
+        reviewNote: "Auto-closed duplicate",
+        reviewedAt: new Date().toISOString(),
+      });
+      closed++;
+    }
+    return { closed, uniqueEntries: seen.size };
+  },
+});
+
 export const deny = mutation({
   args: {
     id: v.id("timesheetChangeRequests"),
@@ -131,6 +183,10 @@ export const deny = mutation({
       reviewedAt: new Date().toISOString(),
       reviewNote: args.reviewNote,
     });
+
+    // Clear the changeRequest marker so the user is prompted to submit a new fix
+    await ctx.db.patch(request.timesheetEntryId, { changeRequest: undefined });
+
     return await ctx.db.get(args.id);
   },
 });

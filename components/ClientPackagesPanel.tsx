@@ -160,15 +160,15 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
     const price = a.customPrice ?? a.packageDefaultPrice ?? 0;
     const isCustom = a.customPrice !== null && a.customPrice !== a.packageDefaultPrice;
     return (
-      <tr key={a.id} className="border-b border-[var(--border)] hover:bg-[var(--accent-light)] transition">
-        <td className="px-4 py-3 font-medium text-[var(--foreground)]">{a.packageName}</td>
-        <td className="px-4 py-3">
+      <tr key={a.id} className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] transition">
+        <td className="px-2 py-3 font-medium text-[var(--foreground)]">{a.packageName}</td>
+        <td className="px-2 py-3">
           {formatCurrency(price)}/{billingLabel(a)} <span className="text-[10px] text-[var(--muted)]">{currency}</span>
           {isCustom && (
             <span className="ml-1 text-[10px] text-[var(--accent)]">custom</span>
           )}
         </td>
-        <td className="px-4 py-3 text-[var(--muted)]">
+        <td className="px-2 py-3 text-[var(--muted)]">
           {a.applySetupFee ? (
             <>
               {formatCurrency(a.customSetupFee ?? a.packageSetupFee ?? 0)}
@@ -180,11 +180,11 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
             <span className="text-xs">—</span>
           )}
         </td>
-        <td className="px-4 py-3 text-[var(--muted)]">{a.signupDate}</td>
-        <td className={`px-4 py-3 text-xs ${contractStyle(a.contractEndDate)}`}>
+        <td className="px-2 py-3 text-[var(--muted)]">{a.signupDate}</td>
+        <td className={`px-2 py-3 text-xs ${contractStyle(a.contractEndDate)}`}>
           {contractLabel(a.contractEndDate)}
         </td>
-        <td className="px-4 py-3">
+        <td className="px-2 py-3">
           <ThreeDotMenu assignment={a} />
         </td>
       </tr>
@@ -195,23 +195,23 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
     const price = a.customPrice ?? a.packageDefaultPrice ?? 0;
     return (
       <tr key={a.id} className="border-b border-[var(--border)] bg-amber-50/50">
-        <td className="px-4 py-3">
+        <td className="px-2 py-3">
           <span className="font-medium text-[var(--foreground)]">{a.packageName}</span>
           <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">
             Canceling
           </span>
         </td>
-        <td className="px-4 py-3 text-[var(--muted)]">
+        <td className="px-2 py-3 text-[var(--muted)]">
           {formatCurrency(price)}/{billingLabel(a)}
         </td>
-        <td className="px-4 py-3 text-[var(--muted)]" colSpan={2}>
+        <td className="px-2 py-3 text-[var(--muted)]" colSpan={2}>
           Ends {a.effectiveEndDate ? friendlyMonth(a.effectiveEndDate) : "—"}
         </td>
-        <td className="px-4 py-3 text-xs text-[var(--muted)]">
+        <td className="px-2 py-3 text-xs text-[var(--muted)]">
           Canceled {a.canceledAt}
           {a.cancellationFee ? ` · Fee: ${formatCurrency(a.cancellationFee)}` : ""}
         </td>
-        <td className="px-4 py-3" />
+        <td className="px-2 py-3" />
       </tr>
     );
   }
@@ -220,16 +220,16 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
     const price = a.customPrice ?? a.packageDefaultPrice ?? 0;
     return (
       <tr key={a.id} className="border-b border-[var(--border)] opacity-50">
-        <td className="px-4 py-3 font-medium">{a.packageName}</td>
-        <td className="px-4 py-3">{formatCurrency(price)}/{billingLabel(a)}</td>
-        <td className="px-4 py-3" colSpan={2}>
+        <td className="px-2 py-3 font-medium">{a.packageName}</td>
+        <td className="px-2 py-3">{formatCurrency(price)}/{billingLabel(a)}</td>
+        <td className="px-2 py-3" colSpan={2}>
           {a.signupDate} → {a.effectiveEndDate || "—"}
         </td>
-        <td className="px-4 py-3 text-xs">
+        <td className="px-2 py-3 text-xs">
           {a.canceledBy ? `by ${a.canceledBy}` : ""}
           {a.cancellationFee ? ` · Fee: ${formatCurrency(a.cancellationFee)}` : ""}
         </td>
-        <td className="px-4 py-3" />
+        <td className="px-2 py-3" />
       </tr>
     );
   }
@@ -238,16 +238,16 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
     const price = a.customPrice ?? a.packageDefaultPrice ?? 0;
     const isCustom = a.customPrice !== null && a.customPrice !== a.packageDefaultPrice;
     return (
-      <tr key={a.id} className="border-b border-[var(--border)] hover:bg-[var(--accent-light)] transition">
-        <td className="px-4 py-3 font-medium text-[var(--foreground)]">{a.packageName}</td>
-        <td className="px-4 py-3">
+      <tr key={a.id} className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] transition">
+        <td className="px-2 py-3 font-medium text-[var(--foreground)]">{a.packageName}</td>
+        <td className="px-2 py-3">
           {formatCurrency(price)}/{billingLabel(a)} <span className="text-[10px] text-[var(--muted)]">{currency}</span>
           {isCustom && (
             <span className="ml-1 text-[10px] text-[var(--accent)]">custom</span>
           )}
         </td>
-        <td className="px-4 py-3 text-[var(--muted)]">{a.paidDate || a.signupDate}</td>
-        <td className="px-4 py-3" />
+        <td className="px-2 py-3 text-[var(--muted)]">{a.paidDate || a.signupDate}</td>
+        <td className="px-2 py-3" />
       </tr>
     );
   }
@@ -288,13 +288,13 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
             <div className="overflow-visible">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
-                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Package</th>
-                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Price</th>
-                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Setup Fee</th>
-                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Sign-up Date</th>
-                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Contract</th>
-                    <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]" />
+                  <tr className="border-b border-[var(--border)]">
+                    <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Package</th>
+                    <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Price</th>
+                    <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Setup Fee</th>
+                    <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Sign-up Date</th>
+                    <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Contract</th>
+                    <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap" />
                   </tr>
                 </thead>
                 <tbody>
@@ -324,12 +324,12 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
                 <div className="overflow-x-auto mt-2">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-[var(--border)]">
-                        <th className="px-4 py-2 text-left font-medium text-[var(--muted)]">Package</th>
-                        <th className="px-4 py-2 text-left font-medium text-[var(--muted)]">Price</th>
-                        <th className="px-4 py-2 text-left font-medium text-[var(--muted)]" colSpan={2}>Period</th>
-                        <th className="px-4 py-2 text-left font-medium text-[var(--muted)]">Details</th>
-                        <th className="px-4 py-2" />
+                      <tr className="border-b border-[var(--border)]">
+                        <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Package</th>
+                        <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Price</th>
+                        <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap" colSpan={2}>Period</th>
+                        <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Details</th>
+                        <th className="px-2 py-2.5" />
                       </tr>
                     </thead>
                     <tbody>
@@ -350,11 +350,11 @@ export default function ClientPackagesPanel({ clientId, clientCountry = "US", on
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
-                      <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Description</th>
-                      <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Amount</th>
-                      <th className="px-4 py-3 text-left font-medium text-[var(--foreground)]">Paid Date</th>
-                      <th className="px-4 py-3" />
+                    <tr className="border-b border-[var(--border)]">
+                      <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Description</th>
+                      <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Amount</th>
+                      <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Paid Date</th>
+                      <th className="px-2 py-2.5" />
                     </tr>
                   </thead>
                   <tbody>

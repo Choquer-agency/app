@@ -3,12 +3,12 @@
 import { TicketStatus, TicketStage, isOverdueEligible } from "@/types";
 
 const STATUS_CONFIG: Record<TicketStatus, { label: string; bg: string; text: string; dot: string }> = {
-  needs_attention: { label: "Needs Attention", bg: "bg-orange-100", text: "text-orange-700", dot: "#f97316" },
+  needs_attention: { label: "Backlog", bg: "bg-orange-100", text: "text-orange-700", dot: "#f97316" },
   stuck: { label: "Stuck", bg: "bg-red-100", text: "text-red-700", dot: "#ef4444" },
   in_progress: { label: "In Progress", bg: "bg-blue-100", text: "text-blue-700", dot: "#3b82f6" },
   qa_ready: { label: "QA Ready", bg: "bg-purple-100", text: "text-purple-700", dot: "#a855f7" },
-  client_review: { label: "Client Review", bg: "bg-yellow-100", text: "text-yellow-700", dot: "#eab308" },
-  approved_go_live: { label: "Approved / Go Live", bg: "bg-green-100", text: "text-green-700", dot: "#22c55e" },
+  client_review: { label: "In Review", bg: "bg-yellow-100", text: "text-yellow-700", dot: "#eab308" },
+  approved_go_live: { label: "Approved", bg: "bg-green-100", text: "text-green-700", dot: "#22c55e" },
   closed: { label: "Closed", bg: "bg-green-100", text: "text-green-700", dot: "#22c55e" },
 };
 

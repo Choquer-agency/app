@@ -97,15 +97,15 @@ export default function ProfitabilityTab() {
       {/* Month selector */}
       <div className="flex items-center gap-2">
         <span className="text-xs text-[#9CA3AF]">Month:</span>
-        <div className="flex items-center bg-[#F5F5F5] rounded-lg p-0.5">
+        <div className="flex items-center bg-[var(--hover-tan)] rounded-lg p-0.5">
           {months.reverse().map((m) => (
             <button
               key={m}
               onClick={() => setSelectedMonth(m)}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
                 selectedMonth === m
-                  ? "bg-[#1A1A1A] text-white shadow-sm"
-                  : "text-[#6B7280] hover:text-[#1A1A1A]"
+                  ? "bg-white text-[var(--foreground)] shadow-sm"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
               }`}
             >
               {friendlyMonth(m)}
@@ -115,16 +115,16 @@ export default function ProfitabilityTab() {
       </div>
 
       {/* Client table */}
-      <div className="border border-[#E5E5E5] rounded-xl bg-white overflow-hidden">
+      <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#F0F0F0]">
-              <th className="text-left px-4 py-3 text-xs font-medium text-[#9CA3AF]">Client</th>
-              <th className="text-right px-4 py-3 text-xs font-medium text-[#9CA3AF]">Included</th>
-              <th className="text-right px-4 py-3 text-xs font-medium text-[#9CA3AF]">Logged</th>
-              <th className="text-right px-4 py-3 text-xs font-medium text-[#9CA3AF]">Overage</th>
-              <th className="text-right px-4 py-3 text-xs font-medium text-[#9CA3AF]">Cost</th>
-              <th className="text-right px-4 py-3 text-xs font-medium text-[#9CA3AF]">Status</th>
+            <tr className="border-b border-[var(--border)]">
+              <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Client</th>
+              <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Included</th>
+              <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Logged</th>
+              <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Overage</th>
+              <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Cost</th>
+              <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -132,21 +132,21 @@ export default function ProfitabilityTab() {
               const s = STATUS_COLORS[c.status];
               const pctUsed = c.includedHours > 0 ? (c.loggedHours / c.includedHours) * 100 : 0;
               return (
-                <tr key={c.clientId} className="border-t border-[#F0F0F0] hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-[#1A1A1A]">{c.clientName}</td>
-                  <td className="px-4 py-3 text-right text-[#9CA3AF]">{fmtHours(c.includedHours)}</td>
-                  <td className="px-4 py-3 text-right text-[#1A1A1A]">{fmtHours(c.loggedHours)}</td>
-                  <td className="px-4 py-3 text-right">
+                <tr key={c.clientId} className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)]">
+                  <td className="px-2 py-3 font-medium text-[#1A1A1A]">{c.clientName}</td>
+                  <td className="px-2 py-3 text-right text-[#9CA3AF]">{fmtHours(c.includedHours)}</td>
+                  <td className="px-2 py-3 text-right text-[#1A1A1A]">{fmtHours(c.loggedHours)}</td>
+                  <td className="px-2 py-3 text-right">
                     {c.overage > 0 ? (
                       <span className="text-red-600">+{fmtHours(c.overage)}</span>
                     ) : (
                       <span className="text-green-600">{fmtHours(c.overage)}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right text-[#1A1A1A]">
+                  <td className="px-2 py-3 text-right text-[#1A1A1A]">
                     {c.overageCost > 0 ? fmtMoney(c.overageCost) : "—"}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-2 py-3 text-right">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>
                       {Math.round(pctUsed)}%
                     </span>

@@ -9,6 +9,7 @@ export interface UtilizationMember {
   memberName: string;
   memberColor: string;
   totalHours: number;
+  clockedHours: number;
   availableHours: number;
   utilizationPct: number;
   byClient: Array<{ clientId: string | null; clientName: string | null; hours: number }>;
@@ -18,6 +19,7 @@ export interface UtilizationReport {
   members: UtilizationMember[];
   period: { start: string; end: string };
   totalTeamHours: number;
+  totalClockedHours: number;
   avgUtilization: number;
 }
 
@@ -46,21 +48,33 @@ export interface ProfitabilityReport {
   month: string;
 }
 
+export interface VelocityTicket {
+  ticketId: string;
+  ticketNumber: string;
+  title: string;
+  status: string;
+  resolutionHours: number | null;
+  assignees: Array<{ name: string; profilePicUrl: string }>;
+}
+
 export interface VelocityResolution {
   clientId: string | null;
   clientName: string | null;
-  projectId: string | null;
-  projectName: string | null;
   ticketsClosed: number;
+  ticketsCreated: number;
+  ticketsOpen: number;
   avgResolutionHours: number;
+  tickets: VelocityTicket[];
 }
 
 export interface VelocityReport {
   avgResolution: VelocityResolution[];
-  weeklyThroughput: Array<{ weekStart: string; ticketsClosed: number }>;
+  weeklyThroughput: Array<{ weekStart: string; ticketsClosed: number; ticketsCreated: number }>;
   statusDurations: Array<{ status: string; avgHours: number }>;
   overallAvgHours: number;
   totalClosed: number;
+  totalCreated: number;
+  totalOpen: number;
 }
 
 export interface PerformanceMember {
@@ -102,6 +116,8 @@ export interface RevenueReport {
   revenueByCategory: Array<{ category: string; revenue: number }>;
   clientLtv: Array<{ clientId: string; clientName: string; mrr: number; monthsActive: number; ltv: number }>;
   projectedAnnualRevenue: number;
+  lockedRevenue: number;
+  remainingMonths: number;
 }
 
 export interface ForecastDeadline {
@@ -138,7 +154,16 @@ export interface ForecastingReport {
 
 export async function getUtilizationReport(start: string, end: string): Promise<UtilizationReport> {
   const convex = getConvexClient();
-  const members = await convex.query(api.teamMembers.list, { activeOnly: true });
+  const allMembers = await convex.query(api.teamMembers.list, { activeOnly: true });
+
+  const members = (allMembers as any[]).filter(
+    (m) =>
+      m.active !== false &&
+      m.roleLevel !== "owner" &&
+      m.roleLevel !== "bookkeeper" &&
+      m.employeeStatus !== "terminated" &&
+      m.employeeStatus !== "past_employee"
+  );
 
   const startDate = new Date(start);
   const endDate = new Date(end);
@@ -146,6 +171,15 @@ export async function getUtilizationReport(start: string, end: string): Promise<
 
   // Fetch all time entries for the period
   const allEntries = await convex.query(api.timeEntries.listAll, { limit: 5000 });
+
+  // Fetch timesheet entries (clock-in/out) for the period to compute clocked hours
+  const startDay = startDate.toISOString().slice(0, 10);
+  const endDay = endDate.toISOString().slice(0, 10);
+  const timesheetEntries = await convex.query(api.timesheetEntries.listByDateRange, {
+    startDate: startDay,
+    endDate: endDay,
+    limit: 5000,
+  });
 
   // Build a ticket->client map for entries in range
   const ticketClientMap = new Map<string, { clientId: string | null; clientName: string | null }>();
@@ -208,18 +242,34 @@ export async function getUtilizationReport(start: string, end: string): Promise<
     const availableHours = (m.availableHoursPerWeek ?? 40) * weeks;
     const utilizationPct = availableHours > 0 ? Math.round((totalHours / availableHours) * 100) : 0;
 
+    // Salaried employees: clocked = their goal (availableHoursPerWeek × weeks)
+    // Hourly employees: clocked = actual timesheet clock-in/out minus breaks
+    let clockedHours: number;
+    if (m.payType === "salary") {
+      clockedHours = availableHours;
+    } else {
+      const clockedMinutes = (timesheetEntries as any[])
+        .filter((t) => t.teamMemberId === m._id)
+        .reduce((sum, t) => sum + (t.workedMinutes ?? 0), 0);
+      clockedHours = Math.round((clockedMinutes / 60) * 100) / 100;
+    }
+
     memberList.push({
       teamMemberId: m._id,
       memberName: m.name,
       memberColor: m.color || "#6B7280",
       totalHours: Math.round(totalHours * 100) / 100,
+      clockedHours,
       availableHours,
       utilizationPct,
       byClient,
     });
   }
 
+  memberList.sort((a, b) => b.utilizationPct - a.utilizationPct);
+
   const totalTeamHours = memberList.reduce((sum, m) => sum + m.totalHours, 0);
+  const totalClockedHours = memberList.reduce((sum, m) => sum + m.clockedHours, 0);
   const avgUtilization = memberList.length > 0
     ? Math.round(memberList.reduce((sum, m) => sum + m.utilizationPct, 0) / memberList.length)
     : 0;
@@ -228,6 +278,7 @@ export async function getUtilizationReport(start: string, end: string): Promise<
     members: memberList,
     period: { start, end },
     totalTeamHours: Math.round(totalTeamHours * 100) / 100,
+    totalClockedHours: Math.round(totalClockedHours * 100) / 100,
     avgUtilization,
   };
 }
@@ -327,21 +378,32 @@ export interface BillableHoursMember {
   totalHours: number;
   billableHours: number;
   internalHours: number;
+  untrackedHours: number;
   utilizationPct: number;
   totalCost: number;
+}
+
+export interface BillableHoursTicket {
+  ticketId: string;
+  ticketNumber: string;
+  title: string;
+  hours: number;
+  memberNames: string[];
 }
 
 export interface BillableHoursClient {
   clientId: string;
   clientName: string;
+  billable: boolean;
   revenue: number;
   costOfDelivery: number;
   grossProfit: number;
   marginPct: number;
   loggedHours: number;
   includedHours: number;
-  byCategory: Array<{ category: string; hours: number }>;
+  packageCategories: string[];
   byMember: Array<{ memberName: string; hours: number; cost: number }>;
+  tickets: BillableHoursTicket[];
 }
 
 export interface BillableHoursReport {
@@ -352,6 +414,7 @@ export interface BillableHoursReport {
     totalBillableHours: number;
     totalInternalHours: number;
     totalCostOfDelivery: number;
+    totalEmployeeCost: number;
     totalRevenue: number;
     blendedMarginPct: number;
   };
@@ -379,7 +442,16 @@ export async function getBillableHoursReport(month: string): Promise<BillableHou
   const endDay = new Date(monthEnd.getTime() - 1);
   const endDateStr = `${endDay.getFullYear()}-${String(endDay.getMonth() + 1).padStart(2, "0")}-${String(endDay.getDate()).padStart(2, "0")}`;
 
-  const allMembers = await convex.query(api.teamMembers.list, { activeOnly: true });
+  const allMembersRaw = await convex.query(api.teamMembers.list, { activeOnly: true });
+  // Filter same as utilization report
+  const allMembers = (allMembersRaw as any[]).filter(
+    (m) =>
+      m.active !== false &&
+      m.roleLevel !== "owner" &&
+      m.roleLevel !== "bookkeeper" &&
+      m.employeeStatus !== "terminated" &&
+      m.employeeStatus !== "past_employee"
+  );
   const allClients = await convex.query(api.clients.list, {});
 
   // 1. Get TIMESHEET data (clock in/out) = total hours worked per employee
@@ -429,12 +501,14 @@ export async function getBillableHoursReport(month: string): Promise<BillableHou
     memberWorkedMinutes.set(entry.teamMemberId, (memberWorkedMinutes.get(entry.teamMemberId) || 0) + minutes);
   }
 
-  // Accumulate BILLABLE HOURS from ticket time entries
+  // Accumulate BILLABLE HOURS and INTERNAL HOURS from ticket time entries
   const memberBillableSeconds = new Map<string, number>();
+  const memberInternalTicketSeconds = new Map<string, number>();
   const clientData = new Map<string, {
     seconds: number;
     byMember: Map<string, number>;
     byCategory: Map<string, number>;
+    byTicket: Map<string, { seconds: number; members: Set<string> }>;
   }>();
 
   for (const entry of monthTicketEntries) {
@@ -450,31 +524,57 @@ export async function getBillableHoursReport(month: string): Promise<BillableHou
     const clientId = ticket?.clientId || null;
     const category = ticket?.serviceCategory || "other";
 
-    // Only count as billable if it's on a client ticket
+    // Only count as billable if it's on a client ticket with a billable client
+    const clientDoc = clientId ? (allClients as any[]).find((c) => c._id === clientId) : null;
+    const isClientBillable = clientDoc ? (clientDoc.billable ?? true) : false;
     if (clientId) {
-      memberBillableSeconds.set(memberId, (memberBillableSeconds.get(memberId) || 0) + seconds);
+      if (isClientBillable) {
+        memberBillableSeconds.set(memberId, (memberBillableSeconds.get(memberId) || 0) + seconds);
+      }
 
       if (!clientData.has(clientId)) {
-        clientData.set(clientId, { seconds: 0, byMember: new Map(), byCategory: new Map() });
+        clientData.set(clientId, { seconds: 0, byMember: new Map(), byCategory: new Map(), byTicket: new Map() });
       }
       const cd = clientData.get(clientId)!;
       cd.seconds += seconds;
       cd.byMember.set(memberId, (cd.byMember.get(memberId) || 0) + seconds);
       cd.byCategory.set(category, (cd.byCategory.get(category) || 0) + seconds);
+      const ticketId = entry.ticketId;
+      if (!cd.byTicket.has(ticketId)) {
+        cd.byTicket.set(ticketId, { seconds: 0, members: new Set() });
+      }
+      const td = cd.byTicket.get(ticketId)!;
+      td.seconds += seconds;
+      if (memberId) td.members.add(memberId);
+    } else {
+      // No client = internal ticket work
+      memberInternalTicketSeconds.set(memberId, (memberInternalTicketSeconds.get(memberId) || 0) + seconds);
     }
   }
 
-  // Build member results — include ALL members who have timesheet hours OR ticket hours
-  const allMemberIds = new Set([...memberWorkedMinutes.keys(), ...memberBillableSeconds.keys()]);
+  // Compute weeks in month for salary override
+  const daysInMonth = (monthEnd.getTime() - monthStart.getTime()) / (24 * 60 * 60 * 1000);
+  const weeksInMonth = Math.max(1, Math.round(daysInMonth / 7));
+
+  // Build member results — include ALL filtered members
   const members: BillableHoursMember[] = [];
 
-  for (const memberId of allMemberIds) {
+  for (const m of allMembers as any[]) {
+    const memberId = m._id;
     const info = memberRateMap.get(memberId);
     if (!info) continue;
 
-    const totalHours = Math.round(((memberWorkedMinutes.get(memberId) || 0) / 60) * 100) / 100;
+    // Salary employees: total hours = their weekly goal × weeks in month
+    let totalHours: number;
+    if (m.payType === "salary") {
+      totalHours = (m.availableHoursPerWeek ?? 40) * weeksInMonth;
+    } else {
+      totalHours = Math.round(((memberWorkedMinutes.get(memberId) || 0) / 60) * 100) / 100;
+    }
+
     const billableHours = Math.round(((memberBillableSeconds.get(memberId) || 0) / 3600) * 100) / 100;
-    const internalHours = Math.round((totalHours - billableHours) * 100) / 100;
+    const internalHours = Math.round(((memberInternalTicketSeconds.get(memberId) || 0) / 3600) * 100) / 100;
+    const untrackedHours = Math.max(0, Math.round((totalHours - billableHours - internalHours) * 100) / 100);
 
     members.push({
       teamMemberId: memberId,
@@ -483,64 +583,101 @@ export async function getBillableHoursReport(month: string): Promise<BillableHou
       effectiveRate: Math.round(info.rate * 100) / 100,
       totalHours,
       billableHours,
-      internalHours: Math.max(0, internalHours), // Clamp to 0 in case of rounding
+      internalHours,
+      untrackedHours,
       utilizationPct: totalHours > 0 ? Math.round((billableHours / totalHours) * 100) : 0,
       totalCost: Math.round(totalHours * info.rate * 100) / 100,
     });
   }
   members.sort((a, b) => b.totalHours - a.totalHours);
 
-  // Build client results
+  // Build client results — include ALL clients with active packages
   const clients: BillableHoursClient[] = [];
-  for (const [clientId, data] of clientData) {
-    const clientName = clientNameMap.get(clientId) || "Unknown";
+  const clientBillableMap = new Map<string, boolean>();
+  for (const c of allClients as any[]) {
+    clientBillableMap.set(c._id, c.billable ?? true);
+  }
 
-    // Calculate cost of delivery
-    let costOfDelivery = 0;
-    const byMember: Array<{ memberName: string; hours: number; cost: number }> = [];
-    for (const [memberId, seconds] of data.byMember) {
-      const info = memberRateMap.get(memberId);
-      if (!info) continue;
-      const hours = Math.round((seconds / 3600) * 100) / 100;
-      const cost = Math.round(hours * info.rate * 100) / 100;
-      costOfDelivery += cost;
-      byMember.push({ memberName: info.name, hours, cost });
-    }
+  for (const c of allClients as any[]) {
+    const clientId = c._id;
+    const clientName = c.name;
+    const isBillable = c.billable ?? true;
 
-    // Category breakdown
-    const byCategory: Array<{ category: string; hours: number }> = [];
-    for (const [cat, seconds] of data.byCategory) {
-      byCategory.push({ category: cat, hours: Math.round((seconds / 3600) * 100) / 100 });
-    }
-
-    // Get revenue from packages
+    // Get packages for this client
     let revenue = 0;
     let includedHours = 0;
+    const packageCategories: string[] = [];
+    let hasActivePackages = false;
     try {
       const packages = await convex.query(api.clientPackages.listByClient, { clientId: clientId as any });
       for (const cp of packages as any[]) {
-        if (cp.active && !cp.isOneTime) {
-          revenue += cp.customPrice ?? cp.packageDefaultPrice ?? 0;
-          includedHours += cp.customHours ?? cp.packageHoursIncluded ?? 0;
+        if (cp.active) {
+          hasActivePackages = true;
+          const pkgName = (cp.packageName || "").toLowerCase();
+          const cat = pkgName.includes("hosting") ? "hosting" : (cp.packageCategory || "other");
+          if (!packageCategories.includes(cat)) packageCategories.push(cat);
+          if (!cp.isOneTime) {
+            revenue += cp.customPrice ?? cp.packageDefaultPrice ?? 0;
+            includedHours += cp.customHours ?? cp.packageHoursIncluded ?? 0;
+          } else {
+            // One-time packages: include hours for tracking but not monthly revenue
+            includedHours += cp.customHours ?? cp.packageHoursIncluded ?? 0;
+          }
         }
       }
     } catch {}
 
-    const loggedHours = Math.round((data.seconds / 3600) * 100) / 100;
+    // Skip clients with no active packages and no logged hours
+    const cd = clientData.get(clientId);
+    if (!hasActivePackages && !cd) continue;
+
+    // Calculate cost of delivery from logged hours
+    let costOfDelivery = 0;
+    const byMember: Array<{ memberName: string; hours: number; cost: number }> = [];
+    if (cd) {
+      for (const [memberId, seconds] of cd.byMember) {
+        const info = memberRateMap.get(memberId);
+        if (!info) continue;
+        const hours = Math.round((seconds / 3600) * 100) / 100;
+        const cost = Math.round(hours * info.rate * 100) / 100;
+        costOfDelivery += cost;
+        byMember.push({ memberName: info.name, hours, cost });
+      }
+    }
+
+    const loggedHours = cd ? Math.round((cd.seconds / 3600) * 100) / 100 : 0;
     const grossProfit = Math.round((revenue - costOfDelivery) * 100) / 100;
     const marginPct = revenue > 0 ? Math.round((grossProfit / revenue) * 100) : 0;
+
+    // Build ticket breakdown
+    const tickets: BillableHoursTicket[] = [];
+    if (cd) {
+      for (const [ticketId, td] of cd.byTicket) {
+        const ticket = ticketMap.get(ticketId);
+        tickets.push({
+          ticketId,
+          ticketNumber: ticket?.ticketNumber || "",
+          title: ticket?.title || "Untitled",
+          hours: Math.round((td.seconds / 3600) * 100) / 100,
+          memberNames: [...td.members].map((mid) => memberRateMap.get(mid)?.name?.split(" ")[0] || "").filter(Boolean),
+        });
+      }
+      tickets.sort((a, b) => b.hours - a.hours);
+    }
 
     clients.push({
       clientId,
       clientName,
+      billable: isBillable,
       revenue: Math.round(revenue * 100) / 100,
       costOfDelivery: Math.round(costOfDelivery * 100) / 100,
       grossProfit,
       marginPct,
       loggedHours,
       includedHours,
-      byCategory,
+      packageCategories,
       byMember,
+      tickets,
     });
   }
   clients.sort((a, b) => b.revenue - a.revenue);
@@ -549,8 +686,9 @@ export async function getBillableHoursReport(month: string): Promise<BillableHou
   const totalBillableHours = members.reduce((s, m) => s + m.billableHours, 0);
   const totalInternalHours = members.reduce((s, m) => s + m.internalHours, 0);
   const totalCostOfDelivery = clients.reduce((s, c) => s + c.costOfDelivery, 0);
+  const totalEmployeeCost = members.reduce((s, m) => s + m.totalCost, 0);
   const totalRevenue = clients.reduce((s, c) => s + c.revenue, 0);
-  const blendedMarginPct = totalRevenue > 0 ? Math.round(((totalRevenue - totalCostOfDelivery) / totalRevenue) * 100) : 0;
+  const blendedMarginPct = totalRevenue > 0 ? Math.round(((totalRevenue - totalEmployeeCost) / totalRevenue) * 100) : 0;
 
   return {
     month: monthStr,
@@ -560,6 +698,7 @@ export async function getBillableHoursReport(month: string): Promise<BillableHou
       totalBillableHours: Math.round(totalBillableHours * 100) / 100,
       totalInternalHours: Math.round(totalInternalHours * 100) / 100,
       totalCostOfDelivery: Math.round(totalCostOfDelivery * 100) / 100,
+      totalEmployeeCost: Math.round(totalEmployeeCost * 100) / 100,
       totalRevenue: Math.round(totalRevenue * 100) / 100,
       blendedMarginPct,
     },
@@ -571,67 +710,151 @@ export async function getVelocityReport(weeks: number = 12): Promise<VelocityRep
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - weeks * 7);
   const cutoffStr = cutoff.toISOString();
+  const cutoffMs = cutoff.getTime();
 
-  // Fetch closed tickets
+  // Fetch all tickets (not just closed)
   const allTickets = await convex.query(api.tickets.list, {
+    archived: false,
+    limit: 2000,
+  });
+
+  // Also fetch closed tickets separately since they may be filtered differently
+  const closedTickets = await convex.query(api.tickets.list, {
     status: "closed",
     archived: false,
-    limit: 500,
+    limit: 1000,
   });
 
-  // Filter to tickets closed within the time window
-  const closedTickets = (allTickets as any[]).filter((t) => {
-    return t.closedAt && t.closedAt >= cutoffStr;
-  });
+  // Tickets closed in period
+  const closedInPeriod = (closedTickets as any[]).filter((t) => t.closedAt && t.closedAt >= cutoffStr);
 
-  // Calculate resolution times
+  // Tickets created in period
+  const createdInPeriod = (allTickets as any[]).filter((t) => t._creationTime >= cutoffMs);
+
+  // Tickets still open
+  const openTickets = (allTickets as any[]).filter((t) => t.status !== "closed");
+
+  // Resolve client names for all tickets
+  const clientNameCache = new Map<string, string>();
+  const allClients = await convex.query(api.clients.list, {});
+  for (const c of allClients as any[]) {
+    clientNameCache.set(c._id, c.name);
+  }
+
+  // Build member lookup
+  const allMembersRaw2 = await convex.query(api.teamMembers.list, { activeOnly: false });
+  const memberInfoCache = new Map<string, { name: string; profilePicUrl: string }>();
+  for (const m of allMembersRaw2 as any[]) {
+    memberInfoCache.set(m._id, { name: m.name?.split(" ")[0] || "", profilePicUrl: m.profilePicUrl || "" });
+  }
+
+  // Helper to resolve assignees for a ticket
+  async function getAssignees(ticketId: string): Promise<Array<{ name: string; profilePicUrl: string }>> {
+    try {
+      const assignees = await convex.query(api.ticketAssignees.listByTicket, { ticketId: ticketId as any });
+      return (assignees as any[]).map((a) => memberInfoCache.get(a.teamMemberId)).filter(Boolean) as Array<{ name: string; profilePicUrl: string }>;
+    } catch {
+      return [];
+    }
+  }
+
+  // Calculate resolution times + per-client stats
   const resolutionHours: number[] = [];
-  const byClient = new Map<string, { clientId: string | null; clientName: string | null; projectId: string | null; projectName: string | null; ticketsClosed: number; totalHours: number }>();
+  const byClient = new Map<string, { clientId: string | null; clientName: string | null; ticketsClosed: number; ticketsCreated: number; ticketsOpen: number; totalHours: number; tickets: VelocityTicket[] }>();
 
-  for (const t of closedTickets) {
+  function ensureClient(clientId: string | null) {
+    const key = clientId ?? "none";
+    if (!byClient.has(key)) {
+      byClient.set(key, {
+        clientId,
+        clientName: clientId ? (clientNameCache.get(clientId) || "Unknown") : "No Client",
+        ticketsClosed: 0,
+        ticketsCreated: 0,
+        ticketsOpen: 0,
+        totalHours: 0,
+        tickets: [],
+      });
+    }
+    return byClient.get(key)!;
+  }
+
+  // Track ticket IDs we've already added to avoid duplicates
+  const addedTickets = new Set<string>();
+
+  for (const t of closedInPeriod) {
     const created = new Date(t._creationTime).getTime();
     const closed = new Date(t.closedAt).getTime();
     const hours = (closed - created) / (1000 * 60 * 60);
     resolutionHours.push(hours);
-
-    const key = t.clientId ?? "none";
-    const existing = byClient.get(key);
-    if (existing) {
-      existing.ticketsClosed++;
-      existing.totalHours += hours;
-    } else {
-      byClient.set(key, {
-        clientId: t.clientId ?? null,
-        clientName: t.clientName ?? null,
-        projectId: t.projectId ?? null,
-        projectName: t.projectName ?? null,
-        ticketsClosed: 1,
-        totalHours: hours,
-      });
+    const entry = ensureClient(t.clientId ?? null);
+    entry.ticketsClosed++;
+    entry.totalHours += hours;
+    if (!addedTickets.has(t._id)) {
+      addedTickets.add(t._id);
+      const assignees = await getAssignees(t._id);
+      entry.tickets.push({ ticketId: t._id, ticketNumber: t.ticketNumber || "", title: t.title || "Untitled", status: t.status, resolutionHours: Math.round(hours * 10) / 10, assignees });
     }
   }
 
-  const avgResolution: VelocityResolution[] = Array.from(byClient.values()).map((c) => ({
-    clientId: c.clientId,
-    clientName: c.clientName,
-    projectId: c.projectId,
-    projectName: c.projectName,
-    ticketsClosed: c.ticketsClosed,
-    avgResolutionHours: c.ticketsClosed > 0 ? Math.round((c.totalHours / c.ticketsClosed) * 10) / 10 : 0,
-  }));
-
-  // Weekly throughput
-  const weeklyMap = new Map<string, number>();
-  for (const t of closedTickets) {
-    const closedDate = new Date(t.closedAt);
-    const day = closedDate.getDay();
-    const weekStart = new Date(closedDate);
-    weekStart.setDate(weekStart.getDate() - day);
-    const weekKey = weekStart.toISOString().split("T")[0];
-    weeklyMap.set(weekKey, (weeklyMap.get(weekKey) ?? 0) + 1);
+  for (const t of createdInPeriod) {
+    const entry = ensureClient(t.clientId ?? null);
+    entry.ticketsCreated++;
+    if (!addedTickets.has(t._id)) {
+      addedTickets.add(t._id);
+      const assignees = await getAssignees(t._id);
+      entry.tickets.push({ ticketId: t._id, ticketNumber: t.ticketNumber || "", title: t.title || "Untitled", status: t.status, resolutionHours: null, assignees });
+    }
   }
-  const weeklyThroughput = Array.from(weeklyMap.entries())
-    .map(([weekStart, ticketsClosed]) => ({ weekStart, ticketsClosed }))
+
+  for (const t of openTickets) {
+    const entry = ensureClient(t.clientId ?? null);
+    entry.ticketsOpen++;
+    if (!addedTickets.has(t._id)) {
+      addedTickets.add(t._id);
+      const assignees = await getAssignees(t._id);
+      entry.tickets.push({ ticketId: t._id, ticketNumber: t.ticketNumber || "", title: t.title || "Untitled", status: t.status, resolutionHours: null, assignees });
+    }
+  }
+
+  const avgResolution: VelocityResolution[] = Array.from(byClient.values())
+    .map((c) => ({
+      clientId: c.clientId,
+      clientName: c.clientName,
+      ticketsClosed: c.ticketsClosed,
+      ticketsCreated: c.ticketsCreated,
+      ticketsOpen: c.ticketsOpen,
+      avgResolutionHours: c.ticketsClosed > 0 ? Math.round((c.totalHours / c.ticketsClosed) * 10) / 10 : 0,
+      tickets: c.tickets.sort((a, b) => (b.ticketNumber || "").localeCompare(a.ticketNumber || "")),
+    }))
+    .sort((a, b) => b.ticketsClosed - a.ticketsClosed);
+
+  // Weekly throughput — closed AND created per week
+  const weeklyClosedMap = new Map<string, number>();
+  const weeklyCreatedMap = new Map<string, number>();
+
+  function getWeekKey(date: Date): string {
+    const d = new Date(date);
+    d.setDate(d.getDate() - d.getDay());
+    return d.toISOString().split("T")[0];
+  }
+
+  for (const t of closedInPeriod) {
+    const key = getWeekKey(new Date(t.closedAt));
+    weeklyClosedMap.set(key, (weeklyClosedMap.get(key) ?? 0) + 1);
+  }
+
+  for (const t of createdInPeriod) {
+    const key = getWeekKey(new Date(t._creationTime));
+    weeklyCreatedMap.set(key, (weeklyCreatedMap.get(key) ?? 0) + 1);
+  }
+
+  const allWeekKeys = new Set([...weeklyClosedMap.keys(), ...weeklyCreatedMap.keys()]);
+  const weeklyThroughput = Array.from(allWeekKeys)
+    .map((weekStart) => ({
+      weekStart,
+      ticketsClosed: weeklyClosedMap.get(weekStart) ?? 0,
+      ticketsCreated: weeklyCreatedMap.get(weekStart) ?? 0,
+    }))
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 
   const overallAvgHours = resolutionHours.length > 0
@@ -643,7 +866,9 @@ export async function getVelocityReport(weeks: number = 12): Promise<VelocityRep
     weeklyThroughput,
     statusDurations: [],
     overallAvgHours,
-    totalClosed: closedTickets.length,
+    totalClosed: closedInPeriod.length,
+    totalCreated: createdInPeriod.length,
+    totalOpen: openTickets.length,
   };
 }
 
@@ -652,9 +877,17 @@ export async function getPerformanceReport(start: string, end: string, memberId?
   const members = await convex.query(api.teamMembers.list, { activeOnly: true });
   const startDate = new Date(start);
   const endDate = new Date(end);
+  const weeks = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)));
   const today = new Date().toISOString().split("T")[0];
 
-  const filteredMembers = (members as any[]).filter((m) => !memberId || m._id === memberId);
+  const filteredMembers = (members as any[]).filter((m) => {
+    if (memberId && m._id !== memberId) return false;
+    // Exclude bookkeepers and owners
+    if (m.roleLevel === "bookkeeper" || m.roleLevel === "owner") return false;
+    if (m.employeeStatus === "terminated" || m.employeeStatus === "past_employee") return false;
+    if (m.active === false) return false;
+    return true;
+  });
 
   // Fetch all time entries for the period
   const allEntries = await convex.query(api.timeEntries.listAll, { limit: 5000 });
@@ -720,7 +953,7 @@ export async function getPerformanceReport(start: string, end: string, memberId?
       memberName: m.name,
       memberColor: m.color || "#6B7280",
       memberProfilePicUrl: m.profilePicUrl || "",
-      availableHoursPerWeek: m.availableHoursPerWeek ?? 40,
+      availableHoursPerWeek: (m.availableHoursPerWeek ?? 40) * weeks,
       ticketsClosed: closedInPeriod.length,
       avgResolutionHours: closedInPeriod.length > 0 ? Math.round((totalResolutionHours / closedInPeriod.length) * 10) / 10 : 0,
       hoursLogged: Math.round((totalSeconds / 3600) * 100) / 100,
@@ -753,11 +986,38 @@ export async function getRevenueReport(months: number = 12): Promise<RevenueRepo
   const convex = getConvexClient();
   const clients = await convex.query(api.clients.list, {});
   const allClients = clients as any[];
-  const currentMrr = allClients.reduce((sum, c) => sum + (c.mrr || 0), 0);
-
   const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0-indexed
 
-  // Compute MRR trend by looking at contractStartDate to estimate when each client started contributing
+  // Compute current MRR from active recurring packages (not client.mrr field)
+  let currentMrr = 0;
+  const categoryMap = new Map<string, number>();
+  const clientPackageData = new Map<string, { recurringRevenue: number; startDate: Date }>();
+
+  for (const c of allClients) {
+    try {
+      const packages = await convex.query(api.clientPackages.listByClient, { clientId: c._id });
+      let clientRecurring = 0;
+      for (const cp of packages as any[]) {
+        if (cp.active && !cp.isOneTime) {
+          const price = cp.customPrice ?? cp.packageDefaultPrice ?? 0;
+          clientRecurring += price;
+          const pkgName = (cp.packageName || "").toLowerCase();
+          const cat = pkgName.includes("hosting") ? "hosting" : (cp.packageCategory ?? "other");
+          categoryMap.set(cat, (categoryMap.get(cat) ?? 0) + price);
+        }
+      }
+      if (clientRecurring > 0) {
+        currentMrr += clientRecurring;
+        const startDate = c.contractStartDate ? new Date(c.contractStartDate) : new Date(c._creationTime);
+        clientPackageData.set(c._id, { recurringRevenue: clientRecurring, startDate });
+      }
+    } catch {}
+  }
+  currentMrr = Math.round(currentMrr * 100) / 100;
+
+  // MRR trend — strictly recurring packages, estimated by contract dates
   const mrrTrend: Array<{ month: string; mrr: number }> = [];
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -765,60 +1025,74 @@ export async function getRevenueReport(months: number = 12): Promise<RevenueRepo
     const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 1);
 
     let monthMrr = 0;
-    for (const c of allClients) {
-      if (!c.mrr || c.mrr <= 0) continue;
-      const startDate = c.contractStartDate ? new Date(c.contractStartDate) : new Date(c._creationTime);
-      if (startDate < monthEnd) {
-        // Check if client was still active in this month
-        if (!c.contractEndDate || new Date(c.contractEndDate) >= d) {
-          monthMrr += c.mrr;
+    for (const [clientId, data] of clientPackageData) {
+      const c = allClients.find((cl: any) => cl._id === clientId);
+      if (data.startDate < monthEnd) {
+        if (!c?.contractEndDate || new Date(c.contractEndDate) >= d) {
+          monthMrr += data.recurringRevenue;
         }
       }
     }
     mrrTrend.push({ month: monthStr, mrr: Math.round(monthMrr * 100) / 100 });
   }
 
-  // Revenue by category from packages
-  const categoryMap = new Map<string, number>();
+  // Projected annual revenue:
+  // Locked months (Jan to last completed month) = actual Converge collected
+  // Current month = collected so far (will be added from trend data on frontend)
+  // Remaining months = current MRR × remaining months
+  // Plus: any one-time package payments already made this year
+  const remainingMonths = 12 - currentMonth - 1; // months after current
+  let oneTimeRevenue = 0;
   for (const c of allClients) {
-    if (!c.mrr || c.mrr <= 0) continue;
     try {
       const packages = await convex.query(api.clientPackages.listByClient, { clientId: c._id });
       for (const cp of packages as any[]) {
-        if (cp.active) {
-          const category = cp.packageCategory ?? "other";
-          const price = cp.customPrice ?? cp.packageDefaultPrice ?? 0;
-          categoryMap.set(category, (categoryMap.get(category) ?? 0) + price);
+        if (cp.isOneTime && cp.paidDate) {
+          const paidYear = new Date(cp.paidDate).getFullYear();
+          if (paidYear === currentYear) {
+            oneTimeRevenue += cp.customPrice ?? cp.packageDefaultPrice ?? 0;
+          }
         }
       }
     } catch {}
   }
-  const revenueByCategory = Array.from(categoryMap.entries()).map(([category, revenue]) => ({
-    category,
-    revenue: Math.round(revenue * 100) / 100,
-  }));
 
-  // Client LTV
-  const clientLtv = allClients
-    .filter((c) => c.mrr > 0)
-    .map((c) => {
-      const startDate = c.contractStartDate ? new Date(c.contractStartDate) : new Date(c._creationTime);
-      const monthsActive = Math.max(1, Math.round((now.getTime() - startDate.getTime()) / (30.44 * 24 * 60 * 60 * 1000)));
+  // Revenue by category
+  const revenueByCategory = Array.from(categoryMap.entries())
+    .map(([category, revenue]) => ({
+      category,
+      revenue: Math.round(revenue * 100) / 100,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // Client LTV — from recurring package revenue, sorted by LTV desc
+  const clientLtv = Array.from(clientPackageData.entries())
+    .map(([clientId, data]) => {
+      const c = allClients.find((cl: any) => cl._id === clientId);
+      const monthsActive = Math.max(1, Math.round((now.getTime() - data.startDate.getTime()) / (30.44 * 24 * 60 * 60 * 1000)));
       return {
-        clientId: c._id,
-        clientName: c.name,
-        mrr: c.mrr || 0,
+        clientId,
+        clientName: c?.name || "Unknown",
+        mrr: Math.round(data.recurringRevenue * 100) / 100,
         monthsActive,
-        ltv: Math.round((c.mrr || 0) * monthsActive * 100) / 100,
+        ltv: Math.round(data.recurringRevenue * monthsActive * 100) / 100,
       };
-    });
+    })
+    .sort((a, b) => b.ltv - a.ltv);
+
+  // projectedAnnualRevenue will be computed on frontend using Converge actuals + MRR projection
+  // Here we pass the building blocks
+  const projectedFromMrr = currentMrr * (remainingMonths + 1); // current month + remaining
+  const projectedAnnualRevenue = Math.round((projectedFromMrr + oneTimeRevenue) * 100) / 100;
 
   return {
     currentMrr,
     mrrTrend,
     revenueByCategory,
     clientLtv,
-    projectedAnnualRevenue: Math.round(currentMrr * 12 * 100) / 100,
+    projectedAnnualRevenue,
+    lockedRevenue: Math.round(oneTimeRevenue * 100) / 100,
+    remainingMonths,
   };
 }
 

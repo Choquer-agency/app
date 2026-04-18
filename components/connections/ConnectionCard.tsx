@@ -127,7 +127,7 @@ export default function ConnectionCard({
             ) : (
               <button
                 onClick={handleConnect}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition"
+                className="text-sm font-medium px-5 py-2.5 rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition"
               >
                 Connect
               </button>

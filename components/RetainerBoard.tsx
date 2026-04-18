@@ -232,7 +232,7 @@ export default function RetainerBoard() {
                           {activeTickets.map((ticket) => (
                             <tr
                               key={ticket.id}
-                              className="border-b border-[var(--border)] last:border-b-0 cursor-pointer hover:bg-gray-50/50 transition"
+                              className="border-b border-[var(--border)] last:border-b-0 cursor-pointer hover:bg-[var(--hover-tan)] transition"
                               onClick={() => setSelectedTicketId(ticket.id)}
                             >
                               <td className="px-2 py-3">
@@ -303,7 +303,7 @@ export default function RetainerBoard() {
                               {closedTickets.map((ticket) => (
                                 <tr
                                   key={ticket.id}
-                                  className="border-b border-[var(--border)] last:border-b-0 cursor-pointer hover:bg-gray-50/50 transition opacity-50"
+                                  className="border-b border-[var(--border)] last:border-b-0 cursor-pointer hover:bg-[var(--hover-tan)] transition opacity-50"
                                   onClick={() => setSelectedTicketId(ticket.id)}
                                 >
                                   <td className="px-2 py-3">

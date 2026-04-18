@@ -4,10 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import { ServiceBoardStatus } from "@/types";
 
 const STATUS_CONFIG: Record<ServiceBoardStatus, { label: string; bg: string; text: string; dot: string }> = {
-  needs_attention: { label: "Needs Attention", bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-500" },
-  in_progress: { label: "In Progress", bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-500" },
-  report_ready: { label: "Report Ready", bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
-  email_sent: { label: "Email Sent", bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+  needs_attention: { label: "Backlog", bg: "bg-orange-100", text: "text-orange-700", dot: "bg-orange-500" },
+  in_progress: { label: "In Progress", bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500" },
+  report_ready: { label: "Report Ready", bg: "bg-purple-100", text: "text-purple-700", dot: "bg-purple-500" },
+  email_sent: { label: "Email Sent", bg: "bg-emerald-100", text: "text-emerald-700", dot: "bg-emerald-500" },
 };
 
 interface ServiceBoardStatusBadgeProps {

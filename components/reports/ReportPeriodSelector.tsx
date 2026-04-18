@@ -115,15 +115,15 @@ export default function ReportPeriodSelector({ value, customStart, customEnd, on
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center bg-[#F5F5F5] rounded-lg p-0.5">
+      <div className="flex items-center bg-[var(--hover-tan)] rounded-lg p-0.5">
         {PRESETS.map((p) => (
           <button
             key={p.value}
             onClick={() => handlePreset(p.value)}
             className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
               value === p.value
-                ? "bg-[#1A1A1A] text-white shadow-sm"
-                : "text-[#6B7280] hover:text-[#1A1A1A]"
+                ? "bg-white text-[var(--foreground)] shadow-sm"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
             {p.label}

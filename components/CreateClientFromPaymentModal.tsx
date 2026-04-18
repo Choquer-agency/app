@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import FilterDropdown from "./FilterDropdown";
 
 interface TransactionData {
   txnId: string;
@@ -342,25 +343,27 @@ export default function CreateClientFromPaymentModal({
             <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
               Package *
             </label>
-            <select
+            <FilterDropdown
+              label=""
               value={selectedPackageId}
-              onChange={(e) => {
-                setSelectedPackageId(e.target.value);
-                const pkg = packages.find((p) => p._id === e.target.value);
+              onChange={(v) => {
+                setSelectedPackageId(v);
+                const pkg = packages.find((p) => p._id === v);
                 if (pkg) setCustomPrice(String(pkg.defaultPrice));
               }}
-              className="w-full border border-gray-200 rounded-lg p-3 text-sm"
-            >
-              <option value="">Select a package...</option>
-              {packages.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.name} — ${p.defaultPrice}
-                  {p.billingFrequency
-                    ? `/${p.billingFrequency === "monthly" ? "mo" : p.billingFrequency === "annually" ? "yr" : p.billingFrequency}`
-                    : ""}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Select a package..." },
+                ...packages.map((p) => ({
+                  value: p._id,
+                  label: `${p.name} — $${p.defaultPrice}${
+                    p.billingFrequency
+                      ? `/${p.billingFrequency === "monthly" ? "mo" : p.billingFrequency === "annually" ? "yr" : p.billingFrequency}`
+                      : ""
+                  }`,
+                })),
+              ]}
+              fullWidth
+            />
           </div>
 
           {/* Custom Price */}

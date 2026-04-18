@@ -139,10 +139,10 @@ export default function SyncsClient() {
         </div>
         <button
           onClick={() => setWizardOpen(true)}
-          className="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium"
+          className="px-4 py-2 text-sm bg-[var(--accent)] text-white rounded-lg hover:opacity-90 font-medium transition disabled:opacity-50"
           disabled={destinations.length === 0 || clients.length === 0}
         >
-          New sync
+          + New Sync
         </button>
       </header>
 

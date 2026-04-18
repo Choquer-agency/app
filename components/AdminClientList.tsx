@@ -150,7 +150,7 @@ export default function AdminClientList() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[var(--accent-light)] border-b border-[var(--border)]">
+              <tr className="border-b border-[var(--border)]">
                 {([
                   { key: "name" as SortField, label: "Name", align: "left" },
                   { key: null, label: "Status", align: "left" },
@@ -161,7 +161,7 @@ export default function AdminClientList() {
                 ] as const).map((col) => (
                   <th
                     key={col.label}
-                    className={`px-4 py-3 text-${col.align} font-medium text-[var(--foreground)] ${col.key ? "cursor-pointer select-none group/sort" : ""}`}
+                    className={`px-2 py-2.5 text-${col.align} font-medium text-[var(--muted)] text-xs whitespace-nowrap ${col.key ? "cursor-pointer select-none group/sort" : ""}`}
                     onClick={col.key ? () => handleSort(col.key!) : undefined}
                   >
                     <span className={`inline-flex items-center gap-1 ${col.align === "right" ? "justify-end" : ""}`}>
@@ -202,13 +202,13 @@ export default function AdminClientList() {
                     onClick={() => {
                       window.location.href = `/admin/crm/${client.id}`;
                     }}
-                    className="border-b border-[var(--border)] hover:bg-[var(--accent-light)] cursor-pointer transition"
+                    className="border-b border-[var(--border)] hover:bg-[var(--hover-tan)] cursor-pointer transition"
                   >
-                    <td className="px-4 py-3 font-medium text-[var(--foreground)]">
+                    <td className="px-2 py-3 font-medium text-[var(--foreground)]">
                       {client.name}
                       <p className="text-xs text-[var(--muted)]">{client.slug}</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       <div className="flex items-center gap-2">
                         <ClientStatusBadge status={client.clientStatus} />
                         {hasMissingConnections(client) && (
@@ -219,12 +219,12 @@ export default function AdminClientList() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-medium">
+                    <td className="px-2 py-3 font-medium">
                       {client.mrr > 0
                         ? `$${client.mrr.toLocaleString()}`
                         : "—"}
                     </td>
-                    <td className="px-4 py-3 text-xs">
+                    <td className="px-2 py-3 text-xs">
                       {client.accountSpecialist ? (() => {
                         const spec = teamMembers.find((m) => m.name === client.accountSpecialist);
                         return (
@@ -241,7 +241,7 @@ export default function AdminClientList() {
                         );
                       })() : <span className="text-[var(--muted)]">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted)] text-xs group/contact">
+                    <td className="px-2 py-3 text-[var(--muted)] text-xs group/contact">
                       <div className="flex items-center gap-1">
                         <span>{client.contactName || "—"}</span>
                         {client.contactEmail && (
@@ -273,7 +273,7 @@ export default function AdminClientList() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       <div className="flex items-center justify-end gap-3">
                         {/* Enrichment status */}
                         {enrichingSlug === client.slug && (

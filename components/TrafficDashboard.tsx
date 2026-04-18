@@ -212,17 +212,17 @@ export default function TrafficDashboard() {
           No identified companies yet{unknownVisitorCount > 0 ? " — see anonymous visitors below" : ""}
         </div>
       ) : (
-        <div className="border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-[var(--border)]">
-                <th className="text-left px-4 py-3 font-medium text-[var(--muted)]">Intent</th>
-                <th className="text-left px-4 py-3 font-medium text-[var(--muted)]">Company</th>
-                <th className="text-left px-4 py-3 font-medium text-[var(--muted)] hidden md:table-cell">Industry</th>
-                <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Visits</th>
-                <th className="text-right px-4 py-3 font-medium text-[var(--muted)] hidden sm:table-cell">Visitors</th>
-                <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Last Visit</th>
-                <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Action</th>
+              <tr className="border-b border-[var(--border)]">
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Intent</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Company</th>
+                <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap hidden md:table-cell">Industry</th>
+                <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Visits</th>
+                <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap hidden sm:table-cell">Visitors</th>
+                <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Last Visit</th>
+                <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -231,14 +231,14 @@ export default function TrafficDashboard() {
                 return (
                   <tr
                     key={company.companyId}
-                    className="border-b border-[var(--border)] last:border-b-0 hover:bg-gray-50 transition"
+                    className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--hover-tan)] transition"
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color} ${badge.bg}`}>
                         {badge.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       <a
                         href={`/admin/crm/traffic/${company.companyId}`}
                         className="font-medium text-[var(--foreground)] hover:text-[var(--accent)] transition"
@@ -249,17 +249,17 @@ export default function TrafficDashboard() {
                         <span className="block text-xs text-[var(--muted)]">{company.domain}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted)] hidden md:table-cell">
+                    <td className="px-2 py-3 text-[var(--muted)] hidden md:table-cell">
                       {company.industry || "—"}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono">{company.totalVisits}</td>
-                    <td className="px-4 py-3 text-right font-mono hidden sm:table-cell">
+                    <td className="px-2 py-3 text-right font-mono">{company.totalVisits}</td>
+                    <td className="px-2 py-3 text-right font-mono hidden sm:table-cell">
                       {company.uniqueVisitors}
                     </td>
-                    <td className="px-4 py-3 text-right text-[var(--muted)]">
+                    <td className="px-2 py-3 text-right text-[var(--muted)]">
                       {timeAgo(company.lastVisit)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-2 py-3 text-right">
                       {company.leadId ? (
                         <a
                           href="/admin/crm/leads"
@@ -298,18 +298,18 @@ export default function TrafficDashboard() {
               {filteredUnknownVisitors.length} visitor{filteredUnknownVisitors.length !== 1 ? "s" : ""} — no company match
             </span>
           </div>
-          <div className="border border-[var(--border)] rounded-xl overflow-hidden">
+          <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-[var(--border)]">
-                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)]">Company</th>
-                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)] hidden md:table-cell">Domain</th>
-                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)]">Location</th>
-                  <th className="text-left px-4 py-3 font-medium text-[var(--muted)] hidden lg:table-cell">Device</th>
-                  <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Pages</th>
-                  <th className="text-right px-4 py-3 font-medium text-[var(--muted)] hidden sm:table-cell">Time</th>
-                  <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Visits</th>
-                  <th className="text-right px-4 py-3 font-medium text-[var(--muted)]">Last Seen</th>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Company</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap hidden md:table-cell">Domain</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap">Location</th>
+                  <th className="px-2 py-2.5 text-left font-medium text-[var(--muted)] text-xs whitespace-nowrap hidden lg:table-cell">Device</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Pages</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap hidden sm:table-cell">Time</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Visits</th>
+                  <th className="px-2 py-2.5 text-right font-medium text-[var(--muted)] text-xs whitespace-nowrap">Last Seen</th>
                 </tr>
               </thead>
               <tbody>
@@ -321,12 +321,12 @@ export default function TrafficDashboard() {
                   return (
                     <Fragment key={v.visitorId}>
                       <tr
-                        className="border-b border-[var(--border)] last:border-b-0 hover:bg-gray-50 transition cursor-pointer"
+                        className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--hover-tan)] transition cursor-pointer"
                         onClick={() =>
                           setExpandedVisitorId(isExpanded ? null : v.visitorId)
                         }
                       >
-                        <td className="px-4 py-3">
+                        <td className="px-2 py-3">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-[var(--foreground)]">Unknown</span>
                             <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${badge.color} ${badge.bg}`}>
@@ -334,23 +334,23 @@ export default function TrafficDashboard() {
                             </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-[var(--muted)] hidden md:table-cell">
+                        <td className="px-2 py-3 text-[var(--muted)] hidden md:table-cell">
                           —
                         </td>
-                        <td className="px-4 py-3 text-[var(--muted)]">
+                        <td className="px-2 py-3 text-[var(--muted)]">
                           {locationLabel}
                         </td>
-                        <td className="px-4 py-3 text-[var(--muted)] hidden lg:table-cell">
+                        <td className="px-2 py-3 text-[var(--muted)] hidden lg:table-cell">
                           {deviceLabel}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono">
+                        <td className="px-2 py-3 text-right font-mono">
                           {v.pageCount}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono hidden sm:table-cell">
+                        <td className="px-2 py-3 text-right font-mono hidden sm:table-cell">
                           {formatDuration(v.totalDuration)}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono">{v.visitCount}</td>
-                        <td className="px-4 py-3 text-right text-[var(--muted)]">
+                        <td className="px-2 py-3 text-right font-mono">{v.visitCount}</td>
+                        <td className="px-2 py-3 text-right text-[var(--muted)]">
                           <span className="inline-flex items-center gap-1">
                             {timeAgo(v.lastSeenAt)}
                             <svg
@@ -366,8 +366,8 @@ export default function TrafficDashboard() {
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr className="bg-gray-50 border-b border-[var(--border)]">
-                          <td colSpan={8} className="px-4 py-4">
+                        <tr className="bg-[var(--hover-tan)] border-b border-[var(--border)]">
+                          <td colSpan={8} className="px-2 py-4">
                             {v.pages.length === 0 ? (
                               <div className="text-xs text-[var(--muted)]">
                                 No page view details recorded.

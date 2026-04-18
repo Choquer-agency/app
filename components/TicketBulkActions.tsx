@@ -4,6 +4,7 @@ import { TicketStatus, TicketPriority, TeamMember } from "@/types";
 import { STATUS_ORDER, getStatusLabel } from "./TicketStatusBadge";
 import { getPriorityLabel } from "./TicketPriorityBadge";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import FilterDropdown from "./FilterDropdown";
 
 interface TicketBulkActionsProps {
   selectedCount: number;
@@ -28,67 +29,46 @@ export default function TicketBulkActions({
       <div className="w-px h-5 bg-white/20" />
 
       {/* Status */}
-      <select
-        defaultValue=""
-        onChange={(e) => {
-          if (e.target.value) {
-            onBulkAction("status", e.target.value);
-            e.target.value = "";
-          }
+      <FilterDropdown
+        label="Status"
+        value=""
+        onChange={(v) => {
+          if (v) onBulkAction("status", v);
         }}
-        className="bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none"
-      >
-        <option value="" disabled>
-          Status
-        </option>
-        {STATUS_ORDER.map((s) => (
-          <option key={s} value={s} className="text-black">
-            {getStatusLabel(s)}
-          </option>
-        ))}
-      </select>
+        options={[
+          { value: "", label: "Choose..." },
+          ...STATUS_ORDER.map((s) => ({ value: String(s), label: getStatusLabel(s) })),
+        ]}
+      />
 
       {/* Priority */}
-      <select
-        defaultValue=""
-        onChange={(e) => {
-          if (e.target.value) {
-            onBulkAction("priority", e.target.value);
-            e.target.value = "";
-          }
+      <FilterDropdown
+        label="Priority"
+        value=""
+        onChange={(v) => {
+          if (v) onBulkAction("priority", v);
         }}
-        className="bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none"
-      >
-        <option value="" disabled>
-          Priority
-        </option>
-        {(["urgent", "high", "normal", "low"] as TicketPriority[]).map((p) => (
-          <option key={p} value={p} className="text-black">
-            {getPriorityLabel(p)}
-          </option>
-        ))}
-      </select>
+        options={[
+          { value: "", label: "Choose..." },
+          ...(["urgent", "high", "normal", "low"] as TicketPriority[]).map((p) => ({
+            value: String(p),
+            label: getPriorityLabel(p),
+          })),
+        ]}
+      />
 
       {/* Assign */}
-      <select
-        defaultValue=""
-        onChange={(e) => {
-          if (e.target.value) {
-            onBulkAction("assign", Number(e.target.value));
-            e.target.value = "";
-          }
+      <FilterDropdown
+        label="Assign to"
+        value=""
+        onChange={(v) => {
+          if (v) onBulkAction("assign", Number(v));
         }}
-        className="bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none"
-      >
-        <option value="" disabled>
-          Assign to
-        </option>
-        {teamMembers.filter((m) => m.active).map((m) => (
-          <option key={m.id} value={m.id} className="text-black">
-            {m.name}
-          </option>
-        ))}
-      </select>
+        options={[
+          { value: "", label: "Choose..." },
+          ...teamMembers.filter((m) => m.active).map((m) => ({ value: String(m.id), label: m.name })),
+        ]}
+      />
 
       <div className="w-px h-5 bg-white/20" />
       <button

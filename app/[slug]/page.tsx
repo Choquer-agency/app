@@ -10,6 +10,7 @@ import Footer from "@/components/Footer";
 import ClientDashboardTracker from "@/components/ClientDashboardTracker";
 import AnalyticsBlurOverlay from "@/components/AnalyticsBlurOverlay";
 import ApprovalSection from "@/components/ApprovalSection";
+import MonthlyStrategyApprovalCard from "@/components/MonthlyStrategyApprovalCard";
 import ClientPortalShell from "@/components/client-portal/ClientPortalShell";
 
 import { getGSCKPIs, getGSCTopPages, getDateRange } from "@/lib/gsc";
@@ -21,6 +22,7 @@ import { getClientBySlug } from "@/lib/clients";
 import { getClientPackages } from "@/lib/client-packages";
 import { getEnrichedContent, getApprovals } from "@/lib/db";
 import { getTickets } from "@/lib/tickets";
+import { getMonthBySlug, monthKeyOf } from "@/lib/seo-strategy-months";
 import {
   ClientConfig,
   KPIData,
@@ -180,12 +182,16 @@ export default async function ClientDashboard({ params, searchParams }: PageProp
   let upcomingMonths: { monthLabel: string; entries: WorkLogEntry[]; summary?: string }[] = [];
   let lastUpdated: string | null = null;
   let analyticsConnected = false;
+  let monthlyStrategy: Awaited<ReturnType<typeof getMonthBySlug>> = null;
 
   if (isSeoTab) {
+    const now = new Date();
+    const currentMonthKey = monthKeyOf(now.getFullYear(), now.getMonth() + 1);
     // Try enriched content (from AI pipeline)
-    [enriched, approvals] = await Promise.all([
+    [enriched, approvals, monthlyStrategy] = await Promise.all([
       loadEnrichedContent(slug),
       getApprovals(slug).catch(() => []),
+      getMonthBySlug(slug, currentMonthKey).catch(() => null),
     ]);
     pendingApprovals = approvals.filter((a) => a.status === "pending").length;
 
@@ -453,6 +459,18 @@ export default async function ClientDashboard({ params, searchParams }: PageProp
       {!isOnboarding && approvals.length > 0 && (
         <div className="max-w-3xl mx-auto px-6 pt-2">
           <ApprovalSection approvals={approvals} clientSlug={slug} />
+        </div>
+      )}
+
+      {/* ── 1.6. Monthly strategy approval (per-month sign-off) ── */}
+      {!isOnboarding && monthlyStrategy && (
+        <div className="max-w-3xl mx-auto px-6 pt-2">
+          <MonthlyStrategyApprovalCard
+            slug={slug}
+            monthKey={monthlyStrategy.monthKey}
+            monthLabel={currentMonthLabel}
+            initialApprovedAt={monthlyStrategy.clientApprovedAt ?? null}
+          />
         </div>
       )}
 

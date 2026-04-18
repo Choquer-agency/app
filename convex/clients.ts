@@ -207,6 +207,7 @@ export const update = mutation({
     socialFacebook: v.optional(v.string()),
     socialInstagram: v.optional(v.string()),
     socialX: v.optional(v.string()),
+    billable: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Project } from "@/types";
 import { useRouter } from "next/navigation";
+import FilterDropdown from "./FilterDropdown";
 
 interface ProjectTemplateSelectorProps {
   template: Project;
@@ -81,16 +82,16 @@ export default function ProjectTemplateSelector({
 
           <div>
             <label className="text-xs font-medium text-[var(--muted)] mb-1 block">Client *</label>
-            <select
-              value={clientId ?? ""}
-              onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-white"
-            >
-              <option value="">Select a client...</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <FilterDropdown
+              label=""
+              value={clientId != null ? String(clientId) : ""}
+              onChange={(v) => setClientId(v ? Number(v) : null)}
+              options={[
+                { value: "", label: "Select a client..." },
+                ...clients.map((c) => ({ value: String(c.id), label: c.name })),
+              ]}
+              fullWidth
+            />
           </div>
 
           <div>
