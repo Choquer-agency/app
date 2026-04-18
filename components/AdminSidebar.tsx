@@ -567,13 +567,13 @@ export default function AdminSidebar({
         <div className="px-3 pb-5">
           <button
             onClick={openCommandPalette}
-            className="w-full flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--accent)] rounded-lg hover:opacity-90 transition shadow-sm"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[var(--accent)] rounded-lg hover:opacity-90 transition shadow-sm"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
               <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
             </svg>
-            <span className="flex-1 text-left">Quick Action</span>
-            <kbd className="px-1.5 py-0.5 text-[10px] bg-white/20 rounded">⌘K</kbd>
+            <span className="flex-1 text-left whitespace-nowrap">Quick Action</span>
+            <kbd className="shrink-0 px-1.5 py-0.5 text-[10px] bg-white/20 rounded">⌘K</kbd>
           </button>
         </div>
       )}
