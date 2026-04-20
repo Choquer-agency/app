@@ -206,12 +206,6 @@ async function mergeIntoEnrichedContent(
   { monthKey, status, output }: MergeOptions
 ): Promise<void> {
   const convex = getConvexClient();
-  const latest = await convex.query(api.enrichedContent.getLatest, {
-    clientSlug: client.slug,
-  });
-
-  const existingData =
-    (latest?.enrichedData as Record<string, unknown> | undefined) ?? {};
 
   const monthDoc: EnrichedMonth & { isComplete?: boolean; chartHints?: ChartHint[] } = {
     monthLabel: output.monthLabel,
@@ -221,52 +215,30 @@ async function mergeIntoEnrichedContent(
     metrics: output.metrics,
   };
 
-  let newData: Record<string, unknown>;
+  const { year, month } = parseMonthKey(monthKey);
+  const fallbackCanonicalMonth = `${year}-${String(month).padStart(2, "0")}-01`;
 
-  if (status === "active") {
-    newData = {
-      ...existingData,
-      currentMonth: {
-        label: output.monthLabel,
-        summary: output.summary,
-        strategy: output.strategy,
-        tasks: output.tasks,
-        isComplete: output.isComplete,
-        leads: output.leads,
-      },
-      goals: output.goals.length ? output.goals : existingData.goals ?? [],
-      approvals: output.approvals,
-      processedAt: new Date().toISOString(),
-    };
-  } else {
-    const pastMonths = ((existingData.pastMonths as EnrichedMonth[]) || []).filter(
-      (m) => m.monthLabel !== output.monthLabel
-    );
-    pastMonths.unshift(monthDoc as EnrichedMonth);
-    newData = {
-      ...existingData,
-      pastMonths,
-      processedAt: new Date().toISOString(),
-    };
-  }
+  const currentMonthPayload =
+    status === "active"
+      ? {
+          label: output.monthLabel,
+          summary: output.summary,
+          strategy: output.strategy,
+          tasks: output.tasks,
+          isComplete: output.isComplete,
+          leads: output.leads,
+        }
+      : undefined;
 
-  // Always write to the canonical "latest" row for this client so the
-  // dashboard (which reads via getLatest) sees the cumulative state.
-  // Without this, each per-month enrichment writes into its own
-  // (clientSlug, month) row and only the highest-month row is read,
-  // dropping every other month's pastMonths update.
-  const canonicalMonth =
-    latest?.month ??
-    (() => {
-      const { year, month } = parseMonthKey(monthKey);
-      return `${year}-${String(month).padStart(2, "0")}-01`;
-    })();
-
-  await convex.mutation(api.enrichedContent.upsert, {
+  await convex.mutation(api.enrichedContent.mergeMonth, {
     clientSlug: client.slug,
-    month: canonicalMonth,
-    rawContent: latest?.rawContent ?? "",
-    enrichedData: newData as unknown,
+    canonicalMonth: fallbackCanonicalMonth,
+    status,
+    monthLabel: output.monthLabel,
+    monthDoc: monthDoc as unknown,
+    currentMonthPayload,
+    goalsOverride: status === "active" ? output.goals : undefined,
+    approvalsOverride: status === "active" ? output.approvals : undefined,
   });
 }
 

@@ -297,6 +297,20 @@ export const requeueAllForClient = mutation({
   },
 });
 
+export const deleteAllForClient = mutation({
+  args: { clientId: v.id("clients") },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("seoStrategyMonths")
+      .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+      .collect();
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+    return rows.length;
+  },
+});
+
 export const insertSeed = mutation({
   args: {
     clientId: v.id("clients"),

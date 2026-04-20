@@ -70,7 +70,8 @@ function monthName(m: string): string {
   return m.split(" ")[0] || m;
 }
 
-function fmtNumber(n: number): string {
+function fmtNumber(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return n.toLocaleString();
@@ -321,12 +322,12 @@ function MonthItem({
             <div className="bg-white rounded-xl border border-[#EDE8FF] p-4 mb-3">
               <p className="text-[10px] text-muted font-medium uppercase tracking-wide mb-2">Where We Were</p>
               <div className="flex gap-8 mb-3">
-                {metrics.sessions !== undefined && (
+                {metrics.sessions != null && (
                   <div>
                     <p className="text-xs text-muted">Sessions</p>
                     <p className="text-lg font-bold text-[#1A1A1A]">{fmtNumber(metrics.sessions)}</p>
                     <div className="flex gap-3 mt-0.5">
-                      {prevMetrics?.sessions !== undefined && (
+                      {prevMetrics?.sessions != null && (
                         <span className={`text-[10px] font-medium ${pctChange(metrics.sessions, prevMetrics.sessions) >= 0 ? "text-[#0d7a55]" : "text-[#b91c1c]"}`}>
                           {pctChange(metrics.sessions, prevMetrics.sessions) >= 0 ? "+" : ""}{pctChange(metrics.sessions, prevMetrics.sessions).toFixed(1)}% MoM
                         </span>
@@ -334,12 +335,12 @@ function MonthItem({
                     </div>
                   </div>
                 )}
-                {metrics.impressions !== undefined && (
+                {metrics.impressions != null && (
                   <div>
                     <p className="text-xs text-muted">Impressions</p>
                     <p className="text-lg font-bold text-[#1A1A1A]">{fmtNumber(metrics.impressions)}</p>
                     <div className="flex gap-3 mt-0.5">
-                      {prevMetrics?.impressions !== undefined && (
+                      {prevMetrics?.impressions != null && (
                         <span className={`text-[10px] font-medium ${pctChange(metrics.impressions, prevMetrics.impressions) >= 0 ? "text-[#0d7a55]" : "text-[#b91c1c]"}`}>
                           {pctChange(metrics.impressions, prevMetrics.impressions) >= 0 ? "+" : ""}{pctChange(metrics.impressions, prevMetrics.impressions).toFixed(1)}% MoM
                         </span>

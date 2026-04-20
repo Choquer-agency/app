@@ -190,11 +190,6 @@ export default function SeoStrategyImporter() {
         }));
         setPasteContent("");
         setSelectedClientId("");
-        // Fire-and-forget queue flush so the rows we just queued start
-        // enriching immediately instead of waiting for the 5-min cron.
-        fetch("/api/admin/seo-strategy/process-queue", { method: "POST" }).catch(
-          () => {}
-        );
       } else {
         setTopError(data.error || "Import failed");
       }
@@ -237,6 +232,77 @@ export default function SeoStrategyImporter() {
     } finally {
       setFlushing(false);
       setTimeout(() => setFlushMessage(null), 8000);
+    }
+  }
+
+  async function handleRebuild(clientId: string) {
+    if (flushing) return;
+    if (
+      !confirm(
+        "Rebuild the public dashboard from scratch for this client? This re-runs enrichment on every saved month and will overwrite the existing dashboard snapshot."
+      )
+    ) {
+      return;
+    }
+    setFlushing(true);
+    setFlushMessage(null);
+    try {
+      const r = await fetch("/api/admin/seo-strategy/rebuild-enriched", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setFlushMessage(d.error || "Rebuild failed.");
+        return;
+      }
+      setFlushMessage(
+        `Rebuilding dashboard from ${d.total} months in the background — refresh the public page in a minute or two.`
+      );
+    } catch (err) {
+      setFlushMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFlushing(false);
+      setTimeout(() => setFlushMessage(null), 10000);
+    }
+  }
+
+  async function handleDeleteAll(clientId: string, clientName: string) {
+    if (flushing) return;
+    if (
+      !confirm(
+        `Delete ALL SEO strategy data for ${clientName}? This wipes every saved month and the public dashboard snapshot. The client page will be empty until you re-import.`
+      )
+    ) {
+      return;
+    }
+    setFlushing(true);
+    setFlushMessage(null);
+    try {
+      const r = await fetch("/api/admin/seo-strategy/delete-all-for-client", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setFlushMessage(d.error || "Delete failed.");
+        return;
+      }
+      setHistory((prev) => {
+        const next = { ...prev };
+        delete next[clientId];
+        return next;
+      });
+      setFlushMessage(
+        `Deleted ${d.monthsDeleted} month${d.monthsDeleted === 1 ? "" : "s"} and wiped the dashboard for ${clientName}. Ready to re-import.`
+      );
+    } catch (err) {
+      setFlushMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFlushing(false);
+      setTimeout(() => setFlushMessage(null), 10000);
     }
   }
 
@@ -436,15 +502,35 @@ export default function SeoStrategyImporter() {
                         {badgeLabel}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRequeueClient(id)}
-                      disabled={flushing}
-                      className="text-[10px] px-2 py-1 rounded border border-[var(--border)] text-[var(--muted)] hover:bg-white hover:text-[var(--foreground)] disabled:opacity-40 disabled:cursor-not-allowed transition"
-                      title="Re-queue every month for this client and start processing"
-                    >
-                      Re-enrich all months
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRequeueClient(id)}
+                        disabled={flushing}
+                        className="text-[10px] px-2 py-1 rounded border border-[var(--border)] text-[var(--muted)] hover:bg-white hover:text-[var(--foreground)] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        title="Re-queue every month for this client and start processing"
+                      >
+                        Re-enrich all months
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRebuild(id)}
+                        disabled={flushing}
+                        className="text-[10px] px-2 py-1 rounded border border-[var(--border)] text-[var(--muted)] hover:bg-white hover:text-[var(--foreground)] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        title="Wipe the dashboard snapshot and rebuild from every saved month — fixes missing months"
+                      >
+                        Rebuild dashboard
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAll(id, rec.clientName)}
+                        disabled={flushing}
+                        className="text-[10px] px-2 py-1 rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition ml-auto"
+                        title="Delete every saved month and wipe the dashboard for this client"
+                      >
+                        Delete all
+                      </button>
+                    </div>
                     <p className="text-[var(--muted)]">
                       <span className="text-[var(--foreground)] font-semibold">
                         {rec.monthsImported}
