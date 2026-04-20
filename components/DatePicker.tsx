@@ -71,7 +71,30 @@ export default function DatePicker({
   });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  const POPUP_WIDTH = 300;
+  const POPUP_HEIGHT = 360;
+  const VIEWPORT_PAD = 8;
+
+  useEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const flipUp = rect.bottom + POPUP_HEIGHT + VIEWPORT_PAD > window.innerHeight;
+    const top = flipUp
+      ? Math.max(VIEWPORT_PAD, rect.top - POPUP_HEIGHT - 4)
+      : rect.bottom + 4;
+    let left = rect.left;
+    if (left + POPUP_WIDTH + VIEWPORT_PAD > window.innerWidth) {
+      left = window.innerWidth - POPUP_WIDTH - VIEWPORT_PAD;
+    }
+    if (left < VIEWPORT_PAD) left = VIEWPORT_PAD;
+    setPos({ top, left });
+  }, [open]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -176,22 +199,17 @@ export default function DatePicker({
 
   const isOverdue = highlightOverdue && selectedDate && selectedDate < today;
 
-  const flipUp = (() => {
-    if (!buttonRef.current) return false;
-    const rect = buttonRef.current.getBoundingClientRect();
-    return rect.bottom + 400 > window.innerHeight - 8;
-  })();
-
   const calendarEl = (
     <div
       ref={menuRef}
-      className="bg-white border border-[var(--border)] rounded-xl shadow-xl p-4 absolute z-50"
+      className="bg-white border border-[var(--border)] rounded-xl shadow-xl p-4"
       style={{
-        [flipUp ? "bottom" : "top"]: "100%",
-        right: 0,
-        marginTop: flipUp ? 0 : 4,
-        marginBottom: flipUp ? 4 : 0,
-        width: 300,
+        position: "fixed",
+        top: pos?.top ?? 0,
+        left: pos?.left ?? 0,
+        width: POPUP_WIDTH,
+        zIndex: 9999,
+        visibility: pos ? "visible" : "hidden",
       }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -287,7 +305,7 @@ export default function DatePicker({
           <span className={`${className.includes("text-sm") ? "" : "text-xs"} text-[var(--muted)]`}>{placeholder}</span>
         )}
       </button>
-      {open && calendarEl}
+      {open && typeof document !== "undefined" && ReactDOM.createPortal(calendarEl, document.body)}
     </div>
   );
 }
