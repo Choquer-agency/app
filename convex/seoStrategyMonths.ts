@@ -34,6 +34,22 @@ export const listBySlug = query({
   },
 });
 
+export const getEnrichmentProgress = query({
+  args: { clientId: v.id("clients") },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("seoStrategyMonths")
+      .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+      .collect();
+    const counts = { idle: 0, queued: 0, running: 0, error: 0 };
+    for (const r of rows) {
+      counts[r.enrichmentState as keyof typeof counts] =
+        (counts[r.enrichmentState as keyof typeof counts] ?? 0) + 1;
+    }
+    return { total: rows.length, ...counts };
+  },
+});
+
 export const getByMonthKey = query({
   args: { clientId: v.id("clients"), monthKey: v.string() },
   handler: async (ctx, args) => {

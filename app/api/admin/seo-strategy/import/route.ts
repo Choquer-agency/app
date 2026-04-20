@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getSession } from "@/lib/admin-auth";
 import { hasPermission } from "@/lib/permissions";
 import { getClientById } from "@/lib/clients";
 import { chunkTiptapByMonth } from "@/lib/seo-import-chunker";
+import { markdownToTiptap } from "@/lib/markdown-to-tiptap";
 import {
   saveMonth,
   classifyStatus,
@@ -13,14 +14,11 @@ import { enrichSeoStrategyMonth } from "@/lib/seo-month-enrichment";
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
 
-const ENRICH_CONCURRENCY = 3;
-
 interface MonthResult {
   monthKey: string;
   headingText: string;
   status: "complete" | "active" | "forecast";
   saved: boolean;
-  enriched: boolean;
   error?: string;
 }
 
@@ -35,11 +33,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { clientId, rawContent, defaultYear } = body;
+    const { clientId, rawMarkdown, defaultYear } = body;
 
-    if (!clientId || typeof rawContent !== "string") {
+    if (!clientId || typeof rawMarkdown !== "string" || !rawMarkdown.trim()) {
       return NextResponse.json(
-        { error: "clientId and rawContent (TipTap JSON) are required" },
+        { error: "clientId and rawMarkdown are required" },
         { status: 400 }
       );
     }
@@ -49,37 +47,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    let doc: unknown;
-    try {
-      doc = JSON.parse(rawContent);
-    } catch {
-      return NextResponse.json(
-        { error: "rawContent must be valid TipTap JSON" },
-        { status: 400 }
-      );
-    }
-
     const year =
       typeof defaultYear === "number" && defaultYear > 1900
         ? defaultYear
         : new Date().getFullYear();
 
-    const chunks = chunkTiptapByMonth(doc as never, year);
+    // Markdown → TipTap JSON → chunked by month
+    const tiptapJson = markdownToTiptap(rawMarkdown);
+    const doc = JSON.parse(tiptapJson);
+    const chunks = chunkTiptapByMonth(doc, year);
 
     if (chunks.length === 0) {
       return NextResponse.json(
         {
           error:
-            "No month headings detected. Make sure each month is its own heading (e.g. 'March', 'March 2025', or 'SEO Updates April 2026').",
+            "No month headings detected. Each month should be on its own line as a heading or bold line — e.g. 'March', 'March 2025', or 'SEO Updates April 2026'. Drop a year-only line like '2024' between months when the year flips.",
         },
         { status: 400 }
       );
     }
 
+    // Pass 1 — save every chunk synchronously (fast, atomic).
     const results: MonthResult[] = [];
-
-    // Pass 1 — save every chunk (fast)
-    const savedChunks: Array<{ saved: SeoStrategyMonth; result: MonthResult }> = [];
+    const saved: SeoStrategyMonth[] = [];
 
     for (const chunk of chunks) {
       const status = classifyStatus(chunk.year, chunk.month);
@@ -88,10 +78,9 @@ export async function POST(request: NextRequest) {
         headingText: chunk.headingText,
         status,
         saved: false,
-        enriched: false,
       };
       try {
-        const saved = await saveMonth({
+        const row = await saveMonth({
           clientId,
           clientSlug: client.slug,
           monthKey: chunk.monthKey,
@@ -100,36 +89,37 @@ export async function POST(request: NextRequest) {
           lastEditedBy: session.teamMemberId,
         });
         result.saved = true;
-        savedChunks.push({ saved, result });
+        saved.push(row);
       } catch (err) {
         result.error = err instanceof Error ? err.message : "Save failed";
       }
       results.push(result);
     }
 
-    // Pass 2 — enrich each saved chunk (slow). Run in parallel batches so the
-    // dashboard has clean polished content the moment the import finishes.
-    for (let i = 0; i < savedChunks.length; i += ENRICH_CONCURRENCY) {
-      const batch = savedChunks.slice(i, i + ENRICH_CONCURRENCY);
-      await Promise.all(
-        batch.map(async ({ saved, result }) => {
-          try {
-            await enrichSeoStrategyMonth({ ...saved, enrichmentState: "running" });
-            result.enriched = true;
-          } catch (err) {
-            result.error = err instanceof Error ? err.message : "Enrichment failed";
-          }
-        })
-      );
-    }
+    // Pass 2 — enrich SERIALLY in the background after the response is sent.
+    // Serial avoids the race condition in mergeIntoEnrichedContent where parallel
+    // writes overwrite each other's pastMonths arrays.
+    after(async () => {
+      for (const row of saved) {
+        try {
+          await enrichSeoStrategyMonth({ ...row, enrichmentState: "running" });
+        } catch (err) {
+          console.error(
+            "[seo-import] background enrichment failed for",
+            row.monthKey,
+            err instanceof Error ? err.message : err
+          );
+        }
+      }
+    });
 
     return NextResponse.json({
       clientId,
       clientSlug: client.slug,
-      monthsImported: results.filter((r) => r.saved).length,
-      monthsEnriched: results.filter((r) => r.enriched).length,
+      monthsImported: saved.length,
       monthsAttempted: results.length,
       results,
+      backgrounded: true,
     });
   } catch (error) {
     console.error("SEO strategy import failed:", error);
