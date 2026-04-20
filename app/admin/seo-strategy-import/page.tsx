@@ -14,14 +14,15 @@ export default async function SeoStrategyImportPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    <div className="max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-[var(--foreground)]">
-          SEO Strategy — Notion Bulk Import
+        <h1 className="text-2xl font-semibold text-[var(--foreground)]">
+          Notion Bulk Import
         </h1>
         <p className="text-sm text-[var(--muted)] mt-1">
-          One-time tool. Pick a client, paste their full Notion strategy board, fire it off, move to the next.
-          Months will enrich in the background within a few minutes.
+          One-time migration tool. Pick a client, paste their entire Notion strategy
+          board, and the import runs Claude enrichment inline so the dashboard is live
+          the moment it finishes.
         </p>
       </div>
       <SeoStrategyImporter />

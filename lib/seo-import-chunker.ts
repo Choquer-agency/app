@@ -52,6 +52,16 @@ function isHeading(node: TiptapNode): boolean {
   return node.type === "heading" || node.type === "title";
 }
 
+// A short paragraph whose entire text reads like a month header is treated as
+// a month heading too (Notion paste sometimes drops heading semantics).
+function isPotentialMonthMarker(node: TiptapNode): boolean {
+  if (isHeading(node)) return true;
+  if (node.type !== "paragraph") return false;
+  const text = flattenText(node).trim();
+  if (!text || text.length > 60) return false;
+  return parseHeadingText(text) !== null;
+}
+
 interface ParsedHeading {
   kind: "year" | "month";
   year?: number;
@@ -135,7 +145,7 @@ export function chunkTiptapByMonth(
   }
 
   for (const node of doc.content) {
-    if (isHeading(node)) {
+    if (isPotentialMonthMarker(node)) {
       const text = flattenText(node);
       const parsed = parseHeadingText(text);
 
@@ -156,8 +166,6 @@ export function chunkTiptapByMonth(
         };
         continue;
       }
-
-      // Non-month heading inside an active month — keep it in the chunk
     }
 
     if (active) {
