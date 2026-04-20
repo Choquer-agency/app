@@ -55,6 +55,8 @@ export default function SeoStrategyImporter() {
   const [pasteContent, setPasteContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
+  const [flushing, setFlushing] = useState(false);
+  const [flushMessage, setFlushMessage] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -188,6 +190,11 @@ export default function SeoStrategyImporter() {
         }));
         setPasteContent("");
         setSelectedClientId("");
+        // Fire-and-forget queue flush so the rows we just queued start
+        // enriching immediately instead of waiting for the 5-min cron.
+        fetch("/api/admin/seo-strategy/process-queue", { method: "POST" }).catch(
+          () => {}
+        );
       } else {
         setTopError(data.error || "Import failed");
       }
@@ -195,6 +202,32 @@ export default function SeoStrategyImporter() {
       setTopError(err instanceof Error ? err.message : String(err));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleFlushQueue() {
+    if (flushing) return;
+    setFlushing(true);
+    setFlushMessage(null);
+    try {
+      const res = await fetch("/api/admin/seo-strategy/process-queue", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setFlushMessage(
+          data.claimed
+            ? `Started ${data.claimed} month${data.claimed === 1 ? "" : "s"} — they'll move from queued → idle as they finish.`
+            : "Nothing queued right now."
+        );
+      } else {
+        setFlushMessage(data.error || "Failed to flush queue.");
+      }
+    } catch (err) {
+      setFlushMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFlushing(false);
+      setTimeout(() => setFlushMessage(null), 6000);
     }
   }
 
@@ -253,6 +286,15 @@ export default function SeoStrategyImporter() {
           </span>
           <button
             type="button"
+            onClick={handleFlushQueue}
+            disabled={flushing}
+            className="text-sm px-3 py-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-[#FAF9F5] disabled:opacity-40 disabled:cursor-not-allowed transition"
+            title="Process all currently queued months immediately"
+          >
+            {flushing ? "Processing…" : "Process queue now"}
+          </button>
+          <button
+            type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
             className="text-sm px-5 py-2 rounded-lg bg-[var(--accent)] text-white font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition"
@@ -261,6 +303,12 @@ export default function SeoStrategyImporter() {
           </button>
         </div>
       </div>
+
+      {flushMessage && (
+        <div className="bg-[#FAF9F5] border border-[var(--border)] text-[var(--foreground)] text-xs rounded-lg px-4 py-2">
+          {flushMessage}
+        </div>
+      )}
 
       {topError && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2.5">
