@@ -278,6 +278,25 @@ export const requeue = mutation({
   },
 });
 
+export const requeueAllForClient = mutation({
+  args: { clientId: v.id("clients") },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("seoStrategyMonths")
+      .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+      .collect();
+    const now = Date.now();
+    for (const row of rows) {
+      await ctx.db.patch(row._id, {
+        enrichmentState: "queued",
+        enrichmentQueuedAt: now,
+        enrichmentError: undefined,
+      });
+    }
+    return rows.length;
+  },
+});
+
 export const insertSeed = mutation({
   args: {
     clientId: v.id("clients"),

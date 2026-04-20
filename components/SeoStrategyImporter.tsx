@@ -205,6 +205,41 @@ export default function SeoStrategyImporter() {
     }
   }
 
+  async function handleRequeueClient(clientId: string) {
+    if (flushing) return;
+    setFlushing(true);
+    setFlushMessage(null);
+    try {
+      const r1 = await fetch("/api/admin/seo-strategy/requeue-client", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      const d1 = await r1.json();
+      if (!r1.ok) {
+        setFlushMessage(d1.error || "Failed to re-queue client.");
+        return;
+      }
+      // Kick the queue immediately.
+      const r2 = await fetch("/api/admin/seo-strategy/process-queue", {
+        method: "POST",
+      });
+      const d2 = await r2.json();
+      if (!r2.ok) {
+        setFlushMessage(d2.error || "Re-queued but failed to start processing.");
+        return;
+      }
+      setFlushMessage(
+        `Re-queued ${d1.requeued} month${d1.requeued === 1 ? "" : "s"} — ${d2.claimed} now processing.`
+      );
+    } catch (err) {
+      setFlushMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFlushing(false);
+      setTimeout(() => setFlushMessage(null), 8000);
+    }
+  }
+
   async function handleFlushQueue() {
     if (flushing) return;
     setFlushing(true);
@@ -401,6 +436,15 @@ export default function SeoStrategyImporter() {
                         {badgeLabel}
                       </span>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRequeueClient(id)}
+                      disabled={flushing}
+                      className="text-[10px] px-2 py-1 rounded border border-[var(--border)] text-[var(--muted)] hover:bg-white hover:text-[var(--foreground)] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      title="Re-queue every month for this client and start processing"
+                    >
+                      Re-enrich all months
+                    </button>
                     <p className="text-[var(--muted)]">
                       <span className="text-[var(--foreground)] font-semibold">
                         {rec.monthsImported}
