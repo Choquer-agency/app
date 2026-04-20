@@ -1,5 +1,53 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
+
+// === Delivery tracking ===
+// NOT_DONE = statuses where the assignee still owns the work (deadline risk).
+// Once a ticket moves from NOT_DONE into any other status, it's been handed off.
+const NOT_DONE_STATUSES = new Set(["needs_attention", "stuck", "in_progress"]);
+
+const STATUS_LABELS: Record<string, string> = {
+  needs_attention: "Backlog",
+  stuck: "Stuck",
+  in_progress: "In Progress",
+  qa_ready: "QA Ready",
+  client_review: "Client Review",
+  closed: "Closed",
+};
+
+/** On status transition out of NOT_DONE, stamp deliveredAt and log a late comment if past due. */
+async function handleDeliveryTransition(
+  ctx: MutationCtx,
+  ticketId: any,
+  oldStatus: string | undefined,
+  newStatus: string,
+  dueDate: string | null | undefined,
+  updates: Record<string, unknown>
+) {
+  const wasInProgress = oldStatus ? NOT_DONE_STATUSES.has(oldStatus) : false;
+  const nowDelivered = !NOT_DONE_STATUSES.has(newStatus) && newStatus !== (oldStatus ?? "");
+  if (!wasInProgress || !nowDelivered) return;
+
+  const nowIso = new Date().toISOString();
+  updates.deliveredAt = nowIso;
+
+  if (!dueDate) return;
+  const today = nowIso.split("T")[0];
+  if (today <= dueDate) return;
+
+  const dueMs = new Date(dueDate + "T00:00:00").getTime();
+  const nowMs = new Date(today + "T00:00:00").getTime();
+  const daysLate = Math.max(1, Math.round((nowMs - dueMs) / 86400000));
+  const label = STATUS_LABELS[newStatus] ?? newStatus;
+
+  await ctx.db.insert("ticketComments", {
+    ticketId,
+    authorType: "team",
+    authorName: "System",
+    content: `⏰ Moved to ${label} ${daysLate} day${daysLate === 1 ? "" : "s"} late — was due ${dueDate}.`,
+  });
+}
 
 // === Queries ===
 
@@ -409,6 +457,14 @@ export const update = mutation({
       } else if (fields.status !== "closed" && current.status === "closed") {
         updates.closedAt = undefined;
       }
+      await handleDeliveryTransition(
+        ctx,
+        id,
+        current.status,
+        fields.status,
+        (fields.dueDate ?? current.dueDate) as string | null | undefined,
+        updates
+      );
     }
 
     await ctx.db.patch(id, updates);
@@ -453,6 +509,14 @@ export const bulkUpdateStatus = mutation({
       } else if (args.status !== "closed" && current.status === "closed") {
         updates.closedAt = undefined;
       }
+      await handleDeliveryTransition(
+        ctx,
+        ticketId,
+        current.status,
+        args.status,
+        current.dueDate,
+        updates
+      );
 
       await ctx.db.patch(ticketId, updates);
       count++;

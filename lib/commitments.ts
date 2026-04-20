@@ -171,6 +171,7 @@ export interface MeetingReliability {
   onTime: number;
   missed: number;
   total: number;
+  windowLabel: string; // e.g. "Last 30 days", "This month", "Last month"
 }
 
 export interface MeetingWorkMetrics {
@@ -182,6 +183,7 @@ export interface MeetingWorkMetrics {
   ticketsOpen: number;
   avgResolutionHours: number;
   avgClosedPerWeek: number;
+  periodLabel: string; // e.g. "This week", "Last month"
 }
 
 export interface MeetingMemberData {
@@ -268,35 +270,70 @@ export async function getMemberMeetingData(teamMemberId: number | string, period
 
   const allTickets = ticketDocs as any[];
 
-  // Reliability: rolling 30-day window of tickets whose due date has already passed,
-  // PLUS any currently open+overdue ticket regardless of age (so stale backlog is visible).
-  // Future-due tickets are out of scope — you can't miss a deadline that hasn't arrived.
-  // onTime  = closed on or before due date (and due date was within the window)
-  // missed  = closed after due date, OR still open with a past due date
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+  // Reliability window depends on selected period:
+  //   this_week / last_week → rolling 30 days + any currently-overdue ticket (stale backlog visible)
+  //   this_month / last_month / this_year → strictly the selected period
+  // A ticket is "delivered" when it transitions OUT of needs_attention/stuck/in_progress into
+  // qa_ready/client_review/closed. deliveredAt is stamped at that moment; fall back to closedAt
+  // for older tickets that pre-date the field.
+  //   onTime  = delivered on or before due date
+  //   missed  = delivered after due date, OR still in NOT_DONE with a past due date
+  const isWeeklyPeriod = period === "this_week" || period === "last_week" || !period;
+  let reliabilityStart: Date;
+  let reliabilityEnd: Date;
+  let windowLabel: string;
+  if (isWeeklyPeriod) {
+    reliabilityStart = new Date();
+    reliabilityStart.setDate(reliabilityStart.getDate() - 30);
+    reliabilityStart.setHours(0, 0, 0, 0);
+    reliabilityEnd = new Date();
+    reliabilityEnd.setHours(23, 59, 59, 999);
+    windowLabel = "Last 30 days";
+  } else {
+    reliabilityStart = periodStart;
+    reliabilityEnd = periodEnd;
+    windowLabel =
+      period === "this_month" ? "This month"
+      : period === "last_month" ? "Last month"
+      : period === "this_year" ? "This year"
+      : "This period";
+  }
+  const relStartStr = reliabilityStart.toISOString().split("T")[0];
+  const relEndStr = reliabilityEnd.toISOString().split("T")[0];
 
   let onTime = 0;
   let missed = 0;
   for (const t of allTickets) {
     if (!t.dueDate) continue;
-    const isClosed = t.status === "closed" && t.closedAt;
-    const isCurrentlyOverdue = !isClosed && t.dueDate < today && isOverdueEligible(t.status);
-    const dueInLast30 = t.dueDate >= thirtyDaysAgoStr && t.dueDate <= today;
+    const isInNotDone = isOverdueEligible(t.status);
+    const isCurrentlyOverdue = isInNotDone && t.dueDate < today;
+    const dueInWindow = t.dueDate >= relStartStr && t.dueDate <= relEndStr;
 
-    if (!dueInLast30 && !isCurrentlyOverdue) continue;
+    // Weekly periods keep the "currently overdue regardless of age" escape hatch so stale
+    // backlog can't hide behind a fresh 30-day window. Monthly/yearly are strictly scoped.
+    if (!dueInWindow && !(isWeeklyPeriod && isCurrentlyOverdue)) continue;
 
-    if (isClosed) {
-      const closedDate = t.closedAt.split("T")[0];
-      if (closedDate <= t.dueDate) onTime++;
+    const deliveredIso = t.deliveredAt ?? (t.status === "closed" ? t.closedAt : null);
+    const deliveredDate = deliveredIso ? deliveredIso.split("T")[0] : null;
+
+    if (deliveredDate) {
+      if (deliveredDate <= t.dueDate) onTime++;
       else missed++;
     } else if (isCurrentlyOverdue) {
       missed++;
     }
+    // else: open, not yet past due — doesn't count either way yet.
   }
   const reliabilityTotal = onTime + missed;
   const score = reliabilityTotal > 0 ? Math.round((onTime / reliabilityTotal) * 100) : 0;
+
+  const periodLabel =
+    period === "this_week" ? "This week"
+    : period === "last_week" ? "Last week"
+    : period === "this_month" ? "This month"
+    : period === "last_month" ? "Last month"
+    : period === "this_year" ? "This year"
+    : "This week";
 
   // Work metrics: tickets closed in period
   const closedInPeriod = allTickets.filter((t) =>
@@ -376,7 +413,7 @@ export async function getMemberMeetingData(teamMemberId: number | string, period
     dueThisWeek,
     inProgress,
     needsAttention,
-    reliability: { score, onTime, missed, total: reliabilityTotal },
+    reliability: { score, onTime, missed, total: reliabilityTotal, windowLabel },
     workMetrics: {
       loggedHours,
       clockedHours,
@@ -386,6 +423,7 @@ export async function getMemberMeetingData(teamMemberId: number | string, period
       ticketsOpen: open.length,
       avgResolutionHours,
       avgClosedPerWeek: Math.round((closedInPeriod.length / periodWeeks) * 10) / 10,
+      periodLabel,
     },
   };
 }
