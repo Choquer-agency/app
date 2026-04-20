@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 const STATUS_VALIDATOR = v.union(
   v.literal("forecast"),
@@ -47,6 +48,51 @@ export const getEnrichmentProgress = query({
         (counts[r.enrichmentState as keyof typeof counts] ?? 0) + 1;
     }
     return { total: rows.length, ...counts };
+  },
+});
+
+export const listAllImportSummaries = query({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("seoStrategyMonths").collect();
+    const byClient = new Map<
+      string,
+      {
+        clientId: string;
+        total: number;
+        idle: number;
+        queued: number;
+        running: number;
+        error: number;
+        lastEditedAt: number;
+      }
+    >();
+    for (const r of all) {
+      const key = r.clientId;
+      const cur = byClient.get(key) ?? {
+        clientId: key,
+        total: 0,
+        idle: 0,
+        queued: 0,
+        running: 0,
+        error: 0,
+        lastEditedAt: 0,
+      };
+      cur.total += 1;
+      cur[r.enrichmentState as "idle" | "queued" | "running" | "error"] += 1;
+      if (r.lastEditedAt > cur.lastEditedAt) cur.lastEditedAt = r.lastEditedAt;
+      byClient.set(key, cur);
+    }
+    const summaries = await Promise.all(
+      [...byClient.values()].map(async (s) => {
+        const client = await ctx.db.get(s.clientId as Id<"clients">);
+        return {
+          ...s,
+          clientName: (client as any)?.name ?? "Unknown",
+        };
+      })
+    );
+    return summaries.sort((a, b) => b.lastEditedAt - a.lastEditedAt);
   },
 });
 

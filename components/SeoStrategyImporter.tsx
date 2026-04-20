@@ -35,6 +35,17 @@ interface ProgressResponse {
   error: number;
 }
 
+interface ActiveJob {
+  clientId: string;
+  clientName: string;
+  total: number;
+  idle: number;
+  queued: number;
+  running: number;
+  error: number;
+  lastEditedAt: number;
+}
+
 export default function SeoStrategyImporter() {
   const currentYear = new Date().getFullYear();
   const [clients, setClients] = useState<ClientConfig[]>([]);
@@ -55,6 +66,36 @@ export default function SeoStrategyImporter() {
         );
         filtered.sort((a, b) => a.name.localeCompare(b.name));
         setClients(filtered);
+      })
+      .catch(() => {});
+
+    // Hydrate history from server: every client that has any imported months.
+    // This survives page refresh — running jobs continue to show progress.
+    fetch("/api/admin/seo-strategy/import/active")
+      .then((r) => r.json())
+      .then((data: { jobs?: ActiveJob[] }) => {
+        if (!data.jobs?.length) return;
+        setHistory((prev) => {
+          const next = { ...prev };
+          for (const j of data.jobs!) {
+            if (next[j.clientId]) continue; // don't clobber session-local state
+            next[j.clientId] = {
+              clientName: j.clientName,
+              startedAt: j.lastEditedAt || Date.now(),
+              monthsImported: j.total,
+              monthsAttempted: j.total,
+              results: [],
+              progress: {
+                total: j.total,
+                idle: j.idle,
+                queued: j.queued,
+                running: j.running,
+                error: j.error,
+              },
+            };
+          }
+          return next;
+        });
       })
       .catch(() => {});
   }, []);
