@@ -1,19 +1,37 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { ClientConfig } from "@/types";
 
+const TiptapEditor = dynamic(() => import("./TiptapEditor"), { ssr: false });
+
+const EMPTY_DOC = JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] });
+
+interface MonthResult {
+  monthKey: string;
+  headingText: string;
+  status: "complete" | "active" | "forecast";
+  saved: boolean;
+  error?: string;
+}
+
 interface ImportRecord {
-  status: "pending" | "running" | "done" | "error";
+  status: "running" | "done" | "error";
   monthsImported?: number;
+  monthsAttempted?: number;
+  results?: MonthResult[];
   error?: string;
 }
 
 export default function SeoStrategyImporter() {
+  const currentYear = new Date().getFullYear();
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [history, setHistory] = useState<Record<string, ImportRecord>>({});
   const [selectedClientId, setSelectedClientId] = useState("");
-  const [pasteContent, setPasteContent] = useState("");
+  const [defaultYear, setDefaultYear] = useState(currentYear);
+  const [editorContent, setEditorContent] = useState(EMPTY_DOC);
+  const [editorKey, setEditorKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -38,9 +56,22 @@ export default function SeoStrategyImporter() {
     });
   }, [clients, history]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedClientId || !pasteContent.trim()) return;
+  function isEmpty(json: string): boolean {
+    try {
+      const doc = JSON.parse(json);
+      const content = doc?.content ?? [];
+      if (content.length === 0) return true;
+      if (content.length === 1 && content[0].type === "paragraph" && !content[0].content) {
+        return true;
+      }
+    } catch {
+      return true;
+    }
+    return false;
+  }
+
+  async function handleSubmit() {
+    if (!selectedClientId || isEmpty(editorContent) || submitting) return;
     const id = selectedClientId;
     setSubmitting(true);
     setHistory((prev) => ({ ...prev, [id]: { status: "running" } }));
@@ -49,15 +80,25 @@ export default function SeoStrategyImporter() {
       const res = await fetch("/api/admin/seo-strategy/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: id, rawNotionMarkdown: pasteContent }),
+        body: JSON.stringify({
+          clientId: id,
+          rawContent: editorContent,
+          defaultYear,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
         setHistory((prev) => ({
           ...prev,
-          [id]: { status: "done", monthsImported: data.monthsImported },
+          [id]: {
+            status: "done",
+            monthsImported: data.monthsImported,
+            monthsAttempted: data.monthsAttempted,
+            results: data.results,
+          },
         }));
-        setPasteContent("");
+        setEditorContent(EMPTY_DOC);
+        setEditorKey((k) => k + 1);
         setSelectedClientId("");
       } else {
         setHistory((prev) => ({
@@ -76,71 +117,97 @@ export default function SeoStrategyImporter() {
   }
 
   const totalDone = Object.values(history).filter((h) => h.status === "done").length;
+  const yearOptions = Array.from({ length: 7 }, (_, i) => currentYear - 5 + i);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white border border-[var(--border)] rounded-xl p-5 space-y-4"
-      >
-        <div>
-          <label className="block text-xs font-medium text-[var(--muted)] mb-1">
-            Client
-          </label>
-          <select
-            value={selectedClientId}
-            onChange={(e) => setSelectedClientId(e.target.value)}
-            className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 bg-white"
-          >
-            <option value="">Select a client…</option>
-            {sortedClients.map((c) => {
-              const h = history[c.id];
-              const suffix = h?.status === "done" ? " ✓" : h?.status === "error" ? " ⚠" : "";
-              return (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {suffix}
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+      <div className="bg-white border border-[var(--border)] rounded-xl p-5 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
+          <div>
+            <label className="block text-xs font-medium text-[var(--muted)] mb-1">
+              Client
+            </label>
+            <select
+              value={selectedClientId}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+              className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 bg-white"
+            >
+              <option value="">Select a client…</option>
+              {sortedClients.map((c) => {
+                const h = history[c.id];
+                const suffix =
+                  h?.status === "done" ? " ✓" : h?.status === "error" ? " ⚠" : "";
+                return (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {suffix}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--muted)] mb-1">
+              Default year
+            </label>
+            <select
+              value={defaultYear}
+              onChange={(e) => setDefaultYear(Number(e.target.value))}
+              className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 bg-white"
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
                 </option>
-              );
-            })}
-          </select>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div>
           <label className="block text-xs font-medium text-[var(--muted)] mb-1">
             Paste full Notion board content
           </label>
-          <textarea
-            value={pasteContent}
-            onChange={(e) => setPasteContent(e.target.value)}
-            placeholder="## SEO Updates April 2026&#10;- [x] Optimize meta titles&#10;..."
-            rows={20}
-            className="w-full text-xs font-mono border border-[var(--border)] rounded-lg px-3 py-2 bg-white"
-          />
-          <p className="text-[10px] text-[var(--muted)] mt-1">
-            {pasteContent.length.toLocaleString()} chars. Detected month headings will be split into per-month rows automatically.
+          <p className="text-[11px] text-[var(--muted)] mb-2 leading-relaxed">
+            Paste straight from Notion — formatting will carry. Each month should be its
+            own heading (<code>March</code>, <code>March 2025</code>, or
+            <code> SEO Updates April 2026</code>). When the year flips, drop a year-only
+            heading like <code>2024</code> in between months. The default year is used
+            for the first slice until a year heading is found.
           </p>
+          <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-white min-h-[420px]">
+            <TiptapEditor
+              key={editorKey}
+              content={editorContent}
+              onChange={setEditorContent}
+              editable
+              placeholder="Paste your Notion board here…"
+            />
+          </div>
         </div>
 
         <div className="flex items-center justify-between">
           <span className="text-xs text-[var(--muted)]">
-            Imported so far: <span className="font-semibold text-[var(--foreground)]">{totalDone}</span> / {clients.length}
+            Imported so far:{" "}
+            <span className="font-semibold text-[var(--foreground)]">{totalDone}</span> /{" "}
+            {clients.length}
           </span>
           <button
-            type="submit"
-            disabled={submitting || !selectedClientId || !pasteContent.trim()}
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting || !selectedClientId || isEmpty(editorContent)}
             className="text-sm px-4 py-2 rounded-lg bg-[var(--accent)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition"
           >
-            {submitting ? "Importing…" : "Import in background"}
+            {submitting ? "Importing…" : "Import & queue enrichment"}
           </button>
         </div>
-      </form>
+      </div>
 
       <div className="bg-white border border-[var(--border)] rounded-xl p-4">
         <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">
           Recent imports
         </h3>
-        <div className="space-y-2 max-h-[480px] overflow-y-auto">
+        <div className="space-y-3 max-h-[640px] overflow-y-auto">
           {Object.entries(history).length === 0 && (
             <p className="text-xs text-[var(--muted)]">No imports yet this session.</p>
           )}
@@ -151,23 +218,52 @@ export default function SeoStrategyImporter() {
               rec.status === "done"
                 ? "bg-[#BDFFE8] text-[#0d7a55]"
                 : rec.status === "error"
-                ? "bg-red-50 text-red-700"
-                : "bg-amber-50 text-amber-700";
+                  ? "bg-red-50 text-red-700"
+                  : "bg-amber-50 text-amber-700";
             return (
               <div
                 key={id}
-                className="flex items-center justify-between text-xs border border-[var(--border)] rounded-lg px-3 py-2"
+                className="text-xs border border-[var(--border)] rounded-lg px-3 py-2 space-y-2"
               >
-                <div>
+                <div className="flex items-center justify-between">
                   <p className="font-medium text-[var(--foreground)]">{client.name}</p>
-                  {rec.monthsImported != null && (
-                    <p className="text-[var(--muted)]">{rec.monthsImported} months queued</p>
-                  )}
-                  {rec.error && <p className="text-red-700">{rec.error}</p>}
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${badge}`}
+                  >
+                    {rec.status}
+                  </span>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${badge}`}>
-                  {rec.status}
-                </span>
+                {rec.monthsImported != null && (
+                  <p className="text-[var(--muted)]">
+                    {rec.monthsImported} / {rec.monthsAttempted ?? rec.monthsImported}{" "}
+                    months queued for enrichment
+                  </p>
+                )}
+                {rec.results && rec.results.length > 0 && (
+                  <ul className="space-y-0.5 max-h-40 overflow-y-auto">
+                    {rec.results.map((r) => (
+                      <li
+                        key={r.monthKey}
+                        className="flex items-center justify-between text-[11px]"
+                      >
+                        <span className="text-[var(--foreground)]">
+                          {r.monthKey}
+                          <span className="text-[var(--muted)]"> · {r.headingText}</span>
+                        </span>
+                        <span
+                          className={
+                            r.saved
+                              ? "text-[#0d7a55]"
+                              : "text-red-700"
+                          }
+                        >
+                          {r.saved ? r.status : r.error ?? "failed"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {rec.error && <p className="text-red-700">{rec.error}</p>}
               </div>
             );
           })}

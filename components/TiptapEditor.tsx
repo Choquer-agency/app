@@ -14,7 +14,15 @@ import Mention from "@tiptap/extension-mention";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
+import tippy, { Instance as TippyInstance } from "tippy.js";
 import { useEffect, useCallback, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import {
+  SlashCommand,
+  defaultSlashItems,
+  filterSlashItems,
+  type SlashCommandItem,
+} from "./tiptap/SlashCommand";
+import SlashCommandMenu, { type SlashMenuHandle } from "./tiptap/SlashCommandMenu";
 
 interface MentionItem {
   id: string;
@@ -134,6 +142,24 @@ export default function TiptapEditor({
     []
   );
 
+  const editorRef = useRef<ReturnType<typeof useEditor> | null>(null);
+  const slashMenuOpenRef = useRef(false);
+
+  const pickAndUploadImage = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const url = await handleImagePaste(file);
+      if (url && editorRef.current) {
+        editorRef.current.chain().focus().setImage({ src: url }).run();
+      }
+    };
+    input.click();
+  }, [handleImagePaste]);
+
   // no-op — positioning handled in onStart/onUpdate directly
 
 
@@ -168,6 +194,58 @@ export default function TiptapEditor({
       TextStyle,
       Color,
       Highlight.configure({ multicolor: true }),
+      SlashCommand.configure({
+        suggestion: {
+          items: ({ query }: { query: string }): SlashCommandItem[] =>
+            filterSlashItems(defaultSlashItems({ uploadImage: pickAndUploadImage }), query),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          render: () => {
+            let component: any;
+            let popup: TippyInstance[] | null = null;
+
+            return {
+              onStart: (props: any) => {
+                slashMenuOpenRef.current = true;
+                component = new ReactRenderer(SlashCommandMenu, {
+                  props,
+                  editor: props.editor,
+                });
+                if (!props.clientRect) return;
+                popup = tippy("body", {
+                  getReferenceClientRect: props.clientRect,
+                  appendTo: () => document.body,
+                  content: component.element,
+                  showOnCreate: true,
+                  interactive: true,
+                  trigger: "manual",
+                  placement: "bottom-start",
+                  theme: "tiptap-slash",
+                  arrow: false,
+                  offset: [0, 6],
+                });
+              },
+              onUpdate: (props: any) => {
+                component.updateProps(props);
+                if (!props.clientRect) return;
+                popup?.[0]?.setProps({ getReferenceClientRect: props.clientRect });
+              },
+              onKeyDown: (props: any) => {
+                if (props.event.key === "Escape") {
+                  popup?.[0]?.hide();
+                  slashMenuOpenRef.current = false;
+                  return true;
+                }
+                return (component.ref as SlashMenuHandle | null)?.onKeyDown(props) ?? false;
+              },
+              onExit: () => {
+                slashMenuOpenRef.current = false;
+                popup?.[0]?.destroy();
+                component.destroy();
+              },
+            };
+          },
+        },
+      }),
       Mention.configure({
         HTMLAttributes: { class: "tiptap-mention" },
         suggestion: {
@@ -265,7 +343,12 @@ export default function TiptapEditor({
       },
       handleKeyDown: compact && onSubmit
         ? (_view, event) => {
-            if (event.key === "Enter" && !event.shiftKey && !mentionOpenRef.current) {
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !mentionOpenRef.current &&
+              !slashMenuOpenRef.current
+            ) {
               event.preventDefault();
               onSubmit();
               return true;
@@ -282,6 +365,10 @@ export default function TiptapEditor({
       if (contentRef) contentRef.current = json;
     },
   });
+
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   // Update content when prop changes (but not on first render)
   useEffect(() => {
@@ -849,6 +936,109 @@ export default function TiptapEditor({
         .tiptap-content mark {
           border-radius: 2px;
           padding: 1px 0;
+        }
+
+        /* Slash command menu */
+        .tippy-box[data-theme~="tiptap-slash"] {
+          background: transparent;
+          box-shadow: none;
+        }
+
+        .tippy-box[data-theme~="tiptap-slash"] .tippy-content {
+          padding: 0;
+        }
+
+        .tiptap-slash-menu {
+          background: white;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+          padding: 6px;
+          width: 280px;
+          max-height: 320px;
+          overflow-y: auto;
+          z-index: 9999;
+        }
+
+        .tiptap-slash-group {
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: var(--muted);
+          padding: 8px 8px 4px;
+        }
+
+        .tiptap-slash-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          width: 100%;
+          padding: 6px 8px;
+          border: none;
+          background: transparent;
+          border-radius: 6px;
+          cursor: pointer;
+          text-align: left;
+          transition: background 0.1s;
+        }
+
+        .tiptap-slash-item:hover,
+        .tiptap-slash-item.is-active {
+          background: var(--accent-light, #fef3e2);
+        }
+
+        .tiptap-slash-icon {
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #f9fafb;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--foreground);
+          flex-shrink: 0;
+        }
+
+        .tiptap-slash-text {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .tiptap-slash-title {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--foreground);
+          line-height: 1.2;
+        }
+
+        .tiptap-slash-desc {
+          font-size: 11px;
+          color: var(--muted);
+          line-height: 1.3;
+          margin-top: 1px;
+        }
+
+        .tiptap-slash-shortcut {
+          font-size: 10px;
+          font-family: ui-monospace, monospace;
+          color: var(--muted);
+          background: #f3f4f6;
+          padding: 2px 6px;
+          border-radius: 4px;
+          flex-shrink: 0;
+        }
+
+        .tiptap-slash-empty {
+          padding: 12px;
+          font-size: 12px;
+          color: var(--muted);
+          text-align: center;
         }
       `}</style>
     </div>

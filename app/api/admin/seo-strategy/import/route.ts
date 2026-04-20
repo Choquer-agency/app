@@ -2,109 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/admin-auth";
 import { hasPermission } from "@/lib/permissions";
 import { getClientById } from "@/lib/clients";
-import { markdownToTiptap } from "@/lib/markdown-to-tiptap";
+import { chunkTiptapByMonth } from "@/lib/seo-import-chunker";
 import {
-  seedMonth,
+  saveMonth,
   classifyStatus,
-  monthKeyOf,
-  EMPTY_TIPTAP_DOC,
+  type SeoStrategyMonth,
 } from "@/lib/seo-strategy-months";
+import { enrichSeoStrategyMonth } from "@/lib/seo-month-enrichment";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 800;
 
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+const ENRICH_CONCURRENCY = 3;
 
-const MONTH_LOOKUP: Record<string, number> = (() => {
-  const map: Record<string, number> = {};
-  MONTH_NAMES.forEach((n, i) => {
-    map[n.toLowerCase()] = i + 1;
-    map[n.slice(0, 3).toLowerCase()] = i + 1;
-  });
-  return map;
-})();
-
-interface MonthChunk {
-  year: number;
-  month: number;
+interface MonthResult {
   monthKey: string;
-  markdown: string;
-}
-
-const HEADING_REGEX =
-  /^#{1,4}\s+(?:SEO\s+Updates?\s+)?([A-Za-z]+)(?:\s+(\d{4}))?\s*$/im;
-
-function parseHeading(line: string): { name: string; year?: number } | null {
-  const m = line.match(/^#{1,4}\s+(?:SEO\s+Updates?\s+)?([A-Za-z]+)(?:\s+(\d{4}))?\s*$/);
-  if (!m) return null;
-  const name = m[1].toLowerCase();
-  if (!(name in MONTH_LOOKUP)) return null;
-  return { name, year: m[2] ? parseInt(m[2], 10) : undefined };
-}
-
-function chunkByMonth(markdown: string): MonthChunk[] {
-  const lines = markdown.split("\n");
-  const chunks: MonthChunk[] = [];
-  const today = new Date();
-  let currentYear = today.getFullYear();
-  let activeChunk: { year: number; month: number; lines: string[] } | null = null;
-  let pendingYear: number | null = null;
-
-  for (const line of lines) {
-    const yearOnly = line.match(/^#{1,4}\s+(\d{4})\s*$/);
-    if (yearOnly) {
-      pendingYear = parseInt(yearOnly[1], 10);
-      currentYear = pendingYear;
-      continue;
-    }
-
-    const heading = parseHeading(line);
-    if (heading) {
-      if (activeChunk) {
-        const monthKey = monthKeyOf(activeChunk.year, activeChunk.month);
-        chunks.push({
-          year: activeChunk.year,
-          month: activeChunk.month,
-          monthKey,
-          markdown: activeChunk.lines.join("\n").trim(),
-        });
-      }
-      const month = MONTH_LOOKUP[heading.name];
-      const year = heading.year ?? pendingYear ?? currentYear;
-      activeChunk = { year, month, lines: [] };
-      continue;
-    }
-
-    if (activeChunk) activeChunk.lines.push(line);
-  }
-
-  if (activeChunk) {
-    const monthKey = monthKeyOf(activeChunk.year, activeChunk.month);
-    chunks.push({
-      year: activeChunk.year,
-      month: activeChunk.month,
-      monthKey,
-      markdown: activeChunk.lines.join("\n").trim(),
-    });
-  }
-
-  // De-dupe by monthKey, last wins
-  const dedup = new Map<string, MonthChunk>();
-  for (const c of chunks) dedup.set(c.monthKey, c);
-  return [...dedup.values()].sort((a, b) => (a.monthKey < b.monthKey ? -1 : 1));
+  headingText: string;
+  status: "complete" | "active" | "forecast";
+  saved: boolean;
+  enriched: boolean;
+  error?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -118,11 +35,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { clientId, rawNotionMarkdown } = body;
+    const { clientId, rawContent, defaultYear } = body;
 
-    if (!clientId || typeof rawNotionMarkdown !== "string") {
+    if (!clientId || typeof rawContent !== "string") {
       return NextResponse.json(
-        { error: "clientId and rawNotionMarkdown are required" },
+        { error: "clientId and rawContent (TipTap JSON) are required" },
         { status: 400 }
       );
     }
@@ -132,41 +49,87 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    const chunks = chunkByMonth(rawNotionMarkdown);
-
-    if (chunks.length === 0) {
-      // Fallback: dump entire content into current month, queue review
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = today.getMonth() + 1;
-      chunks.push({
-        year,
-        month,
-        monthKey: monthKeyOf(year, month),
-        markdown: rawNotionMarkdown,
-      });
+    let doc: unknown;
+    try {
+      doc = JSON.parse(rawContent);
+    } catch {
+      return NextResponse.json(
+        { error: "rawContent must be valid TipTap JSON" },
+        { status: 400 }
+      );
     }
 
-    const created: string[] = [];
+    const year =
+      typeof defaultYear === "number" && defaultYear > 1900
+        ? defaultYear
+        : new Date().getFullYear();
+
+    const chunks = chunkTiptapByMonth(doc as never, year);
+
+    if (chunks.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "No month headings detected. Make sure each month is its own heading (e.g. 'March', 'March 2025', or 'SEO Updates April 2026').",
+        },
+        { status: 400 }
+      );
+    }
+
+    const results: MonthResult[] = [];
+
+    // Pass 1 — save every chunk (fast)
+    const savedChunks: Array<{ saved: SeoStrategyMonth; result: MonthResult }> = [];
+
     for (const chunk of chunks) {
-      const tiptapJson = chunk.markdown ? markdownToTiptap(chunk.markdown) : EMPTY_TIPTAP_DOC;
       const status = classifyStatus(chunk.year, chunk.month);
-      const id = await seedMonth({
-        clientId,
-        clientSlug: client.slug,
+      const result: MonthResult = {
         monthKey: chunk.monthKey,
-        rawContent: tiptapJson,
+        headingText: chunk.headingText,
         status,
-        enrichmentState: "queued",
-      });
-      created.push(id);
+        saved: false,
+        enriched: false,
+      };
+      try {
+        const saved = await saveMonth({
+          clientId,
+          clientSlug: client.slug,
+          monthKey: chunk.monthKey,
+          rawContent: chunk.rawContent,
+          status,
+          lastEditedBy: session.teamMemberId,
+        });
+        result.saved = true;
+        savedChunks.push({ saved, result });
+      } catch (err) {
+        result.error = err instanceof Error ? err.message : "Save failed";
+      }
+      results.push(result);
+    }
+
+    // Pass 2 — enrich each saved chunk (slow). Run in parallel batches so the
+    // dashboard has clean polished content the moment the import finishes.
+    for (let i = 0; i < savedChunks.length; i += ENRICH_CONCURRENCY) {
+      const batch = savedChunks.slice(i, i + ENRICH_CONCURRENCY);
+      await Promise.all(
+        batch.map(async ({ saved, result }) => {
+          try {
+            await enrichSeoStrategyMonth({ ...saved, enrichmentState: "running" });
+            result.enriched = true;
+          } catch (err) {
+            result.error = err instanceof Error ? err.message : "Enrichment failed";
+          }
+        })
+      );
     }
 
     return NextResponse.json({
       clientId,
       clientSlug: client.slug,
-      monthsImported: chunks.length,
-      ids: created,
+      monthsImported: results.filter((r) => r.saved).length,
+      monthsEnriched: results.filter((r) => r.enriched).length,
+      monthsAttempted: results.length,
+      results,
     });
   } catch (error) {
     console.error("SEO strategy import failed:", error);
