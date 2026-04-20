@@ -45,7 +45,10 @@ export function useTickets({
     if (filters.archived) a.archived = true;
 
     if (projectId) a.projectId = projectId as Id<"projects">;
-    if (!projectId) a.startDateActive = true;
+    // startDateActive hides future-scheduled tickets. Skip it on personal/assignee
+    // boards so team members always see every ticket assigned to them, including
+    // overdue work with an odd startDate.
+    if (!projectId && !effectiveAssigneeId) a.startDateActive = true;
 
     if (isPersonal !== undefined) a.isPersonal = isPersonal;
     if (ownerId) a.createdById = ownerId as Id<"teamMembers">;
@@ -55,9 +58,16 @@ export function useTickets({
 
   const raw = useQuery(api.tickets.list, queryArgs as any);
 
+  // Sub-tickets are normally hidden at the top level (they render nested under
+  // their parent). On personal/assignee boards we keep them so someone who owns
+  // only a sub-ticket still sees their work.
+  const effectiveAssigneeIdForFilter = filters.assigneeId || assigneeId;
   const tickets = useMemo(
-    () => raw?.map(docToTicket).filter((t) => !t.parentTicketId) ?? [],
-    [raw]
+    () =>
+      raw
+        ?.map(docToTicket)
+        .filter((t) => (effectiveAssigneeIdForFilter ? true : !t.parentTicketId)) ?? [],
+    [raw, effectiveAssigneeIdForFilter]
   );
 
   return { tickets, isLoading: raw === undefined };
