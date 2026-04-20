@@ -344,12 +344,12 @@ export default function MeetingView({ roleLevel, teamMemberId }: { roleLevel?: s
             <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
               <div className="text-[10px] text-[#9CA3AF] mb-1">On Time</div>
               <div className="text-2xl font-semibold text-green-600">{data.reliability.onTime}</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">Delivered on time · {data.reliability.windowLabel.toLowerCase()}</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">Delivered on time · {data.workMetrics.periodLabel.toLowerCase()}</div>
             </div>
             <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
               <div className="text-[10px] text-[#9CA3AF] mb-1">Missed</div>
               <div className="text-2xl font-semibold text-red-600">{data.reliability.missed}</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">Late or still overdue · {data.reliability.windowLabel.toLowerCase()}</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">Late or still overdue · {data.workMetrics.periodLabel.toLowerCase()}</div>
             </div>
             <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
               <div className="text-[10px] text-[#9CA3AF] mb-1">Due This Week</div>
@@ -380,7 +380,7 @@ export default function MeetingView({ roleLevel, teamMemberId }: { roleLevel?: s
                   ? `${data.workMetrics.avgResolutionHours.toFixed(1)}h`
                   : `${(data.workMetrics.avgResolutionHours / 24).toFixed(1)}d`}
               </div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">Create to close · {data.workMetrics.periodLabel.toLowerCase()}</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">Create to close · last 30 days</div>
             </div>
             <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
               <div className="text-[10px] text-[#9CA3AF] mb-1">Velocity</div>
