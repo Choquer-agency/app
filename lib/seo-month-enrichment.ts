@@ -250,15 +250,21 @@ async function mergeIntoEnrichedContent(
     };
   }
 
-  // Use the active month's date as the row month, or fall back to current month
-  const rowMonth = (() => {
-    const { year, month } = parseMonthKey(monthKey);
-    return `${year}-${String(month).padStart(2, "0")}-01`;
-  })();
+  // Always write to the canonical "latest" row for this client so the
+  // dashboard (which reads via getLatest) sees the cumulative state.
+  // Without this, each per-month enrichment writes into its own
+  // (clientSlug, month) row and only the highest-month row is read,
+  // dropping every other month's pastMonths update.
+  const canonicalMonth =
+    latest?.month ??
+    (() => {
+      const { year, month } = parseMonthKey(monthKey);
+      return `${year}-${String(month).padStart(2, "0")}-01`;
+    })();
 
   await convex.mutation(api.enrichedContent.upsert, {
     clientSlug: client.slug,
-    month: rowMonth,
+    month: canonicalMonth,
     rawContent: latest?.rawContent ?? "",
     enrichedData: newData as unknown,
   });
