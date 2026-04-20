@@ -434,8 +434,21 @@ function MonthSection({
     };
   }, [clientId, month.monthKey, month.rawContent, month.quarterlyGoal, flushSave, flushGoal]);
 
-  const isDirty = month.rawContentHash !== (month.lastEnrichedHash ?? "");
+  const hasUnsavedEdits = content !== month.rawContent;
+  const isDirty =
+    month.rawContentHash !== (month.lastEnrichedHash ?? "") || hasUnsavedEdits;
   const showReEnrich = !isPlaceholder && !isEmpty && isDirty;
+
+  async function handleReEnrichClick() {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    if (latestRef.current !== month.rawContent) {
+      await flushSave(latestRef.current);
+    }
+    onReEnrich();
+  }
 
   return (
     <div className="border border-[var(--border)] rounded-xl overflow-hidden bg-white">
@@ -479,11 +492,15 @@ function MonthSection({
         <div className="flex items-center gap-2 shrink-0">
           {showReEnrich && (
             <button
-              onClick={onReEnrich}
-              disabled={enriching || month.enrichmentState === "running"}
+              onClick={handleReEnrichClick}
+              disabled={enriching || month.enrichmentState === "running" || saving}
               className="text-[11px] px-2.5 py-1 rounded-lg bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-50 transition"
             >
-              {enriching || month.enrichmentState === "running" ? "Enriching…" : "Re-enrich now"}
+              {saving
+                ? "Saving…"
+                : enriching || month.enrichmentState === "running"
+                ? "Enriching…"
+                : "Re-enrich now"}
             </button>
           )}
           <button
