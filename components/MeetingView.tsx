@@ -339,22 +339,22 @@ export default function MeetingView({ roleLevel, teamMemberId }: { roleLevel?: s
                   {data.reliability.total > 0 ? `${data.reliability.score}%` : "—"}
                 </span>
               </div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">Due dates hit</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">{data.reliability.windowLabel}</div>
             </div>
             <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
               <div className="text-[10px] text-[#9CA3AF] mb-1">On Time</div>
               <div className="text-2xl font-semibold text-green-600">{data.reliability.onTime}</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">Closed before due</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">Delivered on time · {data.reliability.windowLabel.toLowerCase()}</div>
             </div>
             <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
               <div className="text-[10px] text-[#9CA3AF] mb-1">Missed</div>
               <div className="text-2xl font-semibold text-red-600">{data.reliability.missed}</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">Closed after due</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">Late or still overdue · {data.reliability.windowLabel.toLowerCase()}</div>
             </div>
             <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
               <div className="text-[10px] text-[#9CA3AF] mb-1">Due This Week</div>
               <div className="text-2xl font-semibold text-[#1A1A1A]">{data.dueThisWeek.length}</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">Upcoming deadlines</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">Current week · rolling</div>
             </div>
           </div>
 
@@ -366,12 +366,12 @@ export default function MeetingView({ roleLevel, teamMemberId }: { roleLevel?: s
                 {data.workMetrics.loggedHours.toFixed(1)}h
                 <span className="text-[#9CA3AF] font-normal text-lg"> / {data.workMetrics.clockedHours.toFixed(1)}h</span>
               </div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">{data.workMetrics.utilizationPct}% utilization</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">{data.workMetrics.utilizationPct}% utilization · {data.workMetrics.periodLabel.toLowerCase()}</div>
             </div>
             <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
               <div className="text-[10px] text-[#9CA3AF] mb-1">Tickets Closed</div>
               <div className="text-2xl font-semibold text-[#FF9500]">{data.workMetrics.ticketsClosed}</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">In this period</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">{data.workMetrics.periodLabel}</div>
             </div>
             <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
               <div className="text-[10px] text-[#9CA3AF] mb-1">Avg Resolution</div>
@@ -380,12 +380,12 @@ export default function MeetingView({ roleLevel, teamMemberId }: { roleLevel?: s
                   ? `${data.workMetrics.avgResolutionHours.toFixed(1)}h`
                   : `${(data.workMetrics.avgResolutionHours / 24).toFixed(1)}d`}
               </div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">Create to close</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">Create to close · {data.workMetrics.periodLabel.toLowerCase()}</div>
             </div>
             <div style={{ flex: 1 }} className="border border-[#E5E5E5] rounded-xl p-3 bg-white">
               <div className="text-[10px] text-[#9CA3AF] mb-1">Velocity</div>
               <div className="text-2xl font-semibold text-[#1A1A1A]">{data.workMetrics.avgClosedPerWeek}</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-1">Tickets / week</div>
+              <div className="text-[10px] text-[#9CA3AF] mt-1">Tickets / week · {data.workMetrics.periodLabel.toLowerCase()}</div>
             </div>
           </div>
 
@@ -565,13 +565,20 @@ export default function MeetingView({ roleLevel, teamMemberId }: { roleLevel?: s
                               onClick={async () => {
                                 if (!confirm("Delete this briefing? This is permanent and will remove it from future AI context.")) return;
                                 try {
-                                  await fetch("/api/admin/meetings/history", {
+                                  const res = await fetch("/api/admin/meetings/history", {
                                     method: "DELETE",
                                     headers: { "Content-Type": "application/json" },
                                     body: JSON.stringify({ id: b._id }),
                                   });
+                                  if (!res.ok) {
+                                    const body = await res.json().catch(() => ({}));
+                                    alert(`Delete failed (${res.status}): ${body.error ?? "unknown"}`);
+                                    return;
+                                  }
                                   setPastBriefings((prev) => prev.filter((x: any) => x._id !== b._id));
-                                } catch {}
+                                } catch (err) {
+                                  alert(`Delete failed: ${err instanceof Error ? err.message : "network error"}`);
+                                }
                               }}
                               className="p-1 text-[var(--muted)] hover:text-red-600 transition shrink-0"
                               title="Delete briefing"

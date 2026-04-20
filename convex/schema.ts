@@ -341,6 +341,10 @@ export default defineSchema({
     dayOffsetDue: v.optional(v.number()),
     serviceCategory: v.optional(v.string()), // "seo" | "google_ads" | "retainer"
     closedAt: v.optional(v.string()),
+    // Timestamp of most recent transition FROM work-in-progress (needs_attention/stuck/in_progress)
+    // INTO a delivery status (qa_ready/client_review/closed). Used for reliability scoring so
+    // tickets that land in QA/review late still count as missed even though they're not "overdue".
+    deliveredAt: v.optional(v.string()),
   })
     .index("by_client", ["clientId"])
     .index("by_project", ["projectId"])
