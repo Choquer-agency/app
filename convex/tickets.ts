@@ -213,7 +213,14 @@ export const list = query({
           })
         );
 
-        return { ...t, clientName, assignees };
+        // Sub-ticket count so the list view can render an expand chevron
+        const subTickets = await ctx.db
+          .query("tickets")
+          .withIndex("by_parent", (q) => q.eq("parentTicketId", t._id))
+          .collect();
+        const subTicketCount = subTickets.filter((s) => !s.archived).length;
+
+        return { ...t, clientName, assignees, subTicketCount };
       })
     );
 
