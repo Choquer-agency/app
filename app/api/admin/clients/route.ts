@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAllClients, getPastClients, createClient } from "@/lib/clients";
 import { CreateClientInput } from "@/types";
 import { getSession } from "@/lib/admin-auth";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@/convex/_generated/api";
+import { notifyClientAdded } from "@/lib/notification-triggers";
 
 export async function GET(request: NextRequest) {
   if (!getSession(request)) {
@@ -23,7 +26,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!getSession(request)) {
+  const session = getSession(request);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -73,6 +77,39 @@ export async function POST(request: NextRequest) {
       socialInstagram: body.socialInstagram,
       socialX: body.socialX,
     });
+
+    // Celebrate the new client: pinned bulletin + bell notifications to all team members.
+    try {
+      const convex = getConvexClient();
+      const segments: string[] = [];
+      if (body.mrr) segments.push(`$${body.mrr}/mo MRR`);
+      if (body.accountSpecialist) segments.push(`AM: ${body.accountSpecialist}`);
+      if (body.industry) segments.push(body.industry);
+      const summary = segments.length
+        ? segments.join(" • ")
+        : "New signing — welcome them to the family.";
+
+      const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+
+      await convex.mutation(api.bulletin.createAnnouncement, {
+        authorId: session.teamMemberId as any,
+        title: `Welcome ${client.name}!`,
+        content: summary,
+        pinned: true,
+        source: "client_signing",
+        announcementType: "celebration",
+        expiresAt,
+      });
+
+      await notifyClientAdded(
+        String(client.id),
+        client.name,
+        summary,
+        session.teamMemberId
+      );
+    } catch (err) {
+      console.error("[clients] Failed to announce new client:", err);
+    }
 
     return NextResponse.json(client, { status: 201 });
   } catch (error) {

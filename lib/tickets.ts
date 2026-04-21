@@ -15,6 +15,7 @@ import {
   notifyTicketCreated,
   notifyDueDateChanged,
   notifyTicketClosed,
+  notifyPriorityChanged,
 } from "@/lib/notification-triggers";
 import { docToTicket, docToAssignee } from "@/lib/ticket-mappers";
 
@@ -153,7 +154,7 @@ export async function createTicket(
 
   // Notify assignees about new ticket
   if (data.assigneeIds && data.assigneeIds.length > 0) {
-    notifyTicketCreated(
+    await notifyTicketCreated(
       ticketId,
       doc!.ticketNumber,
       data.title,
@@ -227,9 +228,9 @@ export async function updateTicket(
         oldValue: current.status,
         newValue: status,
       });
-      notifyStatusChange(id, current.status, status, actor.id);
+      await notifyStatusChange(id, current.status, status, actor.id);
       if (status === "closed") {
-        notifyTicketClosed(id, actor.id);
+        await notifyTicketClosed(id, actor.id);
       }
     }
     if (priority !== current.priority) {
@@ -238,6 +239,7 @@ export async function updateTicket(
         oldValue: current.priority,
         newValue: priority,
       });
+      await notifyPriorityChanged(id, current.priority, priority, actor.id);
     }
     if (title !== current.title) {
       await logActivity(id, actor.id, actor.name, "title_change", {
@@ -264,7 +266,7 @@ export async function updateTicket(
         oldValue: current.dueDate,
         newValue: dueDate,
       });
-      notifyDueDateChanged(id, current.dueDate || null, dueDate || null, actor.id);
+      await notifyDueDateChanged(id, current.dueDate || null, dueDate || null, actor.id);
     }
     if (startDate !== current.startDate) {
       await logActivity(id, actor.id, actor.name, "due_date_change", {
@@ -357,7 +359,7 @@ export async function addAssignee(
       newValue: found?.memberName || String(teamMemberId),
       metadata: { teamMemberId },
     });
-    notifyAssigned(ticketId, teamMemberId, actor.id);
+    await notifyAssigned(ticketId, teamMemberId, actor.id, found?.memberName);
   }
 
   return assignee;
@@ -427,7 +429,7 @@ export async function bulkUpdateStatus(
           oldValue: oldStatuses[ticketId],
           newValue: status,
         });
-        notifyStatusChange(ticketId, oldStatuses[ticketId], status, actor.id);
+        await notifyStatusChange(ticketId, oldStatuses[ticketId], status, actor.id);
       }
     }
   }
@@ -472,6 +474,7 @@ export async function bulkUpdatePriority(
           oldValue: oldPriorities[ticketId],
           newValue: priority,
         });
+        await notifyPriorityChanged(ticketId, oldPriorities[ticketId], priority, actor.id);
       }
     }
   }
@@ -509,7 +512,7 @@ export async function bulkAssign(
           newValue: memberName || String(teamMemberId),
           metadata: { teamMemberId },
         });
-        notifyAssigned(ticketId, teamMemberId, actor.id);
+        await notifyAssigned(ticketId, teamMemberId, actor.id, memberName);
       } else {
         await logActivity(ticketId, actor.id, actor.name, "unassigned", {
           oldValue: memberName || String(teamMemberId),

@@ -8,6 +8,7 @@ import {
   extractCompany,
   isConsumerOrISP,
 } from "@/lib/visitor-identification";
+import { notifyHighIntentVisitor } from "@/lib/notification-triggers";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -204,42 +205,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // High-intent alert — notify admins when a visitor escalates to high_intent
+    // High-intent alert — only for IDENTIFIED companies. Unknown visitors are silent.
     if (
       visitorResult.intentLevel === "high_intent" &&
-      visitorResult.previousIntent !== "high_intent"
+      visitorResult.previousIntent !== "high_intent" &&
+      visitorResult.companyId
     ) {
       const shouldAlert =
         !visitorResult.lastAlertedAt ||
         Date.now() - new Date(visitorResult.lastAlertedAt).getTime() > 24 * 60 * 60 * 1000;
 
       if (shouldAlert) {
-        // Find all owner/c_suite team members to notify
         try {
           const members = await convex.query(api.teamMembers.list, { activeOnly: true });
-          const admins = members.filter(
-            (m: any) => m.roleLevel === "owner" || m.roleLevel === "c_suite"
+          const admins = (members as any[]).filter(
+            (m) => m.roleLevel === "owner" || m.roleLevel === "c_suite"
           );
 
-          let companyName = "Unknown company";
-          if (visitorResult.companyId) {
-            const company = await convex.query(api.identifiedCompanies.get, {
-              id: visitorResult.companyId as any,
-            });
-            if (company) companyName = company.name;
-          }
+          const company = await convex.query(api.identifiedCompanies.get, {
+            id: visitorResult.companyId as any,
+          });
+          const companyName = company?.name || "An identified company";
 
           for (const admin of admins) {
-            await convex.mutation(api.notifications.create, {
-              recipientId: admin._id,
-              type: "high_intent_visitor",
-              title: `${companyName} is back on your website`,
-              body: `Visit #${visitorResult.visitCount}. They viewed ${body.p || "/"}. Consider reaching out.`,
-              link: "/admin/crm/traffic",
-            });
+            await notifyHighIntentVisitor(
+              admin._id,
+              admin.roleLevel,
+              companyName,
+              visitorResult.visitCount ?? 1,
+              body.p || "/"
+            );
           }
 
-          // Update lastAlertedAt
           await convex.mutation(api.siteVisitors.updateAlertedAt, {
             id: visitorResult.id as any,
             lastAlertedAt: new Date().toISOString(),

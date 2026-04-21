@@ -8,6 +8,7 @@ import { Ticket, TicketStatus, TicketPriority, TeamMember, ProjectGroup, isOverd
 import TicketStatusBadge, { StatusDot, getStatusDotColor } from "./TicketStatusBadge";
 import TicketPriorityBadge, { getPriorityLabel } from "./TicketPriorityBadge";
 import TicketAssigneeAvatars from "./TicketAssigneeAvatars";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 type GroupBy = "status" | "priority" | "assignee" | "client" | "group";
 
@@ -71,6 +72,7 @@ function KanbanQuickAdd({ status, onCreated, projectId, isPersonal }: {
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const createTicketMutation = useMutation(api.tickets.create);
+  const { userId: currentUserId } = useCurrentUser();
 
   useEffect(() => {
     if (active) setTimeout(() => inputRef.current?.focus(), 0);
@@ -86,6 +88,7 @@ function KanbanQuickAdd({ status, onCreated, projectId, isPersonal }: {
         status,
         ...(projectId && { projectId: projectId as Id<"projects"> }),
         ...(isPersonal && { isPersonal: true }),
+        ...(currentUserId && { createdById: currentUserId as Id<"teamMembers"> }),
       });
       setTitle("");
       setActive(false);

@@ -34,21 +34,44 @@ async function getAssigneeIds(ticketId: number | string): Promise<string[]> {
 export async function notifyAssigned(
   ticketId: number | string,
   assignedMemberId: number | string,
-  actorId: number | string | null
+  actorId: number | string | null,
+  assigneeName?: string
 ): Promise<void> {
-  if (assignedMemberId === actorId) return;
+  const assignedStr = String(assignedMemberId);
+  const actorStr = actorId != null ? String(actorId) : null;
 
   const ticket = await getTicketById(ticketId as any);
   if (!ticket) return;
 
-  await createNotification(
-    assignedMemberId,
-    ticketId,
-    "assigned",
-    `You were assigned to ${ticket.ticketNumber}`,
-    ticket.title,
-    ticketLink(ticketId)
-  );
+  // Notify the newly assigned person (unless they're the one doing the assigning)
+  if (assignedStr !== actorStr) {
+    await createNotification(
+      assignedMemberId,
+      ticketId,
+      "assigned",
+      `You were assigned to ${ticket.ticketNumber}`,
+      ticket.title,
+      ticketLink(ticketId)
+    );
+  }
+
+  // Also notify the creator (owner of the ticket) when someone else was assigned.
+  const creatorStr = ticket.createdById ? String(ticket.createdById) : null;
+  if (
+    creatorStr &&
+    creatorStr !== assignedStr &&
+    creatorStr !== actorStr
+  ) {
+    const label = assigneeName ? assigneeName : "a team member";
+    await createNotification(
+      ticket.createdById as string,
+      ticketId,
+      "assigned",
+      `${ticket.ticketNumber} was assigned to ${label}`,
+      ticket.title,
+      ticketLink(ticketId)
+    );
+  }
 }
 
 // === Trigger: Status Change ===
@@ -62,14 +85,16 @@ export async function notifyStatusChange(
   const ticket = await getTicketById(ticketId as any);
   if (!ticket) return;
 
+  const actorStr = actorId != null ? String(actorId) : null;
   const recipientIds: string[] = [];
-  if (ticket.createdById && ticket.createdById !== actorId) {
-    recipientIds.push(ticket.createdById as string);
+  if (ticket.createdById && String(ticket.createdById) !== actorStr) {
+    recipientIds.push(String(ticket.createdById));
   }
   const assigneeIds = await getAssigneeIds(ticketId);
   for (const id of assigneeIds) {
-    if (id !== actorId && !recipientIds.includes(id)) {
-      recipientIds.push(id);
+    const idStr = String(id);
+    if (idStr !== actorStr && !recipientIds.includes(idStr)) {
+      recipientIds.push(idStr);
     }
   }
 
@@ -97,15 +122,30 @@ export async function notifyComment(
   const ticket = await getTicketById(ticketId as any);
   if (!ticket) return;
 
+  const commenterStr = commenterId != null ? String(commenterId) : null;
   const recipientIds: string[] = [];
-  if (ticket.createdById && ticket.createdById !== commenterId) {
-    recipientIds.push(ticket.createdById as string);
+  if (ticket.createdById && String(ticket.createdById) !== commenterStr) {
+    recipientIds.push(String(ticket.createdById));
   }
   const assigneeIds = await getAssigneeIds(ticketId);
   for (const id of assigneeIds) {
-    if (id !== commenterId && !recipientIds.includes(id)) {
-      recipientIds.push(id);
+    const idStr = String(id);
+    if (idStr !== commenterStr && !recipientIds.includes(idStr)) {
+      recipientIds.push(idStr);
     }
+  }
+
+  if (process.env.NOTIFY_DEBUG === "1") {
+    console.log(
+      "[notify.comment] ticket=",
+      ticket.ticketNumber,
+      "creator=",
+      ticket.createdById,
+      "commenter=",
+      commenterStr,
+      "recipients=",
+      recipientIds
+    );
   }
 
   if (recipientIds.length === 0) return;
@@ -287,14 +327,16 @@ export async function notifyDueDateChanged(
   const ticket = await getTicketById(ticketId as any);
   if (!ticket) return;
 
+  const actorStr = actorId != null ? String(actorId) : null;
   const recipientIds: string[] = [];
-  if (ticket.createdById && ticket.createdById !== actorId) {
-    recipientIds.push(ticket.createdById as string);
+  if (ticket.createdById && String(ticket.createdById) !== actorStr) {
+    recipientIds.push(String(ticket.createdById));
   }
   const assigneeIds = await getAssigneeIds(ticketId);
   for (const id of assigneeIds) {
-    if (id !== actorId && !recipientIds.includes(id)) {
-      recipientIds.push(id);
+    const idStr = String(id);
+    if (idStr !== actorStr && !recipientIds.includes(idStr)) {
+      recipientIds.push(idStr);
     }
   }
 
@@ -311,6 +353,43 @@ export async function notifyDueDateChanged(
   );
 }
 
+// === Trigger: Priority Changed ===
+
+export async function notifyPriorityChanged(
+  ticketId: number | string,
+  oldPriority: string,
+  newPriority: string,
+  actorId: number | string | null
+): Promise<void> {
+  const ticket = await getTicketById(ticketId as any);
+  if (!ticket) return;
+
+  const actorStr = actorId != null ? String(actorId) : null;
+  const recipientIds: string[] = [];
+  if (ticket.createdById && String(ticket.createdById) !== actorStr) {
+    recipientIds.push(String(ticket.createdById));
+  }
+  const assigneeIds = await getAssigneeIds(ticketId);
+  for (const id of assigneeIds) {
+    const idStr = String(id);
+    if (idStr !== actorStr && !recipientIds.includes(idStr)) {
+      recipientIds.push(idStr);
+    }
+  }
+
+  if (recipientIds.length === 0) return;
+
+  const label = (p: string) => p.replace(/_/g, " ");
+  await createBulkNotifications(
+    recipientIds,
+    ticketId,
+    "priority_changed",
+    `${ticket.ticketNumber} priority changed`,
+    `${label(oldPriority)} → ${label(newPriority)}`,
+    ticketLink(ticketId)
+  );
+}
+
 // === Trigger: Ticket Closed ===
 
 export async function notifyTicketClosed(
@@ -320,14 +399,16 @@ export async function notifyTicketClosed(
   const ticket = await getTicketById(ticketId as any);
   if (!ticket) return;
 
+  const actorStr = actorId != null ? String(actorId) : null;
   const recipientIds: string[] = [];
-  if (ticket.createdById && ticket.createdById !== actorId) {
-    recipientIds.push(ticket.createdById as string);
+  if (ticket.createdById && String(ticket.createdById) !== actorStr) {
+    recipientIds.push(String(ticket.createdById));
   }
   const assigneeIds = await getAssigneeIds(ticketId);
   for (const id of assigneeIds) {
-    if (id !== actorId && !recipientIds.includes(id)) {
-      recipientIds.push(id);
+    const idStr = String(id);
+    if (idStr !== actorStr && !recipientIds.includes(idStr)) {
+      recipientIds.push(idStr);
     }
   }
 
@@ -449,9 +530,10 @@ export async function notifyTeamAnnouncement(
 ): Promise<void> {
   const convex = getConvexClient();
   const members = await convex.query(api.teamMembers.list, {});
+  const authorStr = String(authorId);
   const recipientIds = members
-    .filter((m: any) => m.active !== false && m._id !== String(authorId))
-    .map((m: any) => m._id as string);
+    .filter((m: any) => m.active !== false && String(m._id) !== authorStr)
+    .map((m: any) => String(m._id));
 
   if (recipientIds.length === 0) return;
 
@@ -462,5 +544,53 @@ export async function notifyTeamAnnouncement(
     "New team announcement",
     title,
     "/admin/bulletin"
+  );
+}
+
+// === Trigger: New Client Added ===
+
+export async function notifyClientAdded(
+  clientId: string,
+  clientName: string,
+  body: string,
+  actorId: number | string
+): Promise<void> {
+  const convex = getConvexClient();
+  const members = await convex.query(api.teamMembers.list, {});
+  const actorStr = String(actorId);
+  const recipientIds = members
+    .filter((m: any) => m.active !== false && String(m._id) !== actorStr)
+    .map((m: any) => String(m._id));
+
+  if (recipientIds.length === 0) return;
+
+  await createBulkNotifications(
+    recipientIds,
+    null,
+    "client_added",
+    `New client: ${clientName}`,
+    body,
+    `/admin/clients/${clientId}`
+  );
+}
+
+// === Trigger: High-Intent Visitor ===
+
+export async function notifyHighIntentVisitor(
+  recipientId: string,
+  roleLevel: string | undefined,
+  companyName: string,
+  visitCount: number,
+  pagePath: string
+): Promise<void> {
+  await createNotification(
+    recipientId,
+    null,
+    "high_intent_visitor",
+    `${companyName} is back on your website`,
+    `Visit #${visitCount}. They viewed ${pagePath}. Consider reaching out.`,
+    "/admin/crm/traffic",
+    undefined,
+    roleLevel
   );
 }

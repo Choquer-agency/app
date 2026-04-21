@@ -15,11 +15,14 @@ export type PreferenceKey =
   | "ticket_overdue"
   | "ticket_due_date_changed"
   | "ticket_closed"
+  | "ticket_priority_changed"
   | "vacation_requested"
   | "vacation_resolved"
   | "time_adjustment_requested"
   | "time_adjustment_resolved"
   | "team_announcement"
+  | "client_added"
+  | "visitor_high_intent"
   | "hour_cap_warning"
   | "hour_cap_exceeded"
   | "runaway_timer"
@@ -37,13 +40,16 @@ const EMPLOYEE_DEFAULTS: Record<PreferenceKey, boolean> = {
   ticket_mention: true,
   ticket_due_soon: true,
   ticket_overdue: true,
-  ticket_due_date_changed: false,
+  ticket_due_date_changed: true,
   ticket_closed: false,
+  ticket_priority_changed: true,
   vacation_requested: false,
   vacation_resolved: true,
   time_adjustment_requested: false,
   time_adjustment_resolved: true,
   team_announcement: false,
+  client_added: true,
+  visitor_high_intent: false,
   hour_cap_warning: false,
   hour_cap_exceeded: false,
   runaway_timer: false,
@@ -59,6 +65,8 @@ const OWNER_EXTRAS: Partial<Record<PreferenceKey, boolean>> = {
   package_changed: true,
   hour_cap_warning: true,
   hour_cap_exceeded: true,
+  visitor_high_intent: true,
+  team_announcement: true,
 };
 
 // Backward compat export — equals employee defaults
@@ -105,6 +113,12 @@ export function getPreferenceKey(
       return "ticket_due_date_changed";
     case "ticket_closed":
       return "ticket_closed";
+    case "priority_changed":
+      return "ticket_priority_changed";
+    case "client_added":
+      return "client_added";
+    case "high_intent_visitor":
+      return "visitor_high_intent";
     case "vacation_requested":
       return "vacation_requested";
     case "vacation_resolved":

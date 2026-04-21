@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Ticket, TicketStatus, TicketPriority, TeamMember, ProjectGroup } from "@/types";
 import { docToTicket } from "@/lib/ticket-mappers";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import FilterDropdown from "./FilterDropdown";
 import StatusDropdown from "./StatusDropdown";
 import { PriorityDropdown } from "./TicketPriorityBadge";
@@ -60,6 +61,7 @@ export default function TicketCreateModal({
   const [error, setError] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const createTicket = useMutation(api.tickets.create);
+  const { userId: currentUserId } = useCurrentUser();
 
   // Auto-focus title
   useEffect(() => {
@@ -133,6 +135,7 @@ export default function TicketCreateModal({
       if (defaultIsMeeting) args.isMeeting = true;
       if (defaultServiceCategory) args.serviceCategory = defaultServiceCategory;
       if (groupId) args.groupId = groupId;
+      if (currentUserId) args.createdById = currentUserId as Id<"teamMembers">;
 
       const result = await createTicket(args as never);
       onCreated(docToTicket(result));

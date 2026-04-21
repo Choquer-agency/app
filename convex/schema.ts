@@ -529,6 +529,7 @@ export default defineSchema({
     ticket_overdue: v.optional(v.boolean()),
     ticket_due_date_changed: v.optional(v.boolean()),
     ticket_closed: v.optional(v.boolean()),
+    ticket_priority_changed: v.optional(v.boolean()),
 
     // Timesheet & HR notifications
     vacation_requested: v.optional(v.boolean()),
@@ -536,6 +537,12 @@ export default defineSchema({
     time_adjustment_requested: v.optional(v.boolean()),
     time_adjustment_resolved: v.optional(v.boolean()),
     team_announcement: v.optional(v.boolean()),
+
+    // Client notifications
+    client_added: v.optional(v.boolean()),
+
+    // Visitor notifications
+    visitor_high_intent: v.optional(v.boolean()),
 
     // Operational notifications
     hour_cap_warning: v.optional(v.boolean()),

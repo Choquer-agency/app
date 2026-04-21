@@ -38,11 +38,24 @@ export async function createNotification(
   roleLevel?: string
 ): Promise<Notification | null> {
   try {
-    // Check user preferences before sending
-    const allowed = await shouldNotify(String(recipientId), type, metadata, roleLevel);
+    const convex = getConvexClient();
+
+    // Resolve role level so shouldNotify() applies role-aware defaults.
+    let effectiveRole = roleLevel;
+    if (!effectiveRole) {
+      try {
+        const member = await convex.query(api.teamMembers.getById, {
+          id: recipientId as any,
+        });
+        effectiveRole = (member as any)?.roleLevel;
+      } catch {
+        // Non-fatal — shouldNotify falls back to employee defaults
+      }
+    }
+
+    const allowed = await shouldNotify(String(recipientId), type, metadata, effectiveRole);
     if (!allowed) return null;
 
-    const convex = getConvexClient();
     const doc = await convex.mutation(api.notifications.create, {
       recipientId: recipientId as any,
       ticketId: ticketId ? (ticketId as any) : undefined,
@@ -67,10 +80,28 @@ export async function createBulkNotifications(
   link: string,
   metadata?: NotificationMetadata
 ): Promise<void> {
-  clearPrefsCache(); // Clear cache at start of bulk operation
+  clearPrefsCache();
   const unique = [...new Set(recipientIds.filter((id) => id != null))];
+  if (unique.length === 0) return;
+
+  // Batch-fetch roleLevel for all recipients so shouldNotify() uses role-aware defaults.
+  // Without this, owner/c_suite recipients silently inherit employee defaults.
+  let roleMap = new Map<string, string>();
+  try {
+    const convex = getConvexClient();
+    const members = await convex.query(api.teamMembers.list, { activeOnly: false });
+    for (const m of members as any[]) {
+      if (m._id && m.roleLevel) {
+        roleMap.set(String(m._id), m.roleLevel as string);
+      }
+    }
+  } catch (err) {
+    console.error("[notifications] Failed to fetch team roles for bulk fan-out:", err);
+  }
+
   for (const recipientId of unique) {
-    await createNotification(recipientId, ticketId, type, title, body, link, metadata);
+    const roleLevel = roleMap.get(String(recipientId));
+    await createNotification(recipientId, ticketId, type, title, body, link, metadata, roleLevel);
   }
 }
 

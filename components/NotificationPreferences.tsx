@@ -27,15 +27,18 @@ const PREF_KEYS = [
   "ticket_overdue",
   "ticket_due_date_changed",
   "ticket_closed",
+  "ticket_priority_changed",
   "vacation_requested",
   "vacation_resolved",
   "time_adjustment_requested",
   "time_adjustment_resolved",
   "team_announcement",
+  "client_added",
   "hour_cap_warning",
   "hour_cap_exceeded",
   "runaway_timer",
   "package_changed",
+  "visitor_high_intent",
 ] as const;
 
 type PrefKey = (typeof PREF_KEYS)[number];
@@ -53,6 +56,15 @@ const TICKET_TOGGLES: ToggleItem[] = [
   { key: "ticket_overdue", label: "Ticket overdue", description: "When a ticket passes its due date" },
   { key: "ticket_due_date_changed", label: "Due date changed", description: "When the due date is adjusted on your ticket" },
   { key: "ticket_closed", label: "Ticket closed", description: "When a ticket you're involved with is closed" },
+  { key: "ticket_priority_changed", label: "Priority changed", description: "When the priority changes on a ticket you created or are assigned to" },
+];
+
+const CLIENT_TOGGLES: ToggleItem[] = [
+  { key: "client_added", label: "New client added", description: "Celebrate when a new client is signed to the agency" },
+];
+
+const VISITOR_TOGGLES: ToggleItem[] = [
+  { key: "visitor_high_intent", label: "High-intent visitor", description: "When an identified company shows high purchase intent on the site", minRole: "c_suite" as RoleLevel },
 ];
 
 const HR_TOGGLES: ToggleItem[] = [
@@ -272,9 +284,25 @@ export default function NotificationPreferences({
       />
 
       <ToggleGroup
+        title="Clients"
+        description="Celebrations and announcements when new clients are signed."
+        items={filterToggles(CLIENT_TOGGLES)}
+        prefs={prefs}
+        onToggle={handleToggle}
+      />
+
+      <ToggleGroup
         title="Operational"
         description="Hour caps, runaway timers, and other operational alerts."
         items={filterToggles(OPERATIONAL_TOGGLES)}
+        prefs={prefs}
+        onToggle={handleToggle}
+      />
+
+      <ToggleGroup
+        title="Website Visitors"
+        description="Alerts when identified companies visit the site with high purchase intent."
+        items={filterToggles(VISITOR_TOGGLES)}
         prefs={prefs}
         onToggle={handleToggle}
       />

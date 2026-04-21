@@ -467,12 +467,15 @@ export type NotificationType =
   | "ticket_created"
   | "due_date_changed"
   | "ticket_closed"
+  | "priority_changed"
   | "vacation_requested"
   | "vacation_resolved"
   | "time_adjustment_requested"
   | "time_adjustment_resolved"
   | "team_announcement"
-  | "package_changed";
+  | "package_changed"
+  | "high_intent_visitor"
+  | "client_added";
 
 export interface Notification {
   id: string;

@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Ticket, TicketStatus } from "@/types";
 import { docToTicket } from "@/lib/ticket-mappers";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { StatusDot } from "./TicketStatusBadge";
 
 interface TicketQuickAddProps {
@@ -21,6 +22,7 @@ export default function TicketQuickAdd({ status, onCreated, projectId, isPersona
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const createTicketMutation = useMutation(api.tickets.create);
+  const { userId: currentUserId } = useCurrentUser();
 
   useEffect(() => {
     if (active) {
@@ -39,6 +41,7 @@ export default function TicketQuickAdd({ status, onCreated, projectId, isPersona
         status,
         ...(projectId && { projectId: projectId as Id<"projects"> }),
         ...(isPersonal && { isPersonal: true }),
+        ...(currentUserId && { createdById: currentUserId as Id<"teamMembers"> }),
       });
       if (doc) {
         setTitle("");
@@ -125,6 +128,7 @@ export function TicketQuickAddMobile({ status, onCreated, projectId, isPersonal 
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const createTicketMutation = useMutation(api.tickets.create);
+  const { userId: currentUserId } = useCurrentUser();
 
   useEffect(() => {
     if (active) setTimeout(() => inputRef.current?.focus(), 0);
@@ -140,6 +144,7 @@ export function TicketQuickAddMobile({ status, onCreated, projectId, isPersonal 
         status,
         ...(projectId && { projectId: projectId as Id<"projects"> }),
         ...(isPersonal && { isPersonal: true }),
+        ...(currentUserId && { createdById: currentUserId as Id<"teamMembers"> }),
       });
       if (doc) {
         setTitle("");

@@ -22,7 +22,7 @@ interface TicketDetailModalProps {
 }
 
 function formatCreatedDate(isoString: string): string {
-  return `Created ${friendlyDate(isoString)}`;
+  return `Created ${friendlyDate(isoString.slice(0, 10))}`;
 }
 
 export default function TicketDetailModal({
