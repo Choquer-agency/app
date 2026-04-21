@@ -60,17 +60,15 @@ export function useTickets({
 
   // Sub-tickets are normally hidden at the top level (they render nested under
   // their parent). On personal/assignee boards we keep them so someone who owns
-  // only a sub-ticket still sees their work. On the main list, we still surface
-  // sub-tickets whose parent is hidden by other filters (future startDate,
-  // archived, etc.) — otherwise they vanish from view entirely.
+  // only a sub-ticket still sees their work.
   const effectiveAssigneeIdForFilter = filters.assigneeId || assigneeId;
-  const tickets = useMemo(() => {
-    if (!raw) return [];
-    const mapped = raw.map(docToTicket);
-    if (effectiveAssigneeIdForFilter) return mapped;
-    const visibleIds = new Set(mapped.map((t) => t.id));
-    return mapped.filter((t) => !t.parentTicketId || !visibleIds.has(t.parentTicketId));
-  }, [raw, effectiveAssigneeIdForFilter]);
+  const tickets = useMemo(
+    () =>
+      raw
+        ?.map(docToTicket)
+        .filter((t) => (effectiveAssigneeIdForFilter ? true : !t.parentTicketId)) ?? [],
+    [raw, effectiveAssigneeIdForFilter]
+  );
 
   return { tickets, isLoading: raw === undefined };
 }
