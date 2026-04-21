@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Ticket, TicketFilters as Filters, TicketStatus, TicketPriority, SavedView, TeamMember, ProjectGroup, isOverdueEligible } from "@/types";
@@ -195,6 +195,7 @@ function SubTicketRows({
   onAssigneeToggle,
   onDueDateChange,
   onPriorityChange,
+  activeByTicket,
 }: {
   parentTicketId: string;
   selectedIds: Set<string>;
@@ -206,6 +207,7 @@ function SubTicketRows({
   onAssigneeToggle: (ticketId: string, memberId: string, action: "add" | "remove") => void;
   onDueDateChange: (id: string, date: string | null) => void;
   onPriorityChange: (id: string, priority: TicketPriority) => void;
+  activeByTicket: Map<string, Set<string>>;
 }) {
   const { subTickets, isLoading } = useSubTickets(parentTicketId);
 
@@ -255,7 +257,7 @@ function SubTicketRows({
             <TimeTracker ticketId={sub.id} onTimerChange={() => window.dispatchEvent(new CustomEvent("timerChange"))} />
           </td>
           <td className="px-2 py-3">
-            <AssigneeDropdown ticketId={sub.id} assignees={sub.assignees || []} teamMembers={teamMembers} onToggle={onAssigneeToggle} />
+            <AssigneeDropdown ticketId={sub.id} assignees={sub.assignees || []} teamMembers={teamMembers} onToggle={onAssigneeToggle} activeMemberIds={activeByTicket.get(sub.id)} />
           </td>
           <td className="px-0 py-0 w-[68px] whitespace-nowrap">
             <DatePicker value={sub.dueDate} onChange={(d) => onDueDateChange(sub.id, d)} placeholder="\u2014" displayFormat="short" className="w-full h-full px-2 py-3 block whitespace-nowrap" />
@@ -283,6 +285,19 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
   const bulkUpdateStatus = useMutation(api.tickets.bulkUpdateStatus);
   const bulkAssign = useMutation(api.tickets.bulkAssign);
   const reorderTickets = useMutation(api.tickets.reorder);
+
+  // Live map of ticketId → set of team members actively tracking time on
+  // that ticket. Drives the red pulsing dot on assignee avatars.
+  const runningTimers = useQuery(api.timeEntries.listRunningAcrossTeam, {});
+  const activeByTicket = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const t of runningTimers ?? []) {
+      const key = String(t.ticketId);
+      if (!map.has(key)) map.set(key, new Set());
+      map.get(key)!.add(String(t.teamMemberId));
+    }
+    return map;
+  }, [runningTimers]);
   const [projectGroups, setProjectGroups] = useState<ProjectGroup[]>([]);
   const [filters, setFilters] = useState<Filters>({ archived: false });
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
@@ -1246,6 +1261,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                       assignees={ticket.assignees || []}
                                       teamMembers={teamMembers}
                                       onToggle={handleAssigneeToggle}
+                                      activeMemberIds={activeByTicket.get(ticket.id)}
                                     />
                                   </div>
                                 </td>
@@ -1290,6 +1306,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                   assignees={ticket.assignees || []}
                                   teamMembers={teamMembers}
                                   onToggle={handleAssigneeToggle}
+                                  activeMemberIds={activeByTicket.get(ticket.id)}
                                 />
                               </td>
                               {/* Due Date */}
@@ -1325,6 +1342,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                 onAssigneeToggle={handleAssigneeToggle}
                                 onDueDateChange={handleDueDateChange}
                                 onPriorityChange={handlePriorityChange}
+                                activeByTicket={activeByTicket}
                               />
                             )}
                             </React.Fragment>
@@ -1396,6 +1414,7 @@ export default function TicketListView({ projectId, clientId, isPersonal, ownerI
                                   assignees={ticket.assignees || []}
                                   max={4}
                                   size="sm"
+                                  activeMemberIds={activeByTicket.get(ticket.id)}
                                 />
                               </div>
                             </div>

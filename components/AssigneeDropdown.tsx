@@ -14,11 +14,13 @@ export default function AssigneeDropdown({
   assignees,
   teamMembers,
   onToggle,
+  activeMemberIds,
 }: {
   ticketId: string;
   assignees: TicketAssignee[];
   teamMembers: TeamMember[];
   onToggle: (ticketId: string, memberId: string, action: "add" | "remove") => void;
+  activeMemberIds?: ReadonlySet<string>;
 }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
@@ -64,7 +66,7 @@ export default function AssigneeDropdown({
         onClick={toggleOpen}
         className="cursor-pointer focus:outline-none"
       >
-        <TicketAssigneeAvatars assignees={assignees} max={4} size="sm" />
+        <TicketAssigneeAvatars assignees={assignees} max={4} size="sm" activeMemberIds={activeMemberIds} />
       </div>
       {open &&
         typeof document !== "undefined" &&

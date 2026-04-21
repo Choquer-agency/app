@@ -140,6 +140,19 @@ h1 {
   animation: fade-in 0.2s ease-out;
 }
 
+/* Pulsing red halo for the "actively tracking time" dot on assignee avatars */
+@keyframes timer-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.0);
+  }
+}
+.animate-timer-pulse {
+  animation: timer-pulse 1.6s ease-in-out infinite;
+}
+
 /* Notion-style clean aesthetic */
 ::selection {
   background: var(--accent-light);

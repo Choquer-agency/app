@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { TimeEntry } from "@/types";
 import TimePopup from "./TimePopup";
+import { useSession } from "@/hooks/useSession";
 
 interface TimeTrackerProps {
   ticketId: string;
@@ -38,6 +39,8 @@ export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProp
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const clockButtonRef = useRef<HTMLDivElement>(null);
+  const session = useSession();
+  const currentMemberId = session?.teamMemberId ?? null;
 
   // Real-time Convex subscription — auto-updates when timers start/stop
   const rawEntries = useQuery(api.timeEntries.listByTicket, {
@@ -60,7 +63,12 @@ export default function TimeTracker({ ticketId, onTimerChange }: TimeTrackerProp
     })),
   [rawEntries]);
 
-  const runningEntry = entries.find((e) => e.endTime === null);
+  // Only the current user's running timer drives the play/stop button —
+  // teammates' active timers live on their avatar's red dot instead, so
+  // anyone can start their own timer on the same ticket concurrently.
+  const runningEntry = entries.find(
+    (e) => e.endTime === null && String(e.teamMemberId) === String(currentMemberId)
+  );
   const running = !!runningEntry;
   const runningEntryId = runningEntry?.id ?? null;
   const startTime = runningEntry?.startTime ?? null;

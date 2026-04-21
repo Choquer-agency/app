@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { ServiceBoardEntry, ServiceBoardStatus, Ticket, TeamMember, TicketStatus, TicketPriority } from "@/types";
 import MonthPicker from "./MonthPicker";
 import HourCountdown from "./HourCountdown";
@@ -33,6 +35,19 @@ export default function RetainerBoard() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForClientId, setCreateForClientId] = useState<number | null>(null);
   const { teamMembers } = useTeamMembers(false);
+
+  // Live map of ticketId → set of team members actively tracking time on
+  // that ticket. Drives the red pulsing dot on assignee avatars.
+  const runningTimers = useQuery(api.timeEntries.listRunningAcrossTeam, {});
+  const activeByTicket = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const t of runningTimers ?? []) {
+      const key = String(t.ticketId);
+      if (!map.has(key)) map.set(key, new Set());
+      map.get(key)!.add(String(t.teamMemberId));
+    }
+    return map;
+  }, [runningTimers]);
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -275,6 +290,7 @@ export default function RetainerBoard() {
                                   assignees={ticket.assignees || []}
                                   teamMembers={teamMembers}
                                   onToggle={handleAssigneeToggle}
+                                  activeMemberIds={activeByTicket.get(ticket.id)}
                                 />
                               </td>
                               <td className="px-0 py-0" onClick={(e) => e.stopPropagation()}>

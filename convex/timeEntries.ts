@@ -294,9 +294,8 @@ export const listAll = query({
 });
 
 // List running timers for a single team member.
-// There is intentionally no cross-team "list all running timers" query —
-// running timers are private per user. Runaway detection on the server
-// iterates team members and calls getRunning per member.
+// Runaway detection on the server iterates team members and calls
+// getRunning per member.
 export const listRunningByMember = query({
   args: { teamMemberId: v.id("teamMembers") },
   handler: async (ctx, args) => {
@@ -306,5 +305,30 @@ export const listRunningByMember = query({
       .order("desc")
       .take(50);
     return entries.filter((e) => e.endTime === undefined);
+  },
+});
+
+// List every currently-running timer across the team — powers the
+// "who's actively working on this ticket" red-dot indicator on avatars.
+export const listRunningAcrossTeam = query({
+  args: {},
+  handler: async (ctx) => {
+    // Running entries have the most recent startTime, so we walk the
+    // by_start index from newest back until we've cleared the window
+    // of in-flight timers (anything older than ~48h is almost certainly
+    // a runaway and not a genuinely-running timer worth showing).
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const recent = await ctx.db
+      .query("timeEntries")
+      .withIndex("by_start", (q) => q.gte("startTime", cutoff))
+      .collect();
+    return recent
+      .filter((e) => e.endTime === undefined)
+      .map((e) => ({
+        _id: e._id,
+        ticketId: e.ticketId,
+        teamMemberId: e.teamMemberId,
+        startTime: e.startTime,
+      }));
   },
 });
