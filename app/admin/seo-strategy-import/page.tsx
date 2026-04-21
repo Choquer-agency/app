@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function SeoStrategyImportPage() {
   const cookieStore = await cookies();
   const session = getSessionFromCookies(cookieStore);
-  if (!session || session.roleLevel !== "owner") {
+  if (!session || !hasPermission(session.roleLevel, "seo_import:use")) {
     redirect("/admin");
   }
 

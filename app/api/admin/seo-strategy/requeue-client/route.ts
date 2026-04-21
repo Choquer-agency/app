@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!hasPermission(session.roleLevel, "clients:edit")) {
+  if (!hasPermission(session.roleLevel, "seo_import:use")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

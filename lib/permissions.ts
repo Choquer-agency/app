@@ -49,6 +49,8 @@ export type Permission =
   // Clients
   | "clients:view"
   | "clients:edit"
+  // SEO bulk import (one-off Notion migration tool)
+  | "seo_import:use"
   // Tickets
   | "tickets:view"
   | "tickets:edit"
@@ -105,6 +107,7 @@ const PERMISSION_MAP: Record<Permission, RoleLevel> = {
 
   "clients:view": "employee",
   "clients:edit": "bookkeeper",
+  "seo_import:use": "employee",
 
   "tickets:view": "intern",
   "tickets:edit": "intern",
